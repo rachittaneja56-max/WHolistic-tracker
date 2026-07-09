@@ -12,14 +12,16 @@ export const entityTypeOptions = [
 ] as const
 
 export const contentTypeOptions = ["markdown", "blocks", "canvas_json", "code"] as const
-
 export const taskStatusOptions = ["todo", "in_progress", "done"] as const
 export const difficultyOptions = ["easy", "medium", "hard"] as const
+export const relationTypeOptions = ["structural_analogy", "prerequisite", "used_in", "reminds_me_of"] as const
 
 export type EntityType = (typeof entityTypeOptions)[number]
 export type ContentType = (typeof contentTypeOptions)[number]
 export type TaskStatus = (typeof taskStatusOptions)[number]
 export type DsaDifficulty = (typeof difficultyOptions)[number]
+export type RelationType = (typeof relationTypeOptions)[number]
+export type LinkStatus = "agent_suggested" | "confirmed" | "rejected"
 export type EntityMetadata = Record<string, unknown>
 
 export type Entity = {
@@ -43,6 +45,30 @@ export type SimilarEntity = {
   similarity: number
 }
 
+export type LinkCandidate = {
+  id: string
+  title: string | null
+  type: EntityType | null
+  tags: string[]
+  preview: string
+  distance: number
+  similarity: number
+}
+
+export type EntityConnection = {
+  link_id: string
+  relation_type: RelationType | null
+  explanation: string | null
+  status: LinkStatus | null
+  created_at: string | null
+  direction: "incoming" | "outgoing"
+  entity_id: string
+  entity_title: string | null
+  entity_type: EntityType | null
+  entity_tags: string[]
+  entity_preview: string
+}
+
 export type SessionRecord = {
   id: string
   entity_id: string | null
@@ -55,9 +81,9 @@ export type Link = {
   id: string
   from_id: string | null
   to_id: string | null
-  relation_type: string | null
+  relation_type: RelationType | null
   explanation: string | null
-  status: string | null
+  status: LinkStatus | null
   created_at: string | null
 }
 
@@ -107,9 +133,9 @@ export type UpdateEntityPayload = {
 export type CreateLinkPayload = {
   from_id: string
   to_id: string
-  relation_type: "structural_analogy" | "prerequisite" | "used_in" | "reminds_me_of"
+  relation_type: RelationType
   explanation: string
-  status?: "agent_suggested" | "confirmed" | "rejected"
+  status?: LinkStatus
 }
 
 const apiBaseUrl = (import.meta.env.VITE_API_URL ?? "http://localhost:8000").replace(/\/$/, "")
@@ -176,6 +202,14 @@ export function getEntityChildren(entityId: string, query?: Omit<EntitiesQuery, 
 
 export function getSimilarEntities(entityId: string, limit = 5) {
   return request<SimilarEntity[]>(`/entities/${entityId}/similar${buildQueryString({ limit })}`)
+}
+
+export function getLinkCandidates(entityId: string, limit = 8) {
+  return request<LinkCandidate[]>(`/entities/${entityId}/link-candidates${buildQueryString({ limit })}`)
+}
+
+export function getEntityConnections(entityId: string, status: LinkStatus | "" = "confirmed") {
+  return request<EntityConnection[]>(`/entities/${entityId}/connections${buildQueryString({ status })}`)
 }
 
 export function createEntity(payload: CreateEntityPayload) {

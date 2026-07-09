@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import delete, select
-from sqlalchemy.orm import Session
+from sqlalchemy import delete, or_, select
+from sqlalchemy.orm import Session, joinedload
 
 from app.api.activity import record_session
 from app.db.session import get_db
@@ -15,13 +16,24 @@ from app.models.entity import Entity
 from app.models.link import Link
 from app.models.review import Review
 from app.models.session import ActivitySession
-from app.schemas.embedding import EntitySimilarityRead, RefreshAllEmbeddingsRead
+from app.schemas.embedding import EntityConnectionRead, EntityLinkCandidateRead, EntitySimilarityRead, RefreshAllEmbeddingsRead
 from app.schemas.entity import EntityCreate, EntityRead, EntityUpdate
 from app.services.embeddings import get_similar_entities, update_entity_embedding
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/entities", tags=["entities"])
 EMBEDDING_RELEVANT_FIELDS = {"title", "content", "tags", "type", "metadata"}
+PREVIEW_LENGTH = 180
+WHITESPACE_PATTERN = re.compile(r"\s+")
+
+
+def build_content_preview(content: str | None) -> str:
+    cleaned = WHITESPACE_PATTERN.sub(" ", (content or "").strip())
+    if not cleaned:
+        return "No content preview available."
+    if len(cleaned) <= PREVIEW_LENGTH:
+        return cleaned
+    return f"{cleaned[: PREVIEW_LENGTH - 3].rstrip()}..."
 
 
 def serialize_entity(entity: Entity) -> EntityRead:
@@ -40,6 +52,27 @@ def serialize_entity(entity: Entity) -> EntityRead:
             "metadata": entity.entity_metadata or {},
             "has_embedding": entity.embedding is not None,
         }
+    )
+
+
+def serialize_connection(link: Link, current_entity_id: uuid.UUID) -> EntityConnectionRead | None:
+    is_outgoing = link.from_id == current_entity_id
+    connected_entity = link.to_entity if is_outgoing else link.from_entity
+    if connected_entity is None or connected_entity.id is None:
+        return None
+
+    return EntityConnectionRead(
+        link_id=link.id,
+        relation_type=link.relation_type,
+        explanation=link.explanation,
+        status=link.status,
+        created_at=link.created_at.isoformat() if link.created_at else None,
+        direction="outgoing" if is_outgoing else "incoming",
+        entity_id=connected_entity.id,
+        entity_title=connected_entity.title,
+        entity_type=connected_entity.type,
+        entity_tags=connected_entity.tags or [],
+        entity_preview=build_content_preview(connected_entity.content),
     )
 
 
@@ -81,6 +114,18 @@ def try_refresh_entity_embedding(entity_id: uuid.UUID) -> Entity | None:
     except Exception:
         logger.exception("Unable to refresh embedding for entity %s", entity_id)
         return None
+
+
+def get_linked_entity_ids(db: Session, entity_id: uuid.UUID) -> set[uuid.UUID]:
+    links = db.scalars(select(Link).where(or_(Link.from_id == entity_id, Link.to_id == entity_id))).all()
+    linked_entity_ids: set[uuid.UUID] = {entity_id}
+
+    for link in links:
+        counterpart_id = link.to_id if link.from_id == entity_id else link.from_id
+        if counterpart_id is not None:
+            linked_entity_ids.add(counterpart_id)
+
+    return linked_entity_ids
 
 
 @router.get("", response_model=list[EntityRead])
@@ -158,6 +203,65 @@ def refresh_all_entity_embeddings(db: Session = Depends(get_db)) -> RefreshAllEm
         failed_count=len(failed_entity_ids),
         failed_entity_ids=failed_entity_ids,
     )
+
+
+@router.get("/{entity_id}/link-candidates", response_model=list[EntityLinkCandidateRead])
+def list_link_candidates(
+    entity_id: uuid.UUID,
+    limit: int = Query(default=8, ge=1, le=25),
+    db: Session = Depends(get_db),
+) -> list[EntityLinkCandidateRead]:
+    get_entity_or_404(db, entity_id)
+    excluded_entity_ids = get_linked_entity_ids(db, entity_id)
+
+    try:
+        candidates = get_similar_entities(entity_id, db=db, limit=limit, excluded_entity_ids=excluded_entity_ids)
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Entity embedding is missing. Refresh the embedding before viewing link candidates.",
+        ) from exc
+
+    return [
+        EntityLinkCandidateRead(
+            id=candidate.id,
+            title=candidate.title,
+            type=candidate.type,
+            tags=candidate.tags or [],
+            preview=build_content_preview(candidate.content),
+            distance=distance,
+            similarity=1.0 - distance,
+        )
+        for candidate, distance in candidates
+    ]
+
+
+@router.get("/{entity_id}/connections", response_model=list[EntityConnectionRead])
+def list_entity_connections(
+    entity_id: uuid.UUID,
+    status_filter: str | None = Query(default="confirmed", alias="status"),
+    limit: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+) -> list[EntityConnectionRead]:
+    get_entity_or_404(db, entity_id)
+
+    query = (
+        select(Link)
+        .options(joinedload(Link.from_entity), joinedload(Link.to_entity))
+        .where(or_(Link.from_id == entity_id, Link.to_id == entity_id))
+        .order_by(Link.created_at.desc())
+        .limit(limit)
+    )
+    if status_filter:
+        query = query.where(Link.status == status_filter)
+
+    links = db.scalars(query).all()
+    results: list[EntityConnectionRead] = []
+    for link in links:
+        serialized = serialize_connection(link, entity_id)
+        if serialized is not None:
+            results.append(serialized)
+    return results
 
 
 @router.get("/{entity_id}/children", response_model=list[EntityRead])

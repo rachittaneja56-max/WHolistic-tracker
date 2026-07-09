@@ -54,12 +54,15 @@ def create_link(payload: LinkCreate, db: Session = Depends(get_db)) -> LinkRead:
     from_entity = get_entity_or_400(db, payload.from_id)
     to_entity = get_entity_or_400(db, payload.to_id)
 
+    if payload.from_id == payload.to_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="from_id and to_id cannot be the same")
+
     link = Link(
         id=uuid.uuid4(),
         from_id=payload.from_id,
         to_id=payload.to_id,
         relation_type=payload.relation_type,
-        explanation=payload.explanation.strip(),
+        explanation=payload.explanation,
         status=payload.status,
     )
     db.add(link)
@@ -74,6 +77,7 @@ def create_link(payload: LinkCreate, db: Session = Depends(get_db)) -> LinkRead:
             "linked_entity_title": to_entity.title,
             "linked_entity_type": to_entity.type,
             "relation_type": link.relation_type,
+            "link_status": link.status,
         },
     )
     db.commit()
@@ -90,8 +94,11 @@ def update_link(link_id: uuid.UUID, payload: LinkUpdate, db: Session = Depends(g
         get_entity_or_400(db, updates["from_id"])
     if "to_id" in updates and updates["to_id"] is not None:
         get_entity_or_400(db, updates["to_id"])
-    if "explanation" in updates and updates["explanation"] is not None:
-        updates["explanation"] = updates["explanation"].strip()
+
+    next_from_id = updates.get("from_id", link.from_id)
+    next_to_id = updates.get("to_id", link.to_id)
+    if next_from_id is not None and next_to_id is not None and next_from_id == next_to_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="from_id and to_id cannot be the same")
 
     for field, value in updates.items():
         setattr(link, field, value)

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 import hashlib
 import json
 import logging
 import math
+from pathlib import Path
 import re
 from functools import lru_cache
 from typing import Any, Protocol
@@ -28,7 +30,7 @@ class SentenceTransformerBackend:
     def __init__(self, model_name: str):
         from sentence_transformers import SentenceTransformer
 
-        self._model = SentenceTransformer(model_name)
+        self._model = SentenceTransformer(model_name, local_files_only=True)
 
     def generate(self, text: str) -> list[float]:
         vector = self._model.encode(text, normalize_embeddings=True)
@@ -70,18 +72,16 @@ def get_embedding_backend() -> EmbeddingBackend:
     if settings.embedding_backend == "hash":
         return HashEmbeddingBackend(settings.embedding_dimension)
 
-    if settings.embedding_backend in {"auto", "sentence_transformer"}:
-        try:
-            return SentenceTransformerBackend(settings.embedding_model_name)
-        except Exception:
-            if settings.embedding_backend == "sentence_transformer":
-                raise
-            logger.warning(
-                "Falling back to deterministic hash embeddings because the sentence-transformer backend was unavailable.",
-                exc_info=True,
-            )
+    if settings.embedding_backend == "auto":
+        model_path = Path(settings.embedding_model_name)
+        if model_path.exists():
+            try:
+                return SentenceTransformerBackend(settings.embedding_model_name)
+            except Exception:
+                logger.warning("Falling back to deterministic hash embeddings because the local sentence-transformer backend was unavailable.")
+        return HashEmbeddingBackend(settings.embedding_dimension)
 
-    return HashEmbeddingBackend(settings.embedding_dimension)
+    return SentenceTransformerBackend(settings.embedding_model_name)
 
 
 def serialize_metadata_for_embedding(metadata: dict[str, Any] | None) -> str:
@@ -167,19 +167,26 @@ def update_entity_embedding(entity_id: UUID, db: Session | None = None) -> Entit
             session.close()
 
 
-def get_similar_entities(entity_id: UUID, db: Session, limit: int = 5) -> list[tuple[Entity, float]]:
+def get_similar_entities(
+    entity_id: UUID,
+    db: Session,
+    limit: int = 5,
+    excluded_entity_ids: Iterable[UUID] | None = None,
+) -> list[tuple[Entity, float]]:
     entity = db.get(Entity, entity_id)
     if entity is None:
         raise ValueError("Entity not found")
     if entity.embedding is None:
         raise RuntimeError("Entity does not have an embedding")
 
+    excluded_ids = {entity.id}
+    if excluded_entity_ids is not None:
+        excluded_ids.update(excluded_entity_ids)
+
     distance = Entity.embedding.cosine_distance(entity.embedding).label("distance")
-    rows = db.execute(
-        select(Entity, distance)
-        .where(Entity.id != entity.id)
-        .where(Entity.embedding.is_not(None))
-        .order_by(distance)
-        .limit(limit)
-    ).all()
+    query = select(Entity, distance).where(Entity.embedding.is_not(None))
+    if excluded_ids:
+        query = query.where(Entity.id.notin_(list(excluded_ids)))
+
+    rows = db.execute(query.order_by(distance).limit(limit)).all()
     return [(candidate, float(distance_value)) for candidate, distance_value in rows]

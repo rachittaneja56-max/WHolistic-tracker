@@ -3,10 +3,24 @@ import { Link, useOutletContext, useParams } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { EntityDetailCard } from "@/features/entities/components/entity-detail-card"
 import type { EntitiesLayoutContext } from "@/features/entities/layout-context"
-import { getEntity, getSimilarEntities, refreshEntityEmbedding, type Entity, type SimilarEntity } from "@/lib/api"
+import {
+  createLink,
+  getEntity,
+  getEntityConnections,
+  getLinkCandidates,
+  refreshEntityEmbedding,
+  relationTypeOptions,
+  type Entity,
+  type EntityConnection,
+  type LinkCandidate,
+  type RelationType,
+} from "@/lib/api"
 
 function getLoadErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to load entity."
@@ -16,18 +30,37 @@ function formatScore(value: number) {
   return value.toFixed(4)
 }
 
+function formatConnectionDate(value: string | null) {
+  if (!value) {
+    return "No timestamp"
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value))
+}
+
 export function EntityDetailPage() {
   const params = useParams()
   const entityId = params.entityId
   const { upsertEntityInList } = useOutletContext<EntitiesLayoutContext>()
   const [entity, setEntity] = useState<Entity | null>(null)
-  const [similarEntities, setSimilarEntities] = useState<SimilarEntity[]>([])
+  const [linkCandidates, setLinkCandidates] = useState<LinkCandidate[]>([])
+  const [connections, setConnections] = useState<EntityConnection[]>([])
+  const [selectedCandidate, setSelectedCandidate] = useState<LinkCandidate | null>(null)
+  const [relationType, setRelationType] = useState<RelationType | "">("")
+  const [linkExplanation, setLinkExplanation] = useState("")
   const [isLoading, setIsLoading] = useState(true)
-  const [isSimilarLoading, setIsSimilarLoading] = useState(false)
+  const [isCandidatesLoading, setIsCandidatesLoading] = useState(false)
+  const [isConnectionsLoading, setIsConnectionsLoading] = useState(false)
   const [isRefreshingEmbedding, setIsRefreshingEmbedding] = useState(false)
+  const [isCreatingLink, setIsCreatingLink] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [similarError, setSimilarError] = useState<string | null>(null)
+  const [candidateError, setCandidateError] = useState<string | null>(null)
+  const [connectionsError, setConnectionsError] = useState<string | null>(null)
   const [embeddingActionError, setEmbeddingActionError] = useState<string | null>(null)
+  const [linkActionError, setLinkActionError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!entityId) {
@@ -73,51 +106,92 @@ export function EntityDetailPage() {
 
   useEffect(() => {
     if (!entity?.id) {
-      setSimilarEntities([])
-      setSimilarError(null)
-      setIsSimilarLoading(false)
+      setLinkCandidates([])
+      setCandidateError(null)
+      setIsCandidatesLoading(false)
       return
     }
 
     if (!entity.has_embedding) {
-      setSimilarEntities([])
-      setSimilarError("Embedding is missing. Refresh it to view candidate matches.")
-      setIsSimilarLoading(false)
+      setLinkCandidates([])
+      setCandidateError("Embedding is missing. Refresh it to view link candidates.")
+      setIsCandidatesLoading(false)
       return
     }
 
     const currentEntityId = entity.id
     let isMounted = true
 
-    async function loadSimilarEntities() {
-      setIsSimilarLoading(true)
-      setSimilarError(null)
+    async function loadLinkCandidates() {
+      setIsCandidatesLoading(true)
+      setCandidateError(null)
 
       try {
-        const results = await getSimilarEntities(currentEntityId)
+        const results = await getLinkCandidates(currentEntityId)
         if (!isMounted) {
           return
         }
-        setSimilarEntities(results)
+        setLinkCandidates(results)
       } catch (loadError) {
         if (!isMounted) {
           return
         }
-        setSimilarEntities([])
-        setSimilarError(getLoadErrorMessage(loadError))
+        setLinkCandidates([])
+        setCandidateError(getLoadErrorMessage(loadError))
       } finally {
         if (isMounted) {
-          setIsSimilarLoading(false)
+          setIsCandidatesLoading(false)
         }
       }
     }
 
-    void loadSimilarEntities()
+    void loadLinkCandidates()
 
     return () => {
       isMounted = false
     }
   }, [entity])
+
+  useEffect(() => {
+    if (!entity?.id) {
+      setConnections([])
+      setConnectionsError(null)
+      setIsConnectionsLoading(false)
+      return
+    }
+
+    const currentEntityId = entity.id
+    let isMounted = true
+
+    async function loadConnections() {
+      setIsConnectionsLoading(true)
+      setConnectionsError(null)
+
+      try {
+        const results = await getEntityConnections(currentEntityId)
+        if (!isMounted) {
+          return
+        }
+        setConnections(results)
+      } catch (loadError) {
+        if (!isMounted) {
+          return
+        }
+        setConnections([])
+        setConnectionsError(getLoadErrorMessage(loadError))
+      } finally {
+        if (isMounted) {
+          setIsConnectionsLoading(false)
+        }
+      }
+    }
+
+    void loadConnections()
+
+    return () => {
+      isMounted = false
+    }
+  }, [entity?.id])
 
   async function handleRefreshEmbedding() {
     if (!entityId) {
@@ -136,6 +210,52 @@ export function EntityDetailPage() {
     } finally {
       setIsRefreshingEmbedding(false)
     }
+  }
+
+  async function handleCreateLink() {
+    if (!entity || !selectedCandidate) {
+      return
+    }
+
+    if (!relationType) {
+      setLinkActionError("Relation type is required.")
+      return
+    }
+    if (!linkExplanation.trim()) {
+      setLinkActionError("Explanation is required.")
+      return
+    }
+
+    setIsCreatingLink(true)
+    setLinkActionError(null)
+
+    try {
+      await createLink({
+        from_id: entity.id,
+        to_id: selectedCandidate.id,
+        relation_type: relationType,
+        explanation: linkExplanation.trim(),
+        status: "confirmed",
+      })
+
+      const refreshedConnections = await getEntityConnections(entity.id)
+      setConnections(refreshedConnections)
+      setLinkCandidates((currentCandidates) => currentCandidates.filter((candidate) => candidate.id !== selectedCandidate.id))
+      setSelectedCandidate(null)
+      setRelationType("")
+      setLinkExplanation("")
+    } catch (createError) {
+      setLinkActionError(getLoadErrorMessage(createError))
+    } finally {
+      setIsCreatingLink(false)
+    }
+  }
+
+  function closeLinkModal() {
+    setSelectedCandidate(null)
+    setRelationType("")
+    setLinkExplanation("")
+    setLinkActionError(null)
   }
 
   if (isLoading) {
@@ -172,57 +292,165 @@ export function EntityDetailPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <Button asChild variant="outline">
-        <Link to="/">Back to capture</Link>
-      </Button>
+    <>
+      <div className="space-y-4">
+        <Button asChild variant="outline">
+          <Link to="/">Back to capture</Link>
+        </Button>
 
-      <EntityDetailCard
-        entity={entity}
-        isRefreshingEmbedding={isRefreshingEmbedding}
-        embeddingActionError={embeddingActionError}
-        onRefreshEmbedding={() => void handleRefreshEmbedding()}
-      />
+        <EntityDetailCard
+          entity={entity}
+          isRefreshingEmbedding={isRefreshingEmbedding}
+          embeddingActionError={embeddingActionError}
+          onRefreshEmbedding={() => void handleRefreshEmbedding()}
+        />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-zinc-100">Similar entities</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {isSimilarLoading ? <p className="text-sm text-zinc-500">Finding nearby entities...</p> : null}
-          {!isSimilarLoading && similarError ? <p className="text-sm text-zinc-500">{similarError}</p> : null}
-          {!isSimilarLoading && !similarError && similarEntities.length === 0 ? (
-            <p className="text-sm text-zinc-500">No similar entities were found yet.</p>
-          ) : null}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-zinc-100">Suggested connections</CardTitle>
+            <CardDescription>
+              Similar entities. These are embedding-based candidates. You decide whether a real connection exists.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {isCandidatesLoading ? <p className="text-sm text-zinc-500">Finding embedding-based candidates...</p> : null}
+            {!isCandidatesLoading && candidateError ? <p className="text-sm text-zinc-500">{candidateError}</p> : null}
+            {!isCandidatesLoading && !candidateError && linkCandidates.length === 0 ? (
+              <p className="text-sm text-zinc-500">No suggested connections are available right now.</p>
+            ) : null}
 
-          {!isSimilarLoading && !similarError
-            ? similarEntities.map((result) => (
-                <Link
-                  key={result.entity.id}
-                  to={`/entities/${result.entity.id}`}
-                  className="block rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4 transition-colors hover:border-blue-500/40"
-                >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="blue">{result.entity.type ?? "unknown"}</Badge>
-                        {result.entity.tags.map((tag) => (
-                          <Badge key={tag}>{tag}</Badge>
-                        ))}
+            {!isCandidatesLoading && !candidateError
+              ? linkCandidates.map((candidate) => (
+                  <div key={candidate.id} className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="blue">{candidate.type ?? "unknown"}</Badge>
+                          {candidate.tags.map((tag) => (
+                            <Badge key={tag}>{tag}</Badge>
+                          ))}
+                        </div>
+                        <p className="text-sm font-medium text-zinc-100">{candidate.title ?? "Untitled entity"}</p>
+                        <p className="text-sm text-zinc-300">{candidate.preview}</p>
                       </div>
-                      <p className="text-sm font-medium text-zinc-100">{result.entity.title ?? "Untitled entity"}</p>
-                    </div>
 
-                    <div className="space-y-1 text-right font-mono text-xs text-zinc-500">
-                      <p>similarity {formatScore(result.similarity)}</p>
-                      <p>distance {formatScore(result.distance)}</p>
+                      <div className="flex min-w-[220px] flex-col gap-3">
+                        <div className="space-y-1 font-mono text-xs text-zinc-500 lg:text-right">
+                          <p>similarity {formatScore(candidate.similarity)}</p>
+                          <p>distance {formatScore(candidate.distance)}</p>
+                        </div>
+                        <div className="flex gap-2 lg:justify-end">
+                          <Button asChild size="sm" variant="outline">
+                            <Link to={`/entities/${candidate.id}`}>Open</Link>
+                          </Button>
+                          <Button size="sm" onClick={() => setSelectedCandidate(candidate)}>
+                            Create link
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </Link>
-              ))
-            : null}
-        </CardContent>
-      </Card>
-    </div>
+                ))
+              : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-zinc-100">Existing connections</CardTitle>
+            <CardDescription>Confirmed links live in the shared links table, and the explanation is the most important part.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {isConnectionsLoading ? <p className="text-sm text-zinc-500">Loading existing connections...</p> : null}
+            {!isConnectionsLoading && connectionsError ? <p className="text-sm text-zinc-500">{connectionsError}</p> : null}
+            {!isConnectionsLoading && !connectionsError && connections.length === 0 ? (
+              <p className="text-sm text-zinc-500">No confirmed connections yet.</p>
+            ) : null}
+
+            {!isConnectionsLoading && !connectionsError
+              ? connections.map((connection) => (
+                  <div key={connection.link_id} className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4">
+                    <p className="text-sm leading-7 text-zinc-300">{connection.explanation ?? "No explanation provided."}</p>
+                    <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-2">
+                        <Link to={`/entities/${connection.entity_id}`} className="text-sm font-medium text-zinc-100 hover:text-blue-400">
+                          {connection.entity_title ?? "Untitled entity"}
+                        </Link>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="blue">{connection.entity_type ?? "unknown"}</Badge>
+                          {connection.entity_tags.map((tag) => (
+                            <Badge key={tag}>{tag}</Badge>
+                          ))}
+                        </div>
+                        <p className="text-sm text-zinc-500">{connection.entity_preview}</p>
+                      </div>
+
+                      <div className="space-y-1 font-mono text-xs text-zinc-500 lg:text-right">
+                        <p>{connection.relation_type ?? "unknown_relation"}</p>
+                        <p>{connection.direction}</p>
+                        <p>{connection.status ?? "unknown_status"}</p>
+                        <p>{formatConnectionDate(connection.created_at)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              : null}
+          </CardContent>
+        </Card>
+      </div>
+
+      {selectedCandidate ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <Card className="w-full max-w-2xl">
+            <CardHeader>
+              <CardTitle>Create confirmed link</CardTitle>
+              <CardDescription>
+                You are confirming a real relationship between <span className="text-zinc-100">{entity.title ?? "this entity"}</span> and{" "}
+                <span className="text-zinc-100">{selectedCandidate.title ?? "this candidate"}</span>.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Relation type</Label>
+                <Select value={relationType} onValueChange={(value) => setRelationType(value as RelationType)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select relation type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {relationTypeOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="link-explanation">Explanation</Label>
+                <Textarea
+                  id="link-explanation"
+                  value={linkExplanation}
+                  onChange={(event) => setLinkExplanation(event.target.value)}
+                  placeholder="Explain why this connection exists."
+                />
+              </div>
+
+              {linkActionError ? <p className="text-sm text-red-300">{linkActionError}</p> : null}
+
+              <div className="flex items-center justify-end gap-3">
+                <Button type="button" variant="outline" onClick={closeLinkModal}>
+                  Cancel
+                </Button>
+                <Button type="button" onClick={() => void handleCreateLink()} disabled={isCreatingLink}>
+                  {isCreatingLink ? "Saving..." : "Save confirmed link"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+    </>
   )
 }
+
