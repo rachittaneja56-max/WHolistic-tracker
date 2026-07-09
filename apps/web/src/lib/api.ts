@@ -34,6 +34,13 @@ export type Entity = {
   last_revisited_at: string | null
   created_at: string | null
   metadata: EntityMetadata
+  has_embedding: boolean
+}
+
+export type SimilarEntity = {
+  entity: Entity
+  distance: number
+  similarity: number
 }
 
 export type SessionRecord = {
@@ -59,6 +66,13 @@ export type DashboardToday = {
   recent_sessions: SessionRecord[]
   open_tasks: Entity[]
   upcoming_subject_topics: Entity[]
+}
+
+export type RefreshAllEmbeddingsResult = {
+  total_entities: number
+  refreshed_count: number
+  failed_count: number
+  failed_entity_ids: string[]
 }
 
 export type EntitiesQuery = {
@@ -160,6 +174,10 @@ export function getEntityChildren(entityId: string, query?: Omit<EntitiesQuery, 
   return request<Entity[]>(`/entities/${entityId}/children${buildQueryString(query)}`)
 }
 
+export function getSimilarEntities(entityId: string, limit = 5) {
+  return request<SimilarEntity[]>(`/entities/${entityId}/similar${buildQueryString({ limit })}`)
+}
+
 export function createEntity(payload: CreateEntityPayload) {
   return request<Entity>("/entities", {
     method: "POST",
@@ -171,6 +189,18 @@ export function updateEntity(entityId: string, payload: UpdateEntityPayload) {
   return request<Entity>(`/entities/${entityId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
+  })
+}
+
+export function refreshEntityEmbedding(entityId: string) {
+  return request<Entity>(`/entities/${entityId}/embedding/refresh`, {
+    method: "POST",
+  })
+}
+
+export function refreshAllEntityEmbeddings() {
+  return request<RefreshAllEmbeddingsResult>("/entities/embedding/refresh-all", {
+    method: "POST",
   })
 }
 

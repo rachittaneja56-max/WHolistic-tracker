@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
@@ -14,9 +15,13 @@ from app.models.entity import Entity
 from app.models.link import Link
 from app.models.review import Review
 from app.models.session import ActivitySession
+from app.schemas.embedding import EntitySimilarityRead, RefreshAllEmbeddingsRead
 from app.schemas.entity import EntityCreate, EntityRead, EntityUpdate
+from app.services.embeddings import get_similar_entities, update_entity_embedding
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/entities", tags=["entities"])
+EMBEDDING_RELEVANT_FIELDS = {"title", "content", "tags", "type", "metadata"}
 
 
 def serialize_entity(entity: Entity) -> EntityRead:
@@ -33,6 +38,7 @@ def serialize_entity(entity: Entity) -> EntityRead:
             "last_revisited_at": entity.last_revisited_at,
             "created_at": entity.created_at,
             "metadata": entity.entity_metadata or {},
+            "has_embedding": entity.embedding is not None,
         }
     )
 
@@ -67,6 +73,14 @@ def merge_metadata(current_metadata: dict[str, Any] | None, incoming_metadata: d
     if incoming_metadata is None:
         return current_metadata
     return {**(current_metadata or {}), **incoming_metadata}
+
+
+def try_refresh_entity_embedding(entity_id: uuid.UUID) -> Entity | None:
+    try:
+        return update_entity_embedding(entity_id)
+    except Exception:
+        logger.exception("Unable to refresh embedding for entity %s", entity_id)
+        return None
 
 
 @router.get("", response_model=list[EntityRead])
@@ -119,7 +133,31 @@ def create_entity(payload: EntityCreate, db: Session = Depends(get_db)) -> Entit
     )
     db.commit()
     db.refresh(entity)
-    return serialize_entity(entity)
+
+    refreshed_entity = try_refresh_entity_embedding(entity.id)
+    return serialize_entity(refreshed_entity or entity)
+
+
+@router.post("/embedding/refresh-all", response_model=RefreshAllEmbeddingsRead)
+def refresh_all_entity_embeddings(db: Session = Depends(get_db)) -> RefreshAllEmbeddingsRead:
+    entity_ids = db.scalars(select(Entity.id).order_by(Entity.created_at.asc())).all()
+
+    refreshed_count = 0
+    failed_entity_ids: list[uuid.UUID] = []
+
+    for entity_id in entity_ids:
+        refreshed_entity = try_refresh_entity_embedding(entity_id)
+        if refreshed_entity is None:
+            failed_entity_ids.append(entity_id)
+        else:
+            refreshed_count += 1
+
+    return RefreshAllEmbeddingsRead(
+        total_entities=len(entity_ids),
+        refreshed_count=refreshed_count,
+        failed_count=len(failed_entity_ids),
+        failed_entity_ids=failed_entity_ids,
+    )
 
 
 @router.get("/{entity_id}/children", response_model=list[EntityRead])
@@ -140,6 +178,45 @@ def list_child_entities(
     return [serialize_entity(entity) for entity in children]
 
 
+@router.post("/{entity_id}/embedding/refresh", response_model=EntityRead)
+def refresh_entity_embedding_route(entity_id: uuid.UUID, db: Session = Depends(get_db)) -> EntityRead:
+    get_entity_or_404(db, entity_id)
+
+    try:
+        entity = update_entity_embedding(entity_id, db=db)
+    except Exception as exc:
+        logger.exception("Unable to refresh embedding for entity %s", entity_id)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to refresh embedding") from exc
+
+    return serialize_entity(entity)
+
+
+@router.get("/{entity_id}/similar", response_model=list[EntitySimilarityRead])
+def list_similar_entities(
+    entity_id: uuid.UUID,
+    limit: int = Query(default=5, ge=1, le=25),
+    db: Session = Depends(get_db),
+) -> list[EntitySimilarityRead]:
+    get_entity_or_404(db, entity_id)
+
+    try:
+        similar_entities = get_similar_entities(entity_id, db=db, limit=limit)
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Entity embedding is missing. Refresh the embedding before searching for similar entities.",
+        ) from exc
+
+    return [
+        EntitySimilarityRead(
+            entity=serialize_entity(entity),
+            distance=distance,
+            similarity=1.0 - distance,
+        )
+        for entity, distance in similar_entities
+    ]
+
+
 @router.get("/{entity_id}", response_model=EntityRead)
 def get_entity(entity_id: uuid.UUID, db: Session = Depends(get_db)) -> EntityRead:
     entity = get_entity_or_404(db, entity_id)
@@ -150,6 +227,7 @@ def get_entity(entity_id: uuid.UUID, db: Session = Depends(get_db)) -> EntityRea
 def update_entity(entity_id: uuid.UUID, payload: EntityUpdate, db: Session = Depends(get_db)) -> EntityRead:
     entity = get_entity_or_404(db, entity_id)
     updates = payload.model_dump(exclude_unset=True)
+    should_refresh_embedding = any(field in EMBEDDING_RELEVANT_FIELDS for field in updates)
 
     if "parent_id" in updates and updates["parent_id"] is not None:
         if updates["parent_id"] == entity.id:
@@ -184,6 +262,12 @@ def update_entity(entity_id: uuid.UUID, payload: EntityUpdate, db: Session = Dep
 
     db.commit()
     db.refresh(entity)
+
+    if should_refresh_embedding:
+        refreshed_entity = try_refresh_entity_embedding(entity.id)
+        if refreshed_entity is not None:
+            entity = refreshed_entity
+
     return serialize_entity(entity)
 
 

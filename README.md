@@ -1,18 +1,20 @@
 # Personal Dev KG
 
-Phase 0 foundation for a monorepo with:
+Foundation monorepo for a personal knowledge graph with:
 - `apps/api`: FastAPI + SQLAlchemy + Alembic
 - `apps/web`: React + TypeScript + Vite + Tailwind + shadcn-style UI components
 - `docker-compose.yml`: Postgres with pgvector and Redis
 
 ## What is included
 
-This repo currently implements only the Phase 0 foundation requested in `PROJECT_BRIEF.md`:
+This repo currently covers the core foundation plus the early Phase 1 and Phase 2 substrate pieces requested in `PROJECT_BRIEF.md`:
 - Stable schema tables: `entities`, `links`, `sessions`, `reviews`, `comprehension_checks`
 - FastAPI CRUD for entities, links, and sessions
-- Alembic migration that enables `pgvector` and creates the stable schema
-- React UI with a unified capture form, entity list view, and entity detail view
-- No embeddings pipeline, no agents, no graph UI, no DSA-specific screens, and no project kanban
+- Dashboard and tracker views built on the shared `entities` table
+- Embedding generation pipeline using the existing `entities.embedding` column
+- Vector similarity search foundation for candidate retrieval only
+- React UI with capture, list, detail, tracker, and similar-entity views
+- No agents, no deep connection reasoning, no recall mode, no RAG chat, and no GitHub integration
 
 ## Project shape
 
@@ -23,6 +25,7 @@ This repo currently implements only the Phase 0 foundation requested in `PROJECT
 - `app/db/session.py`
 - `app/models/`
 - `app/schemas/`
+- `app/services/`
 - `app/api/routes/`
 
 ### Frontend
@@ -39,7 +42,7 @@ This repo currently implements only the Phase 0 foundation requested in `PROJECT
 - Node.js 22+
 - npm 11+
 
-## Phase 0 local runbook
+## Local runbook
 
 ### 1. Start local services
 
@@ -68,6 +71,16 @@ alembic upgrade head
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+Optional local semantic backend:
+
+```powershell
+python -m pip install -r requirements-embeddings.txt
+```
+
+By default, `EMBEDDING_BACKEND=auto`:
+- uses `sentence-transformers/all-MiniLM-L6-v2` if the optional dependency is installed and the model can load
+- otherwise falls back to a deterministic 384-dimension local hash embedding backend so entity writes still succeed
+
 Backend URLs:
 - API: `http://localhost:8000`
 - Health check: `http://localhost:8000/health`
@@ -94,7 +107,27 @@ npm run dev
 Frontend URL:
 - App: `http://localhost:5173`
 
-### 4. Verify the Phase 0 flow
+### 4. Refresh embeddings for existing entities
+
+Refresh one entity:
+
+```powershell
+Invoke-WebRequest -Method Post http://localhost:8000/entities/{ENTITY_ID}/embedding/refresh
+```
+
+Refresh every entity:
+
+```powershell
+Invoke-WebRequest -Method Post http://localhost:8000/entities/embedding/refresh-all
+```
+
+Check similar candidates for one entity:
+
+```powershell
+Invoke-WebRequest -UseBasicParsing http://localhost:8000/entities/{ENTITY_ID}/similar
+```
+
+### 5. Verify the current flow
 
 1. Start Docker services.
 2. Run Alembic migrations.
@@ -104,6 +137,9 @@ Frontend URL:
 6. Create an entity from the capture form.
 7. Confirm it appears in the entity list.
 8. Open the entity detail view.
+9. Confirm embedding status appears on the detail page.
+10. Use the `Refresh embedding` button if the embedding is missing.
+11. Confirm the similar entities panel loads candidate matches.
 
 ## Environment variables
 
@@ -116,6 +152,10 @@ APP_ENV=development
 API_HOST=0.0.0.0
 API_PORT=8000
 CORS_ORIGINS=http://localhost:5173
+EMBEDDING_BACKEND=auto
+EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
+EMBEDDING_DIMENSION=384
+EMBEDDING_TEXT_MAX_CHARS=8000
 ```
 
 ### `apps/web/.env`
@@ -128,6 +168,6 @@ VITE_API_URL=http://localhost:8000
 
 - `parent_id` is used only for hierarchy.
 - `links` is reserved for graph-style relationships.
-- The `embedding vector(384)` column exists in the schema, but no embedding generation runs in Phase 0.
-- AI and agent features are intentionally not implemented in this phase.
-- No schema changes are needed beyond the existing Phase 0 migration.
+- Embeddings are used only for candidate retrieval in Phase 2, not for final reasoning.
+- Entity create and update still succeed if embedding generation fails; the entity remains saved with a missing embedding.
+- No schema changes were required beyond the existing Phase 0 migration.

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     api_port: int = 8000
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5433/personal_dev_kg"
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
+    embedding_backend: Literal["auto", "sentence_transformer", "hash"] = "auto"
+    embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_dimension: int = 384
+    embedding_text_max_chars: int = 8000
 
     @field_validator("cors_origins", mode="before")
     @classmethod

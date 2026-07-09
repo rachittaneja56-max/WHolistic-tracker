@@ -60,3 +60,4 @@ class EntityRead(BaseModel):
     last_revisited_at: datetime | None
     created_at: datetime | None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    has_embedding: bool = False
