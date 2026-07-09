@@ -26,6 +26,11 @@ const minConfidenceOptions = [
   { value: "0.75", label: "0.75+" },
 ] as const
 
+const NODE_MIN_SIZE = 92
+const NODE_MAX_SIZE = 140
+const NODE_LABEL_MAX_LINE_LENGTH = 12
+const NODE_LABEL_MAX_LINES = 4
+
 type GraphFilters = {
   type: EntityType | "all"
   tag: string
@@ -36,6 +41,10 @@ type GraphSelection =
   | { kind: "node"; id: string }
   | { kind: "edge"; id: string }
   | null
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
+}
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to load graph data."
@@ -75,15 +84,83 @@ function getNodeColor(type: string | null) {
   }
 }
 
+function splitLongWord(word: string, maxLength: number) {
+  const parts: string[] = []
+
+  for (let start = 0; start < word.length; start += maxLength) {
+    parts.push(word.slice(start, start + maxLength))
+  }
+
+  return parts
+}
+
+function wrapNodeTitle(title: string) {
+  const sanitized = title.trim().replace(/\s+/g, " ")
+  if (!sanitized) {
+    return ["Untitled"]
+  }
+
+  const rawWords = sanitized.split(" ")
+  const words = rawWords.flatMap((word) => (word.length > NODE_LABEL_MAX_LINE_LENGTH ? splitLongWord(word, NODE_LABEL_MAX_LINE_LENGTH) : [word]))
+  const lines: string[] = []
+  let currentLine = ""
+
+  for (const word of words) {
+    const candidate = currentLine ? `${currentLine} ${word}` : word
+    if (candidate.length <= NODE_LABEL_MAX_LINE_LENGTH) {
+      currentLine = candidate
+      continue
+    }
+
+    if (currentLine) {
+      lines.push(currentLine)
+    }
+    currentLine = word
+  }
+
+  if (currentLine) {
+    lines.push(currentLine)
+  }
+
+  const cappedLines = lines.slice(0, NODE_LABEL_MAX_LINES)
+  if (lines.length > NODE_LABEL_MAX_LINES) {
+    const lastLine = cappedLines[cappedLines.length - 1] ?? ""
+    cappedLines[cappedLines.length - 1] = lastLine.length >= NODE_LABEL_MAX_LINE_LENGTH ? `${lastLine.slice(0, NODE_LABEL_MAX_LINE_LENGTH - 1)}…` : `${lastLine}…`
+  }
+
+  return cappedLines
+}
+
+function getNodePresentation(title: string | null) {
+  const lines = wrapNodeTitle(title ?? "Untitled entity")
+  const longestLineLength = lines.reduce((longest, line) => Math.max(longest, line.length), 0)
+  const size = clamp(Math.max(NODE_MIN_SIZE, longestLineLength * 7.2 + 28, lines.length * 19 + 36), NODE_MIN_SIZE, NODE_MAX_SIZE)
+  const fontSize = size >= 122 ? 11 : 10
+
+  return {
+    label: lines.join("\n"),
+    size,
+    fontSize,
+    textWidth: size - 24,
+  }
+}
+
 function buildElements(graph: GraphPayload): ElementDefinition[] {
-  const nodeElements: ElementDefinition[] = graph.nodes.map((node) => ({
-    data: {
-      id: node.id,
-      label: node.title ?? "Untitled entity",
-      opacity: getNodeOpacity(node.confidence_score),
-      color: getNodeColor(node.type),
-    },
-  }))
+  const nodeElements: ElementDefinition[] = graph.nodes.map((node) => {
+    const presentation = getNodePresentation(node.title)
+
+    return {
+      data: {
+        id: node.id,
+        label: presentation.label,
+        opacity: getNodeOpacity(node.confidence_score),
+        color: getNodeColor(node.type),
+        size: presentation.size,
+        fontSize: presentation.fontSize,
+        textWidth: presentation.textWidth,
+      },
+    }
+  })
 
   const edgeElements: ElementDefinition[] = graph.edges
     .filter((edge) => edge.from_id && edge.to_id)
@@ -194,23 +271,29 @@ export function GraphPage() {
       layout: {
         name: "cose",
         animate: false,
-        padding: 28,
+        padding: 36,
+        nodeRepulsion: 180000,
+        idealEdgeLength: 140,
       },
       style: [
         {
           selector: "node",
           style: {
+            shape: "ellipse",
             "background-color": "data(color)",
             label: "data(label)",
             color: "#f4f4f5",
             opacity: "data(opacity)",
-            width: 52,
-            height: 52,
-            "font-size": 11,
+            width: "data(size)",
+            height: "data(size)",
+            "font-size": "data(fontSize)",
+            "font-weight": 500,
             "text-wrap": "wrap",
-            "text-max-width": 120,
+            "text-max-width": "data(textWidth)",
             "text-valign": "center",
             "text-halign": "center",
+            "text-justification": "center",
+            "line-height": 1.1,
             "border-width": 1,
             "border-color": "#27272a",
           },
@@ -300,6 +383,7 @@ export function GraphPage() {
 
   const edgeFromNode = selectedEdge?.from_id ? nodeMap.get(selectedEdge.from_id) ?? null : null
   const edgeToNode = selectedEdge?.to_id ? nodeMap.get(selectedEdge.to_id) ?? null : null
+  const isEmpty = !isLoading && !error && graph.nodes.length === 0
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -388,8 +472,16 @@ export function GraphPage() {
             {error ? <p className="text-sm text-red-300">{error}</p> : null}
             {decayMessage ? <p className="text-sm text-zinc-500">{decayMessage}</p> : null}
 
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950">
+            <div className="relative rounded-xl border border-zinc-800 bg-zinc-950">
               <div ref={containerRef} className="h-[70vh] min-h-[560px] w-full" />
+              {isEmpty ? (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center">
+                  <div className="max-w-md space-y-2 rounded-lg border border-zinc-800 bg-zinc-950/95 px-5 py-4">
+                    <p className="text-sm font-medium text-zinc-100">No graph data yet</p>
+                    <p className="text-sm text-zinc-500">Create an entity and confirm a link to populate the graph. Hierarchy stays out of this view on purpose.</p>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap gap-3 text-xs text-zinc-500">
@@ -486,5 +578,3 @@ export function GraphPage() {
     </div>
   )
 }
-
-

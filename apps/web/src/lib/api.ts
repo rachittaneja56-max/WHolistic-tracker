@@ -124,6 +124,16 @@ export type DashboardToday = {
   upcoming_subject_topics: Entity[]
 }
 
+export type AgentStatus = {
+  ai_enabled: boolean
+  provider_name: string
+  provider_ready: boolean
+  api_key_configured: boolean
+  fast_model: string
+  smart_model: string
+  disabled_reason: string | null
+}
+
 export type RefreshAllEmbeddingsResult = {
   total_entities: number
   refreshed_count: number
@@ -301,4 +311,8 @@ export function createLink(payload: CreateLinkPayload) {
 
 export function getDashboardToday() {
   return request<DashboardToday>("/dashboard/today")
+}
+
+export function getAgentStatus() {
+  return request<AgentStatus>("/agents/status")
 }

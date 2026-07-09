@@ -7,14 +7,15 @@ Foundation monorepo for a personal knowledge graph with:
 
 ## What is included
 
-This repo currently covers the core foundation plus the early Phase 1 and Phase 2 substrate pieces requested in `PROJECT_BRIEF.md`:
+This repo currently covers the core foundation plus the early Phase 1, Phase 2, and Phase 3 infrastructure pieces requested in `PROJECT_BRIEF.md`:
 - Stable schema tables: `entities`, `links`, `sessions`, `reviews`, `comprehension_checks`
 - FastAPI CRUD for entities, links, and sessions
 - Dashboard and tracker views built on the shared `entities` table
 - Embedding generation pipeline using the existing `entities.embedding` column
 - Vector similarity search foundation for candidate retrieval only
-- React UI with capture, list, detail, tracker, and similar-entity views
-- No agents, no deep connection reasoning, no recall mode, no RAG chat, and no GitHub integration
+- Cytoscape graph view with confidence decay support
+- Safe AI provider abstraction, prompt scaffolding, and JSON-only internal agent test infrastructure
+- No full agents, no deep connection reasoning, no recall mode, no RAG chat, and no GitHub integration
 
 ## Project shape
 
@@ -26,6 +27,7 @@ This repo currently covers the core foundation plus the early Phase 1 and Phase 
 - `app/models/`
 - `app/schemas/`
 - `app/services/`
+- `app/agents/`
 - `app/api/routes/`
 
 ### Frontend
@@ -80,6 +82,11 @@ python -m pip install -r requirements-embeddings.txt
 By default, `EMBEDDING_BACKEND=auto`:
 - uses `sentence-transformers/all-MiniLM-L6-v2` if the optional dependency is installed and the model can load
 - otherwise falls back to a deterministic 384-dimension local hash embedding backend so entity writes still succeed
+
+By default, `AI_ENABLED=false`:
+- the backend still starts normally without `OPENAI_API_KEY`
+- `GET /agents/status` reports safe configuration state
+- `POST /agents/test-json` returns a clear disabled message until AI is enabled
 
 Backend URLs:
 - API: `http://localhost:8000`
@@ -145,14 +152,34 @@ Invoke-WebRequest -UseBasicParsing http://localhost:8000/entities/{ENTITY_ID}/si
 
 1. Create at least two entities with overlapping tags or related content.
 2. Open each entity detail page and refresh embeddings if the status is still missing.
-3. Use the Suggested connections panel to create a confirmed link with an explanation.
-4. Open the Graph page from the sidebar.
+3. Use the `Suggested connections` panel to create a confirmed link with an explanation.
+4. Open the `Graph` page from the sidebar.
 5. Confirm the linked entities appear as nodes with a blue confirmed edge between them.
 6. Click the edge and confirm the explanation is visible in the inspector panel.
-7. Run Run confidence decay on the graph page.
-8. Confirm older nodes become more faded as confidence_score drops.
-9. Click a node and use Mark revisited.
-10. Confirm the node confidence returns to 1.0 and the node becomes more visible again.
+7. Run `Run confidence decay` on the graph page.
+8. Confirm older nodes become more faded as `confidence_score` drops.
+9. Click a node and use `Mark revisited`.
+10. Confirm the node confidence returns to `1.0` and the node becomes more visible again.
+
+### 7. Verify the AI safety infrastructure
+
+1. Start the backend without setting `OPENAI_API_KEY`.
+2. Confirm the app still starts and `GET /agents/status` reports a missing key instead of crashing.
+3. Set `AI_ENABLED=false` and call:
+
+```powershell
+Invoke-WebRequest -Method Post -Uri http://localhost:8000/agents/test-json -ContentType 'application/json' -Body '{}'
+```
+
+4. Confirm the endpoint returns a clear disabled message.
+5. Set `AI_ENABLED=true` and configure `OPENAI_API_KEY`.
+6. Call `POST /agents/test-json` again with a small JSON body:
+
+```powershell
+Invoke-WebRequest -Method Post -Uri http://localhost:8000/agents/test-json -ContentType 'application/json' -Body '{"prompt":"Return a short structured output test response."}'
+```
+
+7. Confirm the response is valid JSON and that no entities or links were created or changed.
 
 ## Environment variables
 
@@ -169,6 +196,10 @@ EMBEDDING_BACKEND=auto
 EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
 EMBEDDING_DIMENSION=384
 EMBEDDING_TEXT_MAX_CHARS=8000
+AI_ENABLED=false
+OPENAI_API_KEY=
+OPENAI_MODEL_FAST=gpt-4.1-mini
+OPENAI_MODEL_SMART=gpt-4.1
 ```
 
 ### `apps/web/.env`
@@ -182,7 +213,6 @@ VITE_API_URL=http://localhost:8000
 - `parent_id` is used only for hierarchy.
 - `links` is reserved for graph-style relationships.
 - Embeddings are used only for candidate retrieval in Phase 2, not for final reasoning.
+- Agent infrastructure is limited to provider abstraction, prompt files, status reporting, and JSON-only internal tests.
 - Entity create and update still succeed if embedding generation fails; the entity remains saved with a missing embedding.
 - No schema changes were required beyond the existing Phase 0 migration.
-
-

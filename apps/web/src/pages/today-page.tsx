@@ -4,8 +4,8 @@ import { Link } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getDashboardToday, type DashboardToday } from "@/lib/api"
 import { formatEntityDate, formatExamDate, getEntityExamDate, getEntityStatus } from "@/features/entities/metadata"
+import { getAgentStatus, getDashboardToday, type AgentStatus, type DashboardToday } from "@/lib/api"
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to load today's dashboard."
@@ -21,23 +21,39 @@ function getStatusVariant(status: string | null): "default" | "success" | "warni
   return "default"
 }
 
+function getAiBadgeVariant(isHealthy: boolean): "blue" | "warning" {
+  return isHealthy ? "blue" : "warning"
+}
+
 export function TodayPage() {
   const [summary, setSummary] = useState<DashboardToday | null>(null)
+  const [aiStatus, setAiStatus] = useState<AgentStatus | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [aiStatusError, setAiStatusError] = useState<string | null>(null)
 
   async function loadDashboard() {
     setIsLoading(true)
     setError(null)
+    setAiStatusError(null)
 
-    try {
-      const result = await getDashboardToday()
-      setSummary(result)
-    } catch (loadError) {
-      setError(getErrorMessage(loadError))
-    } finally {
-      setIsLoading(false)
+    const [dashboardResult, agentStatusResult] = await Promise.allSettled([getDashboardToday(), getAgentStatus()])
+
+    if (dashboardResult.status === "fulfilled") {
+      setSummary(dashboardResult.value)
+    } else {
+      setSummary(null)
+      setError(getErrorMessage(dashboardResult.reason))
     }
+
+    if (agentStatusResult.status === "fulfilled") {
+      setAiStatus(agentStatusResult.value)
+    } else {
+      setAiStatus(null)
+      setAiStatusError(getErrorMessage(agentStatusResult.reason))
+    }
+
+    setIsLoading(false)
   }
 
   useEffect(() => {
@@ -140,7 +156,7 @@ export function TodayPage() {
       <Card>
         <CardHeader>
           <CardTitle>Today</CardTitle>
-          <CardDescription>Loading Phase 1 tracker summaries...</CardDescription>
+          <CardDescription>Loading dashboard and AI safety status...</CardDescription>
         </CardHeader>
       </Card>
     )
@@ -164,16 +180,69 @@ export function TodayPage() {
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-2">
-      {sections.map((section) => (
-        <Card key={section.title}>
-          <CardHeader>
-            <CardTitle>{section.title}</CardTitle>
-            <CardDescription>{section.description}</CardDescription>
-          </CardHeader>
-          <CardContent>{section.content}</CardContent>
-        </Card>
-      ))}
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>AI Status</CardTitle>
+          <CardDescription>Phase 3 infrastructure only. Agents are not active yet, and no secrets are exposed here.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {aiStatus ? (
+            <>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">AI enabled</p>
+                  <div className="mt-2">
+                    <Badge variant={getAiBadgeVariant(aiStatus.ai_enabled)}>{aiStatus.ai_enabled ? "enabled" : "disabled"}</Badge>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Provider ready</p>
+                  <div className="mt-2">
+                    <Badge variant={getAiBadgeVariant(aiStatus.provider_ready)}>{aiStatus.provider_ready ? "ready" : "not ready"}</Badge>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">API key</p>
+                  <div className="mt-2">
+                    <Badge variant={getAiBadgeVariant(aiStatus.api_key_configured)}>{aiStatus.api_key_configured ? "configured" : "missing"}</Badge>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Fast model</p>
+                  <p className="mt-2 font-mono text-sm text-zinc-100">{aiStatus.fast_model}</p>
+                </div>
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Smart model</p>
+                  <p className="mt-2 font-mono text-sm text-zinc-100">{aiStatus.smart_model}</p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Provider</p>
+                <p className="mt-2 font-mono text-sm text-zinc-100">{aiStatus.provider_name}</p>
+                <p className="mt-2 text-sm text-zinc-500">{aiStatus.disabled_reason ?? "Provider configuration looks healthy for JSON-only internal tests."}</p>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-zinc-500">AI status is unavailable right now.</p>
+          )}
+
+          {aiStatusError ? <p className="text-sm text-amber-300">{aiStatusError}</p> : null}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        {sections.map((section) => (
+          <Card key={section.title}>
+            <CardHeader>
+              <CardTitle>{section.title}</CardTitle>
+              <CardDescription>{section.description}</CardDescription>
+            </CardHeader>
+            <CardContent>{section.content}</CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   )
 }
