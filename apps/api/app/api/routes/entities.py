@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.api.activity import record_session
 from app.db.session import get_db
 from app.models.comprehension_check import ComprehensionCheck
 from app.models.entity import Entity
@@ -42,15 +44,48 @@ def get_entity_or_404(db: Session, entity_id: uuid.UUID) -> Entity:
     return entity
 
 
+def apply_entity_filters(
+    query,
+    *,
+    entity_type: str | None = None,
+    parent_id: uuid.UUID | None = None,
+    tag: str | None = None,
+    metadata_status: str | None = None,
+):
+    if entity_type:
+        query = query.where(Entity.type == entity_type)
+    if parent_id is not None:
+        query = query.where(Entity.parent_id == parent_id)
+    if tag:
+        query = query.where(Entity.tags.any(tag))
+    if metadata_status:
+        query = query.where(Entity.entity_metadata.contains({"status": metadata_status}))
+    return query
+
+
+def merge_metadata(current_metadata: dict[str, Any] | None, incoming_metadata: dict[str, Any] | None) -> dict[str, Any] | None:
+    if incoming_metadata is None:
+        return current_metadata
+    return {**(current_metadata or {}), **incoming_metadata}
+
+
 @router.get("", response_model=list[EntityRead])
 def list_entities(
     entity_type: str | None = Query(default=None, alias="type"),
+    parent_id: uuid.UUID | None = Query(default=None),
+    tag: str | None = Query(default=None),
+    metadata_status: str | None = Query(default=None, alias="status"),
     limit: int = Query(default=100, ge=1, le=500),
     db: Session = Depends(get_db),
 ) -> list[EntityRead]:
-    query = select(Entity).order_by(Entity.created_at.desc()).limit(limit)
-    if entity_type:
-        query = query.where(Entity.type == entity_type)
+    query = select(Entity).order_by(Entity.created_at.desc())
+    query = apply_entity_filters(
+        query,
+        entity_type=entity_type,
+        parent_id=parent_id,
+        tag=tag,
+        metadata_status=metadata_status,
+    ).limit(limit)
 
     entities = db.scalars(query).all()
     return [serialize_entity(entity) for entity in entities]
@@ -73,9 +108,36 @@ def create_entity(payload: EntityCreate, db: Session = Depends(get_db)) -> Entit
         entity_metadata=payload.metadata,
     )
     db.add(entity)
+    record_session(
+        db,
+        entity_id=entity.id,
+        action="created",
+        meta={
+            "entity_title": entity.title,
+            "entity_type": entity.type,
+        },
+    )
     db.commit()
     db.refresh(entity)
     return serialize_entity(entity)
+
+
+@router.get("/{entity_id}/children", response_model=list[EntityRead])
+def list_child_entities(
+    entity_id: uuid.UUID,
+    entity_type: str | None = Query(default=None, alias="type"),
+    tag: str | None = Query(default=None),
+    metadata_status: str | None = Query(default=None, alias="status"),
+    limit: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+) -> list[EntityRead]:
+    get_entity_or_404(db, entity_id)
+
+    query = select(Entity).where(Entity.parent_id == entity_id).order_by(Entity.created_at.asc())
+    query = apply_entity_filters(query, entity_type=entity_type, tag=tag, metadata_status=metadata_status).limit(limit)
+
+    children = db.scalars(query).all()
+    return [serialize_entity(entity) for entity in children]
 
 
 @router.get("/{entity_id}", response_model=EntityRead)
@@ -95,14 +157,30 @@ def update_entity(entity_id: uuid.UUID, payload: EntityUpdate, db: Session = Dep
         if db.get(Entity, updates["parent_id"]) is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Parent entity does not exist")
 
+    previous_status = (entity.entity_metadata or {}).get("status")
+
     if "metadata" in updates:
-        entity.entity_metadata = updates.pop("metadata")
+        entity.entity_metadata = merge_metadata(entity.entity_metadata, updates.pop("metadata"))
 
     if "title" in updates and updates["title"] is not None:
         updates["title"] = updates["title"].strip()
 
     for field, value in updates.items():
         setattr(entity, field, value)
+
+    new_status = (entity.entity_metadata or {}).get("status")
+    if previous_status != new_status:
+        record_session(
+            db,
+            entity_id=entity.id,
+            action="revisited",
+            meta={
+                "entity_title": entity.title,
+                "entity_type": entity.type,
+                "previous_status": previous_status,
+                "next_status": new_status,
+            },
+        )
 
     db.commit()
     db.refresh(entity)

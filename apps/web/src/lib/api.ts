@@ -13,8 +13,14 @@ export const entityTypeOptions = [
 
 export const contentTypeOptions = ["markdown", "blocks", "canvas_json", "code"] as const
 
+export const taskStatusOptions = ["todo", "in_progress", "done"] as const
+export const difficultyOptions = ["easy", "medium", "hard"] as const
+
 export type EntityType = (typeof entityTypeOptions)[number]
 export type ContentType = (typeof contentTypeOptions)[number]
+export type TaskStatus = (typeof taskStatusOptions)[number]
+export type DsaDifficulty = (typeof difficultyOptions)[number]
+export type EntityMetadata = Record<string, unknown>
 
 export type Entity = {
   id: string
@@ -27,16 +33,69 @@ export type Entity = {
   confidence_score: number
   last_revisited_at: string | null
   created_at: string | null
-  metadata: Record<string, unknown>
+  metadata: EntityMetadata
+}
+
+export type SessionRecord = {
+  id: string
+  entity_id: string | null
+  action: string | null
+  date: string | null
+  meta: EntityMetadata
+}
+
+export type Link = {
+  id: string
+  from_id: string | null
+  to_id: string | null
+  relation_type: string | null
+  explanation: string | null
+  status: string | null
+  created_at: string | null
+}
+
+export type DashboardToday = {
+  recent_entities: Entity[]
+  recent_sessions: SessionRecord[]
+  open_tasks: Entity[]
+  upcoming_subject_topics: Entity[]
+}
+
+export type EntitiesQuery = {
+  type?: EntityType
+  parent_id?: string
+  tag?: string
+  status?: string
+  limit?: number
 }
 
 export type CreateEntityPayload = {
   title: string
   type: EntityType
+  parent_id?: string | null
   content: string
   content_type: ContentType
   tags: string[]
-  metadata?: Record<string, unknown>
+  metadata?: EntityMetadata
+}
+
+export type UpdateEntityPayload = {
+  title?: string
+  type?: EntityType
+  parent_id?: string | null
+  content?: string | null
+  content_type?: ContentType
+  tags?: string[]
+  confidence_score?: number
+  metadata?: EntityMetadata
+}
+
+export type CreateLinkPayload = {
+  from_id: string
+  to_id: string
+  relation_type: "structural_analogy" | "prerequisite" | "used_in" | "reminds_me_of"
+  explanation: string
+  status?: "agent_suggested" | "confirmed" | "rejected"
 }
 
 const apiBaseUrl = (import.meta.env.VITE_API_URL ?? "http://localhost:8000").replace(/\/$/, "")
@@ -54,6 +113,19 @@ async function getErrorMessage(response: Response) {
 
   const detail = await response.text()
   return detail || `Request failed with status ${response.status}`
+}
+
+function buildQueryString(params?: Record<string, string | number | undefined>) {
+  const searchParams = new URLSearchParams()
+
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") {
+      searchParams.set(key, String(value))
+    }
+  })
+
+  const queryString = searchParams.toString()
+  return queryString ? `?${queryString}` : ""
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -76,12 +148,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T
 }
 
-export function getEntities() {
-  return request<Entity[]>("/entities")
+export function getEntities(query?: EntitiesQuery) {
+  return request<Entity[]>(`/entities${buildQueryString(query)}`)
 }
 
 export function getEntity(entityId: string) {
   return request<Entity>(`/entities/${entityId}`)
+}
+
+export function getEntityChildren(entityId: string, query?: Omit<EntitiesQuery, "parent_id">) {
+  return request<Entity[]>(`/entities/${entityId}/children${buildQueryString(query)}`)
 }
 
 export function createEntity(payload: CreateEntityPayload) {
@@ -89,4 +165,22 @@ export function createEntity(payload: CreateEntityPayload) {
     method: "POST",
     body: JSON.stringify(payload),
   })
+}
+
+export function updateEntity(entityId: string, payload: UpdateEntityPayload) {
+  return request<Entity>(`/entities/${entityId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createLink(payload: CreateLinkPayload) {
+  return request<Link>("/links", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getDashboardToday() {
+  return request<DashboardToday>("/dashboard/today")
 }

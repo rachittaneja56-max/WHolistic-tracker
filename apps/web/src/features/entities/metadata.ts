@@ -1,0 +1,66 @@
+import type { DsaDifficulty, Entity, TaskStatus } from "@/lib/api"
+
+function getStringMetadata(entity: Entity, key: string) {
+  const value = entity.metadata[key]
+  return typeof value === "string" ? value : null
+}
+
+export function getEntityDifficulty(entity: Entity): DsaDifficulty | null {
+  const value = getStringMetadata(entity, "difficulty")
+  return value === "easy" || value === "medium" || value === "hard" ? value : null
+}
+
+export function getEntityStatus(entity: Entity): TaskStatus | null {
+  const value = getStringMetadata(entity, "status")
+  return value === "todo" || value === "in_progress" || value === "done" ? value : null
+}
+
+export function getEntityExamDate(entity: Entity) {
+  return getStringMetadata(entity, "exam_date")
+}
+
+export function getEntitySolutionCode(entity: Entity) {
+  return getStringMetadata(entity, "solution_code")
+}
+
+export function formatEntityDate(value: string | null, options?: Intl.DateTimeFormatOptions) {
+  if (!value) {
+    return "No timestamp"
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: options?.timeStyle ?? "short",
+    ...options,
+  }).format(new Date(value))
+}
+
+export function formatExamDate(value: string | null) {
+  if (!value) {
+    return "No exam date"
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "long" }).format(parsed)
+}
+
+export function compareUpcomingExamDates(left: Entity, right: Entity) {
+  const leftDate = getEntityExamDate(left)
+  const rightDate = getEntityExamDate(right)
+
+  if (!leftDate && !rightDate) {
+    return 0
+  }
+  if (!leftDate) {
+    return 1
+  }
+  if (!rightDate) {
+    return -1
+  }
+
+  return new Date(leftDate).getTime() - new Date(rightDate).getTime()
+}

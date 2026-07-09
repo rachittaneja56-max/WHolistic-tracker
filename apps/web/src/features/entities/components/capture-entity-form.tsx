@@ -1,6 +1,17 @@
-import { useState, type FormEvent } from "react"
+import { useMemo, useState, type FormEvent } from "react"
 
-import { contentTypeOptions, createEntity, entityTypeOptions, type ContentType, type Entity, type EntityType } from "@/lib/api"
+import {
+  contentTypeOptions,
+  createEntity,
+  difficultyOptions,
+  entityTypeOptions,
+  taskStatusOptions,
+  type ContentType,
+  type DsaDifficulty,
+  type Entity,
+  type EntityType,
+  type TaskStatus,
+} from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,27 +21,62 @@ import { Textarea } from "@/components/ui/textarea"
 
 type CaptureEntityFormProps = {
   onCreated: (entity: Entity) => void
+  availableEntities: Entity[]
 }
 
 type FieldErrors = {
   title?: string
   type?: string
   contentType?: string
+  parentId?: string
 }
 
 function getSubmitErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to create entity."
 }
 
-export function CaptureEntityForm({ onCreated }: CaptureEntityFormProps) {
+export function CaptureEntityForm({ onCreated, availableEntities }: CaptureEntityFormProps) {
   const [title, setTitle] = useState("")
   const [type, setType] = useState<EntityType | "">("")
+  const [parentId, setParentId] = useState("")
   const [content, setContent] = useState("")
   const [tags, setTags] = useState("")
   const [contentType, setContentType] = useState<ContentType | "">("")
+  const [difficulty, setDifficulty] = useState<DsaDifficulty | "">("")
+  const [solutionCode, setSolutionCode] = useState("")
+  const [status, setStatus] = useState<TaskStatus | "">("")
+  const [examDate, setExamDate] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+
+  const parentOptions = useMemo(() => {
+    if (type === "milestone") {
+      return availableEntities.filter((entity) => entity.type === "project")
+    }
+    if (type === "task") {
+      return availableEntities.filter((entity) => entity.type === "milestone")
+    }
+    return []
+  }, [availableEntities, type])
+
+  const requiresParent = type === "milestone" || type === "task"
+
+  function resetConditionalFields(nextType: EntityType | "") {
+    if (nextType !== "dsa_problem") {
+      setDifficulty("")
+      setSolutionCode("")
+    }
+    if (nextType !== "subject_topic") {
+      setExamDate("")
+    }
+    if (nextType !== "project" && nextType !== "milestone" && nextType !== "task") {
+      setStatus("")
+    }
+    if (nextType !== "milestone" && nextType !== "task") {
+      setParentId("")
+    }
+  }
 
   function validateForm() {
     const nextErrors: FieldErrors = {}
@@ -43,6 +89,9 @@ export function CaptureEntityForm({ onCreated }: CaptureEntityFormProps) {
     }
     if (!contentType) {
       nextErrors.contentType = "Content type is required."
+    }
+    if (requiresParent && !parentId) {
+      nextErrors.parentId = type === "milestone" ? "Select a parent project." : "Select a parent milestone."
     }
 
     setFieldErrors(nextErrors)
@@ -57,25 +106,53 @@ export function CaptureEntityForm({ onCreated }: CaptureEntityFormProps) {
       return
     }
 
+    const metadata: Record<string, unknown> = {}
+
+    if (type === "dsa_problem") {
+      if (difficulty) {
+        metadata.difficulty = difficulty
+      }
+      if (solutionCode.trim()) {
+        metadata.solution_code = solutionCode.trim()
+      }
+    }
+
+    if (type === "project" || type === "milestone" || type === "task") {
+      if (status) {
+        metadata.status = status
+      }
+    }
+
+    if (type === "subject_topic" && examDate) {
+      metadata.exam_date = examDate
+    }
+
     setIsSubmitting(true)
 
     try {
       const entity = await createEntity({
         title: title.trim(),
         type: type as EntityType,
+        parent_id: parentId || null,
         content,
         content_type: contentType as ContentType,
         tags: tags
           .split(",")
           .map((tag) => tag.trim())
           .filter(Boolean),
+        metadata,
       })
 
       setTitle("")
       setType("")
+      setParentId("")
       setContent("")
       setTags("")
       setContentType("")
+      setDifficulty("")
+      setSolutionCode("")
+      setStatus("")
+      setExamDate("")
       setFieldErrors({})
       onCreated(entity)
     } catch (error) {
@@ -90,7 +167,7 @@ export function CaptureEntityForm({ onCreated }: CaptureEntityFormProps) {
       <CardHeader>
         <CardTitle>Capture Entity</CardTitle>
         <CardDescription>
-          Everything in Phase 0 lands in the shared entities table, regardless of what lens it belongs to later.
+          Capture every Phase 1 object into the shared entities table and use metadata only for type-specific details.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -118,7 +195,9 @@ export function CaptureEntityForm({ onCreated }: CaptureEntityFormProps) {
               <Select
                 value={type}
                 onValueChange={(value) => {
-                  setType(value as EntityType)
+                  const nextType = value as EntityType
+                  setType(nextType)
+                  resetConditionalFields(nextType)
                   if (fieldErrors.type) {
                     setFieldErrors((currentErrors) => ({ ...currentErrors, type: undefined }))
                   }
@@ -164,21 +243,103 @@ export function CaptureEntityForm({ onCreated }: CaptureEntityFormProps) {
             </div>
           </div>
 
+          {requiresParent ? (
+            <div className="space-y-2">
+              <Label>{type === "milestone" ? "Parent Project" : "Parent Milestone"}</Label>
+              <Select
+                value={parentId}
+                onValueChange={(value) => {
+                  setParentId(value)
+                  if (fieldErrors.parentId) {
+                    setFieldErrors((currentErrors) => ({ ...currentErrors, parentId: undefined }))
+                  }
+                }}
+              >
+                <SelectTrigger aria-invalid={Boolean(fieldErrors.parentId)}>
+                  <SelectValue placeholder={type === "milestone" ? "Select parent project" : "Select parent milestone"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {parentOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.title ?? option.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fieldErrors.parentId ? <p className="text-sm text-red-300">{fieldErrors.parentId}</p> : null}
+            </div>
+          ) : null}
+
+          {type === "dsa_problem" ? (
+            <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
+              <div className="space-y-2">
+                <Label>Difficulty</Label>
+                <Select value={difficulty} onValueChange={(value) => setDifficulty(value as DsaDifficulty)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select difficulty" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {difficultyOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="solution-code">Solution Code</Label>
+                <Textarea
+                  id="solution-code"
+                  value={solutionCode}
+                  onChange={(event) => setSolutionCode(event.target.value)}
+                  placeholder="Store a code snippet in metadata.solution_code for the DSA tracker view."
+                  className="min-h-[180px] font-mono text-xs"
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {type === "project" || type === "milestone" || type === "task" ? (
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={status} onValueChange={(value) => setStatus(value as TaskStatus)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {taskStatusOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
+          {type === "subject_topic" ? (
+            <div className="space-y-2">
+              <Label htmlFor="exam-date">Exam Date</Label>
+              <Input id="exam-date" type="date" value={examDate} onChange={(event) => setExamDate(event.target.value)} />
+            </div>
+          ) : null}
+
           <div className="space-y-2">
-            <Label htmlFor="content">Content</Label>
+            <Label htmlFor="content">Content / Notes</Label>
             <Textarea
               id="content"
               value={content}
               onChange={(event) => setContent(event.target.value)}
-              placeholder="Capture the note, sketch, summary, or project context here."
+              placeholder="Capture notes, context, or markdown details here."
             />
-            <p className="text-sm text-zinc-500">Use markdown for now. Rich editors and whiteboards stay out of Phase 0.</p>
+            <p className="text-sm text-zinc-500">Use `content` for notes and metadata only for tracker-specific fields.</p>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="tags">Tags</Label>
             <Input id="tags" value={tags} onChange={(event) => setTags(event.target.value)} placeholder="fastapi, postgres, linked-list" />
-            <p className="text-sm text-zinc-500">Comma-separated tags keep capture lightweight without adding schema complexity.</p>
+            <p className="text-sm text-zinc-500">Comma-separated tags stay shared across every tracker view.</p>
           </div>
 
           {submitError ? <p className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-sm text-red-300">{submitError}</p> : null}

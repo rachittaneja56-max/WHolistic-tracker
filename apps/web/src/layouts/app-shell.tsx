@@ -1,9 +1,10 @@
 import type { ReactNode } from "react"
-import { Database, PanelsTopLeft } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Database, LayoutGrid, Library, ListChecks, NotebookPen, SunMedium } from "lucide-react"
+import { Link, NavLink } from "react-router-dom"
 
 import type { Entity } from "@/lib/api"
 import { EntityList } from "@/features/entities/components/entity-list"
+import { cn } from "@/lib/utils"
 
 type AppShellProps = {
   children: ReactNode
@@ -13,6 +14,15 @@ type AppShellProps = {
   entitiesError: string | null
   onRetry: () => void
 }
+
+const navigationItems = [
+  { to: "/", label: "Today", icon: SunMedium },
+  { to: "/capture", label: "Capture", icon: NotebookPen },
+  { to: "/dsa", label: "DSA", icon: LayoutGrid },
+  { to: "/projects", label: "Projects", icon: ListChecks },
+  { to: "/subjects", label: "Subjects", icon: Library },
+  { to: "/entities", label: "All Entities", icon: Database },
+]
 
 export function AppShell({ children, entities, activeEntityId, isEntitiesLoading, entitiesError, onRetry }: AppShellProps) {
   return (
@@ -26,18 +36,39 @@ export function AppShell({ children, entities, activeEntityId, isEntitiesLoading
               </div>
               <div>
                 <p className="text-sm font-semibold text-zinc-100">Personal Dev KG</p>
-                <p className="font-mono text-xs text-zinc-500">Phase 0 foundation</p>
+                <p className="font-mono text-xs text-zinc-500">Phase 1 core trackers</p>
               </div>
             </Link>
-            <PanelsTopLeft className="h-4 w-4 text-zinc-500" />
           </div>
 
-          <div className="p-4">
+          <div className="space-y-6 p-4">
+            <nav className="space-y-2">
+              {navigationItems.map((item) => {
+                const Icon = item.icon
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === "/"}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300 transition-colors hover:border-zinc-700 hover:text-zinc-100",
+                        isActive && "border-blue-500/50 text-zinc-100",
+                      )
+                    }
+                  >
+                    <Icon className="h-4 w-4 text-zinc-500" />
+                    <span>{item.label}</span>
+                  </NavLink>
+                )
+              })}
+            </nav>
+
             <EntityList
-              entities={entities}
+              entities={entities.slice(0, 8)}
               activeEntityId={activeEntityId}
-              title="Entity List"
-              description="Captured entities are the only first-class content objects in Phase 0."
+              title="Recent Entities"
+              description="The shared substrate remains visible while Phase 1 adds focused tracker views."
               compact
               isLoading={isEntitiesLoading}
               errorMessage={entitiesError}
@@ -50,11 +81,11 @@ export function AppShell({ children, entities, activeEntityId, isEntitiesLoading
           <header className="border-b border-zinc-800 bg-zinc-900 px-6 py-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-lg font-semibold text-zinc-100">Knowledge capture workspace</p>
-                <p className="text-sm text-zinc-500">Hierarchy stays in parent references. Cross-cutting relationships stay in links.</p>
+                <p className="text-lg font-semibold text-zinc-100">Knowledge tracker workspace</p>
+                <p className="text-sm text-zinc-500">Projects use parent hierarchy, TIL connections use links, and every tracker stays on the same entities table.</p>
               </div>
               <div className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-xs text-zinc-500">
-                No AI features enabled
+                No graph, agents, or embeddings yet
               </div>
             </div>
           </header>
