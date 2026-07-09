@@ -141,6 +141,19 @@ Invoke-WebRequest -UseBasicParsing http://localhost:8000/entities/{ENTITY_ID}/si
 10. Use the `Refresh embedding` button if the embedding is missing.
 11. Confirm the similar entities panel loads candidate matches.
 
+### 6. Verify the graph and confidence flow
+
+1. Create at least two entities with overlapping tags or related content.
+2. Open each entity detail page and refresh embeddings if the status is still missing.
+3. Use the Suggested connections panel to create a confirmed link with an explanation.
+4. Open the Graph page from the sidebar.
+5. Confirm the linked entities appear as nodes with a blue confirmed edge between them.
+6. Click the edge and confirm the explanation is visible in the inspector panel.
+7. Run Run confidence decay on the graph page.
+8. Confirm older nodes become more faded as confidence_score drops.
+9. Click a node and use Mark revisited.
+10. Confirm the node confidence returns to 1.0 and the node becomes more visible again.
+
 ## Environment variables
 
 ### `apps/api/.env`
@@ -171,3 +184,5 @@ VITE_API_URL=http://localhost:8000
 - Embeddings are used only for candidate retrieval in Phase 2, not for final reasoning.
 - Entity create and update still succeed if embedding generation fails; the entity remains saved with a missing embedding.
 - No schema changes were required beyond the existing Phase 0 migration.
+
+

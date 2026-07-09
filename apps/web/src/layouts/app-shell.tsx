@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { Database, LayoutGrid, Library, ListChecks, NotebookPen, SunMedium } from "lucide-react"
+import { Database, LayoutGrid, Library, ListChecks, Network, NotebookPen, SunMedium } from "lucide-react"
 import { Link, NavLink } from "react-router-dom"
 
 import type { Entity } from "@/lib/api"
@@ -21,6 +21,7 @@ const navigationItems = [
   { to: "/dsa", label: "DSA", icon: LayoutGrid },
   { to: "/projects", label: "Projects", icon: ListChecks },
   { to: "/subjects", label: "Subjects", icon: Library },
+  { to: "/graph", label: "Graph", icon: Network },
   { to: "/entities", label: "All Entities", icon: Database },
 ]
 
@@ -36,7 +37,7 @@ export function AppShell({ children, entities, activeEntityId, isEntitiesLoading
               </div>
               <div>
                 <p className="text-sm font-semibold text-zinc-100">Personal Dev KG</p>
-                <p className="font-mono text-xs text-zinc-500">Phase 1 core trackers</p>
+                <p className="font-mono text-xs text-zinc-500">Phase 2 graph substrate</p>
               </div>
             </Link>
           </div>
@@ -68,7 +69,7 @@ export function AppShell({ children, entities, activeEntityId, isEntitiesLoading
               entities={entities.slice(0, 8)}
               activeEntityId={activeEntityId}
               title="Recent Entities"
-              description="The shared substrate remains visible while Phase 1 adds focused tracker views."
+              description="Entities stay shared across trackers, graph links stay separate from parent hierarchy, and confidence fades over time."
               compact
               isLoading={isEntitiesLoading}
               errorMessage={entitiesError}
@@ -81,11 +82,11 @@ export function AppShell({ children, entities, activeEntityId, isEntitiesLoading
           <header className="border-b border-zinc-800 bg-zinc-900 px-6 py-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-lg font-semibold text-zinc-100">Knowledge tracker workspace</p>
-                <p className="text-sm text-zinc-500">Projects use parent hierarchy, TIL connections use links, and every tracker stays on the same entities table.</p>
+                <p className="text-lg font-semibold text-zinc-100">Knowledge graph workspace</p>
+                <p className="text-sm text-zinc-500">Confirmed links drive the graph, confidence decays over time, and hierarchy stays separate from graph edges.</p>
               </div>
               <div className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-xs text-zinc-500">
-                No graph, agents, or embeddings yet
+                Graph + embeddings + confidence decay
               </div>
             </div>
           </header>

@@ -69,6 +69,36 @@ export type EntityConnection = {
   entity_preview: string
 }
 
+export type GraphNode = {
+  id: string
+  title: string | null
+  type: EntityType | null
+  tags: string[]
+  confidence_score: number
+  created_at: string | null
+  last_revisited_at: string | null
+}
+
+export type GraphEdge = {
+  id: string
+  from_id: string | null
+  to_id: string | null
+  relation_type: RelationType | null
+  explanation: string | null
+  status: LinkStatus | null
+}
+
+export type GraphPayload = {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+}
+
+export type GraphQuery = {
+  type?: EntityType
+  tag?: string
+  min_confidence?: number
+}
+
 export type SessionRecord = {
   id: string
   entity_id: string | null
@@ -99,6 +129,14 @@ export type RefreshAllEmbeddingsResult = {
   refreshed_count: number
   failed_count: number
   failed_entity_ids: string[]
+}
+
+export type DecayConfidenceJobResult = {
+  processed_count: number
+  updated_count: number
+  run_at: string
+  half_life_days: number
+  minimum_confidence: number
 }
 
 export type EntitiesQuery = {
@@ -196,6 +234,12 @@ export function getEntity(entityId: string) {
   return request<Entity>(`/entities/${entityId}`)
 }
 
+export function revisitEntity(entityId: string) {
+  return request<Entity>(`/entities/${entityId}/revisit`, {
+    method: "POST",
+  })
+}
+
 export function getEntityChildren(entityId: string, query?: Omit<EntitiesQuery, "parent_id">) {
   return request<Entity[]>(`/entities/${entityId}/children${buildQueryString(query)}`)
 }
@@ -210,6 +254,10 @@ export function getLinkCandidates(entityId: string, limit = 8) {
 
 export function getEntityConnections(entityId: string, status: LinkStatus | "" = "confirmed") {
   return request<EntityConnection[]>(`/entities/${entityId}/connections${buildQueryString({ status })}`)
+}
+
+export function getGraph(query?: GraphQuery) {
+  return request<GraphPayload>(`/graph${buildQueryString(query)}`)
 }
 
 export function createEntity(payload: CreateEntityPayload) {
@@ -234,6 +282,12 @@ export function refreshEntityEmbedding(entityId: string) {
 
 export function refreshAllEntityEmbeddings() {
   return request<RefreshAllEmbeddingsResult>("/entities/embedding/refresh-all", {
+    method: "POST",
+  })
+}
+
+export function decayConfidenceJob() {
+  return request<DecayConfidenceJobResult>("/jobs/decay-confidence", {
     method: "POST",
   })
 }

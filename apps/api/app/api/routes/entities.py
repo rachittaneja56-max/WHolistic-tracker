@@ -18,6 +18,7 @@ from app.models.review import Review
 from app.models.session import ActivitySession
 from app.schemas.embedding import EntityConnectionRead, EntityLinkCandidateRead, EntitySimilarityRead, RefreshAllEmbeddingsRead
 from app.schemas.entity import EntityCreate, EntityRead, EntityUpdate
+from app.services.confidence import mark_entity_revisited
 from app.services.embeddings import get_similar_entities, update_entity_embedding
 
 logger = logging.getLogger(__name__)
@@ -295,6 +296,25 @@ def refresh_entity_embedding_route(entity_id: uuid.UUID, db: Session = Depends(g
     return serialize_entity(entity)
 
 
+@router.post("/{entity_id}/revisit", response_model=EntityRead)
+def revisit_entity(entity_id: uuid.UUID, db: Session = Depends(get_db)) -> EntityRead:
+    entity = get_entity_or_404(db, entity_id)
+    mark_entity_revisited(entity)
+    record_session(
+        db,
+        entity_id=entity.id,
+        action="revisited",
+        meta={
+            "entity_title": entity.title,
+            "entity_type": entity.type,
+            "source": "graph_revisit",
+        },
+    )
+    db.commit()
+    db.refresh(entity)
+    return serialize_entity(entity)
+
+
 @router.get("/{entity_id}/similar", response_model=list[EntitySimilarityRead])
 def list_similar_entities(
     entity_id: uuid.UUID,
@@ -389,3 +409,5 @@ def delete_entity(entity_id: uuid.UUID, db: Session = Depends(get_db)) -> Respon
     db.delete(entity)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
