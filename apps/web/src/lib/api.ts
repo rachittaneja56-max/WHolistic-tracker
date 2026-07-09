@@ -41,6 +41,21 @@ export type CreateEntityPayload = {
 
 const apiBaseUrl = (import.meta.env.VITE_API_URL ?? "http://localhost:8000").replace(/\/$/, "")
 
+async function getErrorMessage(response: Response) {
+  const contentType = response.headers.get("content-type") ?? ""
+
+  if (contentType.includes("application/json")) {
+    const payload = (await response.json()) as { detail?: unknown }
+    if (typeof payload.detail === "string") {
+      return payload.detail
+    }
+    return `Request failed with status ${response.status}`
+  }
+
+  const detail = await response.text()
+  return detail || `Request failed with status ${response.status}`
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
@@ -51,8 +66,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
 
   if (!response.ok) {
-    const detail = await response.text()
-    throw new Error(detail || `Request failed with status ${response.status}`)
+    throw new Error(await getErrorMessage(response))
   }
 
   if (response.status === 204) {

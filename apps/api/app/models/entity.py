@@ -9,7 +9,7 @@ from sqlalchemy import DateTime, Float, ForeignKey, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.db.base import Base
 
 
 class Entity(Base):
@@ -28,19 +28,10 @@ class Entity(Base):
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=text("now()"), nullable=True)
     entity_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
 
-    parent: Mapped["Entity | None"] = relationship(
-        back_populates="children",
-        remote_side="Entity.id",
-    )
+    parent: Mapped["Entity | None"] = relationship(back_populates="children", remote_side="Entity.id")
     children: Mapped[list["Entity"]] = relationship(back_populates="parent")
-    links_from: Mapped[list["Link"]] = relationship(
-        back_populates="from_entity",
-        foreign_keys="Link.from_id",
-    )
-    links_to: Mapped[list["Link"]] = relationship(
-        back_populates="to_entity",
-        foreign_keys="Link.to_id",
-    )
+    links_from: Mapped[list["Link"]] = relationship(back_populates="from_entity", foreign_keys="Link.from_id")
+    links_to: Mapped[list["Link"]] = relationship(back_populates="to_entity", foreign_keys="Link.to_id")
     sessions: Mapped[list["ActivitySession"]] = relationship(back_populates="entity")
     reviews: Mapped[list["Review"]] = relationship(back_populates="entity")
     comprehension_checks: Mapped[list["ComprehensionCheck"]] = relationship(back_populates="entity")

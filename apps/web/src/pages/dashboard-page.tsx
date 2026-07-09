@@ -1,13 +1,13 @@
 import { useNavigate, useOutletContext } from "react-router-dom"
 
 import type { Entity } from "@/lib/api"
-import { CaptureEntityForm } from "@/components/entities/capture-entity-form"
-import { EntityList } from "@/components/entities/entity-list"
-import type { LayoutContext } from "@/App"
+import { CaptureEntityForm } from "@/features/entities/components/capture-entity-form"
+import { EntityList } from "@/features/entities/components/entity-list"
+import type { EntitiesLayoutContext } from "@/features/entities/layout-context"
 
 export function DashboardPage() {
   const navigate = useNavigate()
-  const { entities, addEntityToList } = useOutletContext<LayoutContext>()
+  const { entities, isEntitiesLoading, entitiesError, refreshEntities, addEntityToList } = useOutletContext<EntitiesLayoutContext>()
 
   function handleCreated(entity: Entity) {
     addEntityToList(entity)
@@ -21,6 +21,11 @@ export function DashboardPage() {
         entities={entities}
         title="All Captured Entities"
         description="A flat view into the unified substrate before Phase 1 adds tracker-specific lenses."
+        isLoading={isEntitiesLoading}
+        errorMessage={entitiesError}
+        onRetry={() => {
+          void refreshEntities()
+        }}
       />
     </div>
   )

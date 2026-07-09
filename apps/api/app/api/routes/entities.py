@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.db.session import get_db
 from app.models.comprehension_check import ComprehensionCheck
 from app.models.entity import Entity
 from app.models.link import Link
@@ -65,7 +65,7 @@ def create_entity(payload: EntityCreate, db: Session = Depends(get_db)) -> Entit
         id=uuid.uuid4(),
         type=payload.type,
         parent_id=payload.parent_id,
-        title=payload.title,
+        title=payload.title.strip(),
         content=payload.content,
         content_type=payload.content_type,
         tags=payload.tags,
@@ -97,6 +97,9 @@ def update_entity(entity_id: uuid.UUID, payload: EntityUpdate, db: Session = Dep
 
     if "metadata" in updates:
         entity.entity_metadata = updates.pop("metadata")
+
+    if "title" in updates and updates["title"] is not None:
+        updates["title"] = updates["title"].strip()
 
     for field, value in updates.items():
         setattr(entity, field, value)

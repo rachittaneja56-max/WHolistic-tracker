@@ -3,17 +3,20 @@ import { Database, PanelsTopLeft } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import type { Entity } from "@/lib/api"
-import { EntityList } from "@/components/entities/entity-list"
+import { EntityList } from "@/features/entities/components/entity-list"
 
 type AppShellProps = {
   children: ReactNode
   entities: Entity[]
   activeEntityId?: string
+  isEntitiesLoading: boolean
+  entitiesError: string | null
+  onRetry: () => void
 }
 
-export function AppShell({ children, entities, activeEntityId }: AppShellProps) {
+export function AppShell({ children, entities, activeEntityId, isEntitiesLoading, entitiesError, onRetry }: AppShellProps) {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen bg-zinc-950 text-zinc-300">
       <div className="grid min-h-screen lg:grid-cols-[320px_1fr]">
         <aside className="border-b border-zinc-800 bg-zinc-900 lg:border-b-0 lg:border-r">
           <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
@@ -22,7 +25,7 @@ export function AppShell({ children, entities, activeEntityId }: AppShellProps) 
                 <Database className="h-4 w-4 text-blue-400" />
               </div>
               <div>
-                <p className="text-sm font-semibold">Personal Dev KG</p>
+                <p className="text-sm font-semibold text-zinc-100">Personal Dev KG</p>
                 <p className="font-mono text-xs text-zinc-500">Phase 0 foundation</p>
               </div>
             </Link>
@@ -36,18 +39,21 @@ export function AppShell({ children, entities, activeEntityId }: AppShellProps) 
               title="Entity List"
               description="Captured entities are the only first-class content objects in Phase 0."
               compact
+              isLoading={isEntitiesLoading}
+              errorMessage={entitiesError}
+              onRetry={onRetry}
             />
           </div>
         </aside>
 
         <div className="flex min-h-screen flex-col">
-          <header className="border-b border-zinc-800 bg-zinc-950 px-6 py-4">
+          <header className="border-b border-zinc-800 bg-zinc-900 px-6 py-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-lg font-semibold">Knowledge capture workspace</p>
+                <p className="text-lg font-semibold text-zinc-100">Knowledge capture workspace</p>
                 <p className="text-sm text-zinc-500">Hierarchy stays in parent references. Cross-cutting relationships stay in links.</p>
               </div>
-              <div className="rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 font-mono text-xs text-zinc-400">
+              <div className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-xs text-zinc-500">
                 No AI features enabled
               </div>
             </div>

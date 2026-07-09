@@ -1,1 +1,1 @@
-"""Core config and database helpers."""
+"""Core configuration helpers."""

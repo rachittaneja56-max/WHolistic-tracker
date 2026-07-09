@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.db.session import get_db
 from app.models.entity import Entity
 from app.models.link import Link
 from app.schemas.link import LinkCreate, LinkRead, LinkUpdate
@@ -41,8 +41,8 @@ def ensure_entity_exists(db: Session, entity_id: uuid.UUID) -> None:
 
 
 @router.get("", response_model=list[LinkRead])
-def list_links(db: Session = Depends(get_db)) -> list[LinkRead]:
-    links = db.scalars(select(Link).order_by(Link.created_at.desc())).all()
+def list_links(limit: int = Query(default=100, ge=1, le=500), db: Session = Depends(get_db)) -> list[LinkRead]:
+    links = db.scalars(select(Link).order_by(Link.created_at.desc()).limit(limit)).all()
     return [serialize_link(link) for link in links]
 
 
@@ -56,7 +56,7 @@ def create_link(payload: LinkCreate, db: Session = Depends(get_db)) -> LinkRead:
         from_id=payload.from_id,
         to_id=payload.to_id,
         relation_type=payload.relation_type,
-        explanation=payload.explanation,
+        explanation=payload.explanation.strip(),
         status=payload.status,
     )
     db.add(link)
@@ -74,6 +74,8 @@ def update_link(link_id: uuid.UUID, payload: LinkUpdate, db: Session = Depends(g
         ensure_entity_exists(db, updates["from_id"])
     if "to_id" in updates and updates["to_id"] is not None:
         ensure_entity_exists(db, updates["to_id"])
+    if "explanation" in updates and updates["explanation"] is not None:
+        updates["explanation"] = updates["explanation"].strip()
 
     for field, value in updates.items():
         setattr(link, field, value)

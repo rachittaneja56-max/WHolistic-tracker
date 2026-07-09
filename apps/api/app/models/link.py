@@ -7,7 +7,7 @@ from sqlalchemy import DateTime, ForeignKey, Text, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.db.base import Base
 
 
 class Link(Base):
@@ -21,11 +21,5 @@ class Link(Base):
     status: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=text("now()"), nullable=True)
 
-    from_entity: Mapped["Entity | None"] = relationship(
-        back_populates="links_from",
-        foreign_keys=[from_id],
-    )
-    to_entity: Mapped["Entity | None"] = relationship(
-        back_populates="links_to",
-        foreign_keys=[to_id],
-    )
+    from_entity: Mapped["Entity | None"] = relationship(back_populates="links_from", foreign_keys=[from_id])
+    to_entity: Mapped["Entity | None"] = relationship(back_populates="links_to", foreign_keys=[to_id])

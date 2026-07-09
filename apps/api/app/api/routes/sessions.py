@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.db.session import get_db
 from app.models.entity import Entity
 from app.models.session import ActivitySession
 from app.schemas.session import SessionCreate, SessionRead

@@ -29,8 +29,8 @@ export function EntityDetailCard({ entity }: EntityDetailCardProps) {
             <Badge key={tag}>{tag}</Badge>
           ))}
         </div>
-        <CardTitle className="text-2xl">{entity.title ?? "Untitled entity"}</CardTitle>
-        <CardDescription className="font-mono text-xs uppercase tracking-[0.2em]">
+        <CardTitle className="text-2xl text-zinc-100">{entity.title ?? "Untitled entity"}</CardTitle>
+        <CardDescription className="font-mono text-xs uppercase tracking-[0.2em] text-zinc-500">
           Created {formatDate(entity.created_at)} · Confidence {entity.confidence_score.toFixed(2)}
         </CardDescription>
       </CardHeader>

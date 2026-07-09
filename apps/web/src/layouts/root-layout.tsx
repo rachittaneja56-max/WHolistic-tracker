@@ -1,0 +1,24 @@
+import { Outlet, useLocation } from "react-router-dom"
+
+import { useEntities } from "@/features/entities/hooks/use-entities"
+import { AppShell } from "@/layouts/app-shell"
+
+export function RootLayout() {
+  const location = useLocation()
+  const entitiesState = useEntities()
+  const activeEntityId = location.pathname.match(/^\/entities\/([^/]+)/)?.[1]
+
+  return (
+    <AppShell
+      entities={entitiesState.entities}
+      activeEntityId={activeEntityId}
+      isEntitiesLoading={entitiesState.isEntitiesLoading}
+      entitiesError={entitiesState.entitiesError}
+      onRetry={() => {
+        void entitiesState.refreshEntities()
+      }}
+    >
+      <Outlet context={entitiesState} />
+    </AppShell>
+  )
+}
