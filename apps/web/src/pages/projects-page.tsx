@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import { Link, useOutletContext } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -36,6 +35,7 @@ function getStatusVariant(status: TaskStatus | null): "default" | "success" | "w
 }
 
 type TaskGroups = Record<TaskStatus, Entity[]>
+type EntityCollectionSetter = Dispatch<SetStateAction<Entity[]>>
 
 export function ProjectsPage() {
   const { addEntityToList, refreshEntities, upsertEntityInList } = useOutletContext<EntitiesLayoutContext>()
@@ -142,26 +142,45 @@ export function ProjectsPage() {
     return grouped
   }, [tasks])
 
-  async function handleTaskStatusChange(task: Entity, nextStatus: TaskStatus) {
-    const currentStatus = getEntityStatus(task) ?? "todo"
+  async function handleStatusUpdate(
+    entity: Entity,
+    nextStatus: TaskStatus,
+    setCollection: EntityCollectionSetter,
+    options?: { promptForTil?: boolean },
+  ) {
+    const currentStatus = getEntityStatus(entity) ?? "todo"
     if (currentStatus === nextStatus) {
       return
     }
 
-    if (nextStatus === "done") {
-      setPendingCompletionTask(task)
+    if (options?.promptForTil && nextStatus === "done") {
+      setPendingCompletionTask(entity)
       setTilContent("")
       setTilError(null)
       return
     }
 
     try {
-      const updatedTask = await updateEntity(task.id, { metadata: { status: nextStatus } })
-      setTasks((currentTasks) => currentTasks.map((currentTask) => (currentTask.id === updatedTask.id ? updatedTask : currentTask)))
-      upsertEntityInList(updatedTask)
+      const updatedEntity = await updateEntity(entity.id, { metadata: { status: nextStatus } })
+      setCollection((currentEntities) =>
+        currentEntities.map((currentEntity) => (currentEntity.id === updatedEntity.id ? updatedEntity : currentEntity)),
+      )
+      upsertEntityInList(updatedEntity)
     } catch (updateError) {
       setError(getErrorMessage(updateError))
     }
+  }
+
+  async function handleProjectStatusChange(project: Entity, nextStatus: TaskStatus) {
+    await handleStatusUpdate(project, nextStatus, setProjects)
+  }
+
+  async function handleMilestoneStatusChange(milestone: Entity, nextStatus: TaskStatus) {
+    await handleStatusUpdate(milestone, nextStatus, setMilestones)
+  }
+
+  async function handleTaskStatusChange(task: Entity, nextStatus: TaskStatus) {
+    await handleStatusUpdate(task, nextStatus, setTasks, { promptForTil: true })
   }
 
   async function handleCompleteTask() {
@@ -220,17 +239,35 @@ export function ProjectsPage() {
             {!isProjectsLoading && error ? <p className="text-sm text-red-300">{error}</p> : null}
             {!isProjectsLoading && !error && projects.length === 0 ? <p className="text-sm text-zinc-500">No projects captured yet.</p> : null}
             {projects.map((project) => (
-              <button
+              <div
                 key={project.id}
-                type="button"
-                onClick={() => setSelectedProjectId(project.id)}
-                className={`w-full rounded-lg border px-4 py-3 text-left transition-colors ${
-                  selectedProject?.id === project.id ? "border-blue-500/50 bg-zinc-950" : "border-zinc-800 bg-zinc-950 hover:border-blue-500/30"
+                className={`rounded-lg border px-4 py-3 transition-colors ${
+                  selectedProject?.id === project.id ? "border-blue-500/50 bg-zinc-950" : "border-zinc-800 bg-zinc-950"
                 }`}
               >
-                <p className="text-sm font-medium text-zinc-100">{project.title ?? "Untitled project"}</p>
-                <p className="mt-2 text-sm text-zinc-500">{project.content?.slice(0, 80) || "No project notes yet."}</p>
-              </button>
+                <div className="flex flex-col gap-3">
+                  <button type="button" onClick={() => setSelectedProjectId(project.id)} className="text-left">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-zinc-100">{project.title ?? "Untitled project"}</p>
+                      <Badge variant={getStatusVariant(getEntityStatus(project))}>{getEntityStatus(project) ?? "unset"}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-zinc-500">{project.content?.slice(0, 80) || "No project notes yet."}</p>
+                  </button>
+
+                  <Select value={getEntityStatus(project) ?? "todo"} onValueChange={(value) => void handleProjectStatusChange(project, value as TaskStatus)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Update project status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {taskStatusOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             ))}
           </CardContent>
         </Card>
@@ -245,20 +282,38 @@ export function ProjectsPage() {
             {!isMilestonesLoading && !selectedProject ? <p className="text-sm text-zinc-500">Choose a project to view milestones.</p> : null}
             {!isMilestonesLoading && selectedProject && milestones.length === 0 ? <p className="text-sm text-zinc-500">No milestones under this project yet.</p> : null}
             {milestones.map((milestone) => (
-              <button
+              <div
                 key={milestone.id}
-                type="button"
-                onClick={() => setSelectedMilestoneId(milestone.id)}
-                className={`w-full rounded-lg border px-4 py-3 text-left transition-colors ${
-                  selectedMilestone?.id === milestone.id ? "border-blue-500/50 bg-zinc-950" : "border-zinc-800 bg-zinc-950 hover:border-blue-500/30"
+                className={`rounded-lg border px-4 py-3 transition-colors ${
+                  selectedMilestone?.id === milestone.id ? "border-blue-500/50 bg-zinc-950" : "border-zinc-800 bg-zinc-950"
                 }`}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium text-zinc-100">{milestone.title ?? "Untitled milestone"}</p>
-                  <Badge variant={getStatusVariant(getEntityStatus(milestone))}>{getEntityStatus(milestone) ?? "unset"}</Badge>
+                <div className="flex flex-col gap-3">
+                  <button type="button" onClick={() => setSelectedMilestoneId(milestone.id)} className="text-left">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-zinc-100">{milestone.title ?? "Untitled milestone"}</p>
+                      <Badge variant={getStatusVariant(getEntityStatus(milestone))}>{getEntityStatus(milestone) ?? "unset"}</Badge>
+                    </div>
+                    <p className="mt-2 font-mono text-xs text-zinc-500">{formatEntityDate(milestone.created_at)}</p>
+                  </button>
+
+                  <Select
+                    value={getEntityStatus(milestone) ?? "todo"}
+                    onValueChange={(value) => void handleMilestoneStatusChange(milestone, value as TaskStatus)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Update milestone status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {taskStatusOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <p className="mt-2 font-mono text-xs text-zinc-500">{formatEntityDate(milestone.created_at)}</p>
-              </button>
+              </div>
             ))}
           </CardContent>
         </Card>
@@ -266,7 +321,11 @@ export function ProjectsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Tasks</CardTitle>
-            <CardDescription>{selectedMilestone ? `Children of ${selectedMilestone.title ?? "this milestone"}` : "Select a milestone to manage tasks."}</CardDescription>
+            <CardDescription>
+              {selectedMilestone
+                ? `Children of ${selectedMilestone.title ?? "this milestone"}. Move a task to done to capture a TIL and create a link back to the task.`
+                : "Select a milestone to manage tasks."}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {isTasksLoading ? <p className="text-sm text-zinc-500">Loading tasks...</p> : null}
