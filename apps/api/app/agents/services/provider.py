@@ -30,9 +30,15 @@ class OpenAIProvider:
         self.timeout_seconds = timeout_seconds
         self.provider_name = "openai"
 
-    def generate_text(self, messages: list[AgentMessage], temperature: float = 0.2, max_tokens: int = 800) -> str:
+    def generate_text(
+        self,
+        messages: list[AgentMessage],
+        temperature: float = 0.2,
+        max_tokens: int = 800,
+        model: str | None = None,
+    ) -> str:
         payload = {
-            "model": self.fast_model,
+            "model": model or self.fast_model,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
@@ -46,10 +52,11 @@ class OpenAIProvider:
         json_schema: JsonSchema,
         temperature: float = 0.1,
         max_tokens: int = 600,
+        model: str | None = None,
     ) -> dict[str, object]:
         schema_name = str(json_schema.get("title") or "agent_json_output").replace(" ", "_")
         payload = {
-            "model": self.fast_model,
+            "model": model or self.fast_model,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,

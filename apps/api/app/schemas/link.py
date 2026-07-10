@@ -68,3 +68,20 @@ class LinkRead(BaseModel):
     explanation: str | None
     status: str | None
     created_at: datetime | None
+
+
+class ReviewInboxLinkRead(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    from_id: UUID
+    to_id: UUID
+    from_title: str | None
+    to_title: str | None
+    from_type: str | None
+    to_type: str | None
+    relation_type: str | None
+    explanation: str | None
+    status: str | None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    created_at: datetime | None

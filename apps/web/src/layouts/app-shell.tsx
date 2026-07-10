@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { Database, LayoutGrid, Library, ListChecks, Network, NotebookPen, SunMedium } from "lucide-react"
+import { Database, Inbox, LayoutGrid, Library, ListChecks, Network, NotebookPen, SunMedium } from "lucide-react"
 import { Link, NavLink } from "react-router-dom"
 
 import type { Entity } from "@/lib/api"
@@ -22,6 +22,7 @@ const navigationItems = [
   { to: "/projects", label: "Projects", icon: ListChecks },
   { to: "/subjects", label: "Subjects", icon: Library },
   { to: "/graph", label: "Graph", icon: Network },
+  { to: "/review-inbox", label: "Review Inbox", icon: Inbox },
   { to: "/entities", label: "All Entities", icon: Database },
 ]
 
@@ -37,7 +38,7 @@ export function AppShell({ children, entities, activeEntityId, isEntitiesLoading
               </div>
               <div>
                 <p className="text-sm font-semibold text-zinc-100">Personal Dev KG</p>
-                <p className="font-mono text-xs text-zinc-500">Phase 3 safe AI infrastructure</p>
+                <p className="font-mono text-xs text-zinc-500">Phase 3 reviewable agents</p>
               </div>
             </Link>
           </div>
@@ -69,7 +70,7 @@ export function AppShell({ children, entities, activeEntityId, isEntitiesLoading
               entities={entities.slice(0, 8)}
               activeEntityId={activeEntityId}
               title="Recent Entities"
-              description="Entities stay shared across trackers, graph links stay separate from parent hierarchy, and confidence fades over time."
+              description="Entities stay shared across trackers, graph links stay separate from parent hierarchy, and agent suggestions wait for review."
               compact
               isLoading={isEntitiesLoading}
               errorMessage={entitiesError}
@@ -83,10 +84,10 @@ export function AppShell({ children, entities, activeEntityId, isEntitiesLoading
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-lg font-semibold text-zinc-100">Knowledge graph workspace</p>
-                <p className="text-sm text-zinc-500">Confirmed links drive the graph, confidence decays over time, and hierarchy stays separate from graph edges.</p>
+                <p className="text-sm text-zinc-500">Agent suggestions stay separate from confirmed links until you review them.</p>
               </div>
               <div className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-xs text-zinc-500">
-                Graph + embeddings + safe AI substrate
+                Graph + embeddings + reviewable agent suggestions
               </div>
             </div>
           </header>
@@ -97,4 +98,3 @@ export function AppShell({ children, entities, activeEntityId, isEntitiesLoading
     </div>
   )
 }
-

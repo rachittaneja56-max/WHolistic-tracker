@@ -15,12 +15,14 @@ export const contentTypeOptions = ["markdown", "blocks", "canvas_json", "code"] 
 export const taskStatusOptions = ["todo", "in_progress", "done"] as const
 export const difficultyOptions = ["easy", "medium", "hard"] as const
 export const relationTypeOptions = ["structural_analogy", "prerequisite", "used_in", "reminds_me_of"] as const
+export const duplicateMatchTypeOptions = ["duplicate", "same_pattern", "related_but_different", "no_match"] as const
 
 export type EntityType = (typeof entityTypeOptions)[number]
 export type ContentType = (typeof contentTypeOptions)[number]
 export type TaskStatus = (typeof taskStatusOptions)[number]
 export type DsaDifficulty = (typeof difficultyOptions)[number]
 export type RelationType = (typeof relationTypeOptions)[number]
+export type DuplicateMatchType = (typeof duplicateMatchTypeOptions)[number]
 export type LinkStatus = "agent_suggested" | "confirmed" | "rejected"
 export type EntityMetadata = Record<string, unknown>
 
@@ -53,6 +55,21 @@ export type LinkCandidate = {
   preview: string
   distance: number
   similarity: number
+}
+
+export type DuplicateDetectorMatch = {
+  entity_id: string
+  title: string | null
+  type: EntityType | null
+  tags: string[]
+  match_type: DuplicateMatchType
+  confidence: number
+  explanation: string
+}
+
+export type DuplicateDetectorResult = {
+  target_entity_id: string
+  matches: DuplicateDetectorMatch[]
 }
 
 export type EntityConnection = {
@@ -117,6 +134,21 @@ export type Link = {
   created_at: string | null
 }
 
+export type ReviewInboxLink = {
+  id: string
+  from_id: string
+  to_id: string
+  from_title: string | null
+  to_title: string | null
+  from_type: EntityType | null
+  to_type: EntityType | null
+  relation_type: RelationType | null
+  explanation: string | null
+  status: LinkStatus | null
+  confidence: number | null
+  created_at: string | null
+}
+
 export type DashboardToday = {
   recent_entities: Entity[]
   recent_sessions: SessionRecord[]
@@ -132,6 +164,23 @@ export type AgentStatus = {
   fast_model: string
   smart_model: string
   disabled_reason: string | null
+}
+
+export type DeepConnectionSuggestion = {
+  link_id: string
+  from_id: string
+  to_id: string
+  from_title: string | null
+  to_title: string | null
+  relation_type: RelationType
+  explanation: string
+  confidence: number
+}
+
+export type DeepConnectionsRunResult = {
+  candidate_pairs_considered: number
+  suggestions_created: number
+  suggestions: DeepConnectionSuggestion[]
 }
 
 export type RefreshAllEmbeddingsResult = {
@@ -309,10 +358,38 @@ export function createLink(payload: CreateLinkPayload) {
   })
 }
 
+export function getReviewInbox(limit = 100) {
+  return request<ReviewInboxLink[]>(`/links/review-inbox${buildQueryString({ limit })}`)
+}
+
+export function confirmLink(linkId: string) {
+  return request<Link>(`/links/${linkId}/confirm`, {
+    method: "POST",
+  })
+}
+
+export function rejectLink(linkId: string) {
+  return request<Link>(`/links/${linkId}/reject`, {
+    method: "POST",
+  })
+}
+
 export function getDashboardToday() {
   return request<DashboardToday>("/dashboard/today")
 }
 
 export function getAgentStatus() {
   return request<AgentStatus>("/agents/status")
+}
+
+export function runDuplicateDetector(entityId: string) {
+  return request<DuplicateDetectorResult>(`/agents/duplicate-detector/entities/${entityId}`, {
+    method: "POST",
+  })
+}
+
+export function runDeepConnections(batchLimit = 8) {
+  return request<DeepConnectionsRunResult>(`/agents/deep-connections/run-once${buildQueryString({ batch_limit: batchLimit })}`, {
+    method: "POST",
+  })
 }
