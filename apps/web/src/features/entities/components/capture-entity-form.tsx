@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, type FormEvent } from "react"
+import { useMemo, useState, type FormEvent } from "react"
 
 import {
   createEntity,
@@ -70,6 +70,7 @@ export function CaptureEntityForm({
   const [solutionCode, setSolutionCode] = useState("")
   const [status, setStatus] = useState<TaskStatus | "">("")
   const [examDate, setExamDate] = useState("")
+  const [repoUrl, setRepoUrl] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
@@ -99,6 +100,9 @@ export function CaptureEntityForm({
     }
     if (nextType !== "milestone" && nextType !== "task") {
       setParentId("")
+    }
+    if (nextType !== "project") {
+      setRepoUrl("")
     }
   }
 
@@ -164,6 +168,10 @@ export function CaptureEntityForm({
       }
     }
 
+    if (type === "project" && repoUrl.trim()) {
+      metadata.repo_url = repoUrl.trim()
+    }
+
     if (type === "subject_topic" && examDate) {
       metadata.exam_date = examDate
     }
@@ -194,6 +202,7 @@ export function CaptureEntityForm({
       setSolutionCode("")
       setStatus("")
       setExamDate("")
+      setRepoUrl("")
       setFieldErrors({})
       onCreated(entity)
     } catch (error) {
@@ -317,6 +326,19 @@ export function CaptureEntityForm({
                 </SelectContent>
               </Select>
               {fieldErrors.parentId ? <p className="text-sm text-red-300">{fieldErrors.parentId}</p> : null}
+            </div>
+          ) : null}
+
+          {type === "project" ? (
+            <div className="space-y-2">
+              <Label htmlFor="repo-url">Repository URL</Label>
+              <Input
+                id="repo-url"
+                value={repoUrl}
+                onChange={(event) => setRepoUrl(event.target.value)}
+                placeholder="https://github.com/owner/repo or owner/repo"
+              />
+              <p className="text-sm text-zinc-500">Used for GitHub webhook matching against `metadata.repo_url`.</p>
             </div>
           ) : null}
 

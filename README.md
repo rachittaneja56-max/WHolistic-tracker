@@ -1,24 +1,22 @@
-﻿# Personal Dev KG
+# Personal Dev KG
 
-Foundation monorepo for a personal knowledge graph with:
+Monorepo for a personal knowledge graph with:
 - `apps/api`: FastAPI + SQLAlchemy + Alembic
 - `apps/web`: React + TypeScript + Vite + Tailwind + shadcn-style UI components
 - `docker-compose.yml`: Postgres with pgvector and Redis
 
 ## What is included
 
-This repo currently covers the core foundation plus the requested Phase 1, Phase 2, and Phase 3 layers from `PROJECT_BRIEF.md`:
+This repo currently covers the stable foundation plus the implemented Phase 1-4 layers from `PROJECT_BRIEF.md`:
 - Stable schema tables: `entities`, `links`, `sessions`, `reviews`, `comprehension_checks`
 - FastAPI CRUD for entities, links, and sessions
 - Dashboard and tracker views built on the shared `entities` table
-- Embedding generation pipeline using the existing `entities.embedding` column
-- Vector similarity search foundation for candidate retrieval only
+- Embedding generation and pgvector similarity search
 - Cytoscape graph view with confidence decay support
 - Reviewable agent infrastructure with provider abstraction and prompt files
-- Daily guidance endpoint with deterministic fallback when AI is unavailable
-- Recall Mode with stored review history and self-grade fallback when AI is unavailable
-- Graph-scoped RAG chat that answers only from retrieved graph context
-- No duplicate merges, no auto-confirmed links, no GitHub integration, and no external-web answering
+- Rich content editors for `blocks` and `canvas_json`
+- Single-webhook GitHub integration that stores PR/push activity in `sessions`
+- PR-to-TIL starter drafts that require user approval before creating a final `til`
 
 ## Project shape
 
@@ -92,6 +90,7 @@ By default, `AI_ENABLED=false`:
 - `GET /agents/daily-guidance` falls back to deterministic guidance
 - `POST /recall/{entity_id}/grade` accepts `self_score` fallback grading
 - `POST /chat/graph` remains disabled until AI is enabled
+- `POST /github/sessions/{session_id}/draft-til` falls back to a deterministic starter draft
 
 Backend URLs:
 - API: `http://localhost:8000`
@@ -194,6 +193,41 @@ Invoke-WebRequest -Method Post -Uri http://localhost:8000/agents/test-json -Cont
 
 7. Confirm the response is valid JSON and that no entities or links were created or changed.
 
+### 9. GitHub webhook setup
+
+1. In `apps/api/.env`, set:
+
+```env
+GITHUB_INTEGRATION_ENABLED=true
+GITHUB_WEBHOOK_SECRET=your-shared-secret
+GITHUB_ACCESS_TOKEN=
+```
+
+2. Create or update a `project` entity whose `metadata.repo_url` matches the repo.
+   Accepted forms include:
+   - `https://github.com/owner/repo`
+   - `https://github.com/owner/repo.git`
+   - `owner/repo`
+   - `git@github.com:owner/repo.git`
+
+3. Start the backend and ensure `POST /webhooks/github` is reachable from GitHub.
+4. In the GitHub repository settings, add a webhook:
+   - Payload URL: `http://YOUR_HOST:8000/webhooks/github`
+   - Content type: `application/json`
+   - Secret: the same value as `GITHUB_WEBHOOK_SECRET`
+   - Events: `Pull requests` and `Pushes`
+
+5. Open or merge a pull request, or push commits.
+6. Check the dashboard `GitHub Feed` panel or call:
+
+```powershell
+Invoke-WebRequest -UseBasicParsing http://localhost:8000/github/feed
+```
+
+7. For a merged PR, click `Draft TIL` in the UI.
+8. Review the returned draft, edit it, and click `Save TIL`.
+9. Confirm the final TIL appears as an entity only after approval.
+
 ## Environment variables
 
 ### `apps/api/.env`
@@ -213,6 +247,9 @@ AI_ENABLED=false
 OPENAI_API_KEY=
 OPENAI_MODEL_FAST=gpt-4.1-mini
 OPENAI_MODEL_SMART=gpt-4.1
+GITHUB_INTEGRATION_ENABLED=false
+GITHUB_WEBHOOK_SECRET=
+GITHUB_ACCESS_TOKEN=
 ```
 
 ### `apps/web/.env`
@@ -226,8 +263,9 @@ VITE_API_URL=http://localhost:8000
 - `parent_id` is used only for hierarchy.
 - `links` is reserved for graph-style relationships.
 - Embeddings are used for candidate retrieval, not final reasoning.
-- Daily guidance and recall fall back safely when AI is unavailable.
-- Graph chat is grounded in retrieved graph context only and should refuse unsupported questions.
+- Rich notes and canvases still live in the same `entities` table.
+- GitHub activity is stored in `sessions`, not in a separate pull request table.
+- PR-to-TIL drafts are suggestions only. Final TIL entities are created only after approval.
 - Agents never auto-confirm links, auto-delete entities, or write knowledge without user review.
 - Entity create and update still succeed if embedding generation fails; the entity remains saved with a missing embedding.
 - No schema changes were required beyond the existing Phase 0 migration.

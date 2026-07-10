@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model_fast: str = "gpt-4.1-mini"
     openai_model_smart: str = "gpt-4.1"
+    github_integration_enabled: bool = False
+    github_webhook_secret: str | None = None
+    github_access_token: str | None = None
 
     @field_validator("cors_origins", mode="before")
     @classmethod

@@ -1,4 +1,4 @@
-﻿export const entityTypeOptions = [
+export const entityTypeOptions = [
   "dsa_problem",
   "concept",
   "subject_topic",
@@ -124,6 +124,49 @@ export type SessionRecord = {
   action: string | null
   date: string | null
   meta: EntityMetadata
+}
+
+export type GithubFeedItem = {
+  id: string
+  entity_id: string | null
+  action: "pr_opened" | "pr_merged" | "push" | string
+  date: string | null
+  repo_full_name: string | null
+  repo_html_url: string | null
+  title: string | null
+  message: string | null
+  github_url: string | null
+  project_id: string | null
+  project_title: string | null
+  pr_number: number | null
+  commit_count: number | null
+  sender_login: string | null
+  meta: EntityMetadata
+  draft_available: boolean
+  approved_til_entity_id: string | null
+  approved_til_title: string | null
+}
+
+export type GithubTilDraft = {
+  session_id: string
+  source: string
+  title: string
+  content: string
+  tags: string[]
+  used_ai: boolean
+  meta: EntityMetadata
+}
+
+export type GithubApproveTilPayload = {
+  title: string
+  content: string
+  tags: string[]
+}
+
+export type GithubApproveTilResult = {
+  entity: Entity
+  link_id: string | null
+  source_session_id: string
 }
 
 export type Link = {
@@ -427,6 +470,23 @@ export function rejectLink(linkId: string) {
 
 export function getDashboardToday() {
   return request<DashboardToday>("/dashboard/today")
+}
+
+export function getGithubFeed(limit = 20) {
+  return request<GithubFeedItem[]>(`/github/feed${buildQueryString({ limit })}`)
+}
+
+export function draftGithubTil(sessionId: string) {
+  return request<GithubTilDraft>(`/github/sessions/${sessionId}/draft-til`, {
+    method: "POST",
+  })
+}
+
+export function approveGithubTil(sessionId: string, payload: GithubApproveTilPayload) {
+  return request<GithubApproveTilResult>(`/github/sessions/${sessionId}/approve-til`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
 }
 
 export function getDailyGuidance() {

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SessionAction = Literal["created", "revisited", "linked", "pr_opened", "pr_merged"]
+SessionAction = Literal["created", "revisited", "linked", "pr_opened", "pr_merged", "push"]
 
 
 class SessionCreate(BaseModel):
