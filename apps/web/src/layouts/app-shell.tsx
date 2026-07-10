@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { Brain, Database, Inbox, LayoutGrid, Library, Lightbulb, ListChecks, MessageSquareText, Network, NotebookPen, RotateCcw, ShieldCheck, SunMedium } from "lucide-react"
+import { BookOpenText, Brain, Database, Inbox, LayoutGrid, Library, Lightbulb, ListChecks, MessageSquareText, Network, NotebookPen, RotateCcw, ShieldCheck, SunMedium, Tags } from "lucide-react"
 import { Link, NavLink } from "react-router-dom"
 
 import type { Entity } from "@/lib/api"
@@ -17,11 +17,13 @@ type AppShellProps = {
 
 const navigationItems = [
   { to: "/", label: "Today", icon: SunMedium },
+  { to: "/weekly", label: "Weekly", icon: BookOpenText },
   { to: "/capture", label: "Capture", icon: NotebookPen },
   { to: "/ideas", label: "Ideas", icon: Lightbulb },
   { to: "/dsa", label: "DSA", icon: LayoutGrid },
   { to: "/projects", label: "Projects", icon: ListChecks },
   { to: "/subjects", label: "Subjects", icon: Library },
+  { to: "/tags", label: "Tags", icon: Tags },
   { to: "/graph", label: "Graph", icon: Network },
   { to: "/recall", label: "Recall", icon: RotateCcw },
   { to: "/comprehension-debt", label: "Comprehension Debt", icon: ShieldCheck },
@@ -42,7 +44,7 @@ export function AppShell({ children, entities, activeEntityId, isEntitiesLoading
               </div>
               <div>
                 <p className="text-sm font-semibold text-zinc-100">Personal Dev KG</p>
-                <p className="font-mono text-xs text-zinc-500">Phase 4 grounded loops</p>
+                <p className="font-mono text-xs text-zinc-500">Phase 5 weekly sensemaking</p>
               </div>
             </Link>
           </div>
@@ -74,7 +76,7 @@ export function AppShell({ children, entities, activeEntityId, isEntitiesLoading
               entities={entities.slice(0, 8)}
               activeEntityId={activeEntityId}
               title="Recent Entities"
-              description="Entities stay shared across trackers, graph links stay separate from parent hierarchy, and agent suggestions wait for review."
+              description="Entities stay shared across trackers, graph links stay separate from parent hierarchy, and agent suggestions wait for review." 
               compact
               isLoading={isEntitiesLoading}
               errorMessage={entitiesError}
@@ -88,7 +90,7 @@ export function AppShell({ children, entities, activeEntityId, isEntitiesLoading
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-lg font-semibold text-zinc-100">Knowledge graph workspace</p>
-                <p className="text-sm text-zinc-500">Daily guidance, validation, comprehension checks, and graph-scoped answers stay grounded in your own entities, links, reviews, and sessions.</p>
+                <p className="text-sm text-zinc-500">Daily guidance, weekly digests, taxonomy gaps, and graph-scoped answers stay grounded in your own entities, links, reviews, and sessions.</p>
               </div>
               <div className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-xs text-zinc-500">
                 Embeddings retrieve, agents suggest, users confirm

@@ -205,6 +205,57 @@ export type DashboardToday = {
   upcoming_subject_topics: Entity[]
 }
 
+export type WeeklyDigestRange = {
+  start_date: string
+  end_date: string
+}
+
+export type WeeklyDigestConnection = {
+  link_id: string
+  from_title: string | null
+  to_title: string | null
+  explanation: string | null
+}
+
+export type WeeklyDigestFadingTopic = {
+  entity_id: string
+  title: string | null
+  confidence_score: number
+}
+
+export type WeeklyDigestDeadline = {
+  entity_id: string
+  title: string | null
+  date: string
+}
+
+export type WeeklyDigestAction = {
+  label: string
+  reason: string
+  priority: GuidancePriority
+}
+
+export type WeeklyDigest = {
+  range: WeeklyDigestRange
+  summary: string
+  wins: string[]
+  needs_attention: string[]
+  new_connections: WeeklyDigestConnection[]
+  fading_topics: WeeklyDigestFadingTopic[]
+  upcoming_deadlines: WeeklyDigestDeadline[]
+  suggested_next_actions: WeeklyDigestAction[]
+}
+
+export type TagTaxonomyItem = {
+  tag: string
+  total_entity_count: number
+  entity_counts_by_type: Record<string, number>
+  average_confidence_score: number
+  last_activity_at: string | null
+  open_task_count: number
+  review_due_count: number
+}
+
 export type DailyGuidanceAction = {
   label: string
   reason: string
@@ -573,6 +624,18 @@ export function getDashboardToday() {
   return request<DashboardToday>("/dashboard/today")
 }
 
+export function getWeeklyDigest(startDate?: string, endDate?: string) {
+  return request<WeeklyDigest>(`/digest/weekly${buildQueryString({ start_date: startDate, end_date: endDate })}`)
+}
+
+export function getTagTaxonomy() {
+  return request<{ tags: TagTaxonomyItem[] }>("/tags/taxonomy")
+}
+
+export function getTagEntities(tag: string, limit = 200) {
+  return request<Entity[]>(`/tags/${encodeURIComponent(tag)}/entities${buildQueryString({ limit })}`)
+}
+
 export function getGithubFeed(limit = 20) {
   return request<GithubFeedItem[]>(`/github/feed${buildQueryString({ limit })}`)
 }
@@ -659,3 +722,4 @@ export function runDeepConnections(batchLimit = 8) {
     method: "POST",
   })
 }
+

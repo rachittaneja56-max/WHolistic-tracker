@@ -14,12 +14,14 @@ import {
   getDailyGuidance,
   getDashboardToday,
   getGithubFeed,
+  getWeeklyDigest,
   type AgentStatus,
   type DailyGuidance,
   type DashboardToday,
   type GithubFeedItem,
   type GithubTilDraft,
   type GuidancePriority,
+  type WeeklyDigest,
 } from "@/lib/api"
 
 function getErrorMessage(error: unknown) {
@@ -85,6 +87,7 @@ export function TodayPage() {
   const [guidance, setGuidance] = useState<DailyGuidance | null>(null)
   const [aiStatus, setAiStatus] = useState<AgentStatus | null>(null)
   const [githubFeed, setGithubFeed] = useState<GithubFeedItem[]>([])
+  const [weeklyDigest, setWeeklyDigest] = useState<WeeklyDigest | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshingGuidance, setIsRefreshingGuidance] = useState(false)
   const [isLoadingDraft, setIsLoadingDraft] = useState(false)
@@ -93,6 +96,7 @@ export function TodayPage() {
   const [guidanceError, setGuidanceError] = useState<string | null>(null)
   const [aiStatusError, setAiStatusError] = useState<string | null>(null)
   const [githubFeedError, setGithubFeedError] = useState<string | null>(null)
+  const [weeklyDigestError, setWeeklyDigestError] = useState<string | null>(null)
   const [draftError, setDraftError] = useState<string | null>(null)
   const [activeDraft, setActiveDraft] = useState<GithubTilDraft | null>(null)
   const [draftTitle, setDraftTitle] = useState("")
@@ -106,12 +110,14 @@ export function TodayPage() {
     setGuidanceError(null)
     setAiStatusError(null)
     setGithubFeedError(null)
+    setWeeklyDigestError(null)
 
-    const [dashboardResult, guidanceResult, agentStatusResult, githubFeedResult] = await Promise.allSettled([
+    const [dashboardResult, guidanceResult, agentStatusResult, githubFeedResult, weeklyDigestResult] = await Promise.allSettled([
       getDashboardToday(),
       getDailyGuidance(),
       getAgentStatus(),
       getGithubFeed(),
+      getWeeklyDigest(),
     ])
 
     if (dashboardResult.status === "fulfilled") {
@@ -414,6 +420,44 @@ export function TodayPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle>This Week's Learning</CardTitle>
+            <CardDescription>Small preview of the weekly digest so you can spot momentum and gaps from the dashboard.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {weeklyDigest ? (
+              <>
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Badge variant="blue">Weekly preview</Badge>
+                    <span className="font-mono text-xs text-zinc-500">
+                      {weeklyDigest.range.start_date} to {weeklyDigest.range.end_date}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm leading-7 text-zinc-300">{weeklyDigest.summary}</p>
+                </div>
+
+                <div className="grid gap-3 xl:grid-cols-3">
+                  {weeklyDigest.wins.slice(0, 3).map((item) => (
+                    <div key={item} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-300">
+                      {item}
+                    </div>
+                  ))}
+                </div>
+
+                <Button asChild variant="outline">
+                  <Link to="/weekly">Open weekly digest</Link>
+                </Button>
+              </>
+            ) : (
+              <p className="text-sm text-zinc-500">Weekly digest preview is unavailable right now.</p>
+            )}
+
+            {weeklyDigestError ? <p className="text-sm text-amber-300">{weeklyDigestError}</p> : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>AI Status</CardTitle>
             <CardDescription>Phase 3 guidance, recall, and graph chat stay reviewable and never expose secret keys.</CardDescription>
           </CardHeader>
@@ -600,3 +644,5 @@ export function TodayPage() {
     </>
   )
 }
+
+

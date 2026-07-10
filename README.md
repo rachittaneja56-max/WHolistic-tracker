@@ -14,7 +14,8 @@ This repo currently covers the stable foundation plus the implemented Phase 1-4 
 - Embedding generation and pgvector similarity search
 - Cytoscape graph view with confidence decay support
 - Reviewable agent infrastructure with provider abstraction and prompt files
-- Rich content editors for `blocks` and `canvas_json`
+- Rich content editors for locks and canvas_json`r
+- Weekly digest, tag taxonomy, and coverage-gap surfaces built from existing graph data
 - Single-webhook GitHub integration that stores PR/push activity in `sessions`
 - Idea validation against your own graph with optional web-search provider support
 - AI assist level on tasks plus comprehension debt workflows
@@ -182,6 +183,13 @@ VITE_API_URL=http://localhost:8000
 
 ## Key flows
 
+### Weekly digest and tags
+- `GET /digest/weekly` builds a weekly recap from existing `entities`, `links`, `sessions`, `reviews`, and `comprehension_checks`.
+- If AI is enabled and configured, the digest summary uses a strict JSON prompt with the compact weekly context.
+- If AI is disabled or unconfigured, the backend returns a deterministic fallback summary.
+- `GET /tags/taxonomy` derives tag coverage directly from `entities.tags` with no separate tags table.
+- `GET /tags/{tag}/entities` returns the entities currently carrying that tag.
+
 ### Idea validator
 - `POST /ideas/validate` uses embeddings to retrieve related entities from your own graph.
 - It also inspects matching tags plus related project/concept candidates.
@@ -204,3 +212,4 @@ VITE_API_URL=http://localhost:8000
 - PR-to-TIL drafts are suggestions only. Final TIL entities are created only after approval.
 - Idea validation is also suggestion-only. Saving an idea requires explicit approval.
 - No new task, note, or idea tables were created.
+
