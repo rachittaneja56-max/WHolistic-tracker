@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     agents,
+    analytics,
     capture,
     chat,
     comprehension_checks,
@@ -34,6 +35,7 @@ api_router.include_router(links.router)
 api_router.include_router(recall.router)
 api_router.include_router(sessions.router)
 api_router.include_router(github.router)
+api_router.include_router(analytics.router)
 api_router.include_router(ideas.router)
 api_router.include_router(comprehension_checks.router)
 api_router.include_router(capture.router)

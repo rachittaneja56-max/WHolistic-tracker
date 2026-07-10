@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 
+import { GithubAnalyticsPanel } from "@/components/github-analytics-panel"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -146,6 +147,13 @@ export function TodayPage() {
     } else {
       setGithubFeed([])
       setGithubFeedError(getErrorMessage(githubFeedResult.reason))
+    }
+
+    if (weeklyDigestResult.status === "fulfilled") {
+      setWeeklyDigest(weeklyDigestResult.value)
+    } else {
+      setWeeklyDigest(null)
+      setWeeklyDigestError(getErrorMessage(weeklyDigestResult.reason))
     }
 
     setIsLoading(false)
@@ -418,6 +426,8 @@ export function TodayPage() {
           </CardContent>
         </Card>
 
+        <GithubAnalyticsPanel />
+
         <Card>
           <CardHeader>
             <CardTitle>This Week's Learning</CardTitle>
@@ -644,5 +654,8 @@ export function TodayPage() {
     </>
   )
 }
+
+
+
 
 

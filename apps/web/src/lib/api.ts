@@ -256,6 +256,56 @@ export type TagTaxonomyItem = {
   review_due_count: number
 }
 
+export type HeatmapDay = {
+  date: string
+  created_entities: number
+  revisited_entities: number
+  reviews: number
+  pr_opened: number
+  pr_merged: number
+  pushes: number
+  tils_created: number
+}
+
+export type HeatmapResponse = {
+  range: WeeklyDigestRange
+  days: HeatmapDay[]
+}
+
+export type GithubCiStatusItem = {
+  project_id: string | null
+  project_title: string | null
+  repo: string
+  latest_status: string
+  latest_conclusion: string | null
+  workflow_name: string
+  url: string | null
+  updated_at: string | null
+}
+
+export type GithubCiStatusResponse = {
+  items: GithubCiStatusItem[]
+}
+
+export type LearningVsShippingDay = {
+  date: string
+  shipping_count: number
+  learning_count: number
+}
+
+export type LearningVsShippingSummary = {
+  shipped_without_learning_days: number
+  learning_after_shipping_days: number
+  shipping_days: number
+  learning_days: number
+}
+
+export type LearningVsShippingResponse = {
+  range: WeeklyDigestRange
+  summary: LearningVsShippingSummary
+  days: LearningVsShippingDay[]
+}
+
 export type DailyGuidanceAction = {
   label: string
   reason: string
@@ -640,6 +690,18 @@ export function getGithubFeed(limit = 20) {
   return request<GithubFeedItem[]>(`/github/feed${buildQueryString({ limit })}`)
 }
 
+export function getGithubCiStatus() {
+  return request<GithubCiStatusResponse>("/github/ci-status")
+}
+
+export function getAnalyticsHeatmap(startDate?: string, endDate?: string) {
+  return request<HeatmapResponse>(`/analytics/heatmap${buildQueryString({ start_date: startDate, end_date: endDate })}`)
+}
+
+export function getLearningVsShipping(startDate?: string, endDate?: string) {
+  return request<LearningVsShippingResponse>(`/analytics/learning-vs-shipping${buildQueryString({ start_date: startDate, end_date: endDate })}`)
+}
+
 export function draftGithubTil(sessionId: string) {
   return request<GithubTilDraft>(`/github/sessions/${sessionId}/draft-til`, {
     method: "POST",
@@ -722,4 +784,5 @@ export function runDeepConnections(batchLimit = 8) {
     method: "POST",
   })
 }
+
 

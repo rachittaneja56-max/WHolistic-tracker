@@ -7,8 +7,9 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
-from urllib import error, request
+from urllib import request
 from urllib.parse import urlparse
 
 from fastapi import HTTPException, status
@@ -18,11 +19,13 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.entity import Entity
 from app.models.session import ActivitySession
+from app.schemas.analytics import GithubCiStatusItemRead
 
 logger = logging.getLogger(__name__)
 GITHUB_SESSION_ACTIONS = ("pr_opened", "pr_merged", "push")
 SUPPORTED_PULL_REQUEST_ACTIONS = {"opened", "reopened", "synchronize", "closed"}
 TAG_PATTERN = re.compile(r"[^a-z0-9]+")
+CI_SESSION_ACTIONS = {"workflow_run", "check_run"}
 
 
 @dataclass(slots=True)
@@ -85,6 +88,10 @@ def record_github_event(db: Session, event_name: str, payload: dict[str, Any]) -
         return _record_pull_request_event(db, payload)
     if event_name == "push":
         return _record_push_event(db, payload)
+    if event_name == "workflow_run":
+        return _record_workflow_run_event(db, payload)
+    if event_name == "check_run":
+        return _record_check_run_event(db, payload)
     return GithubEventRecord(stored=False, action=None, session_id=None, project_id=None)
 
 
@@ -95,6 +102,56 @@ def list_github_feed_sessions(db: Session, *, limit: int = 30) -> list[ActivityS
         .order_by(ActivitySession.date.desc())
         .limit(limit)
     ).all()
+
+
+def list_latest_ci_status_items(db: Session) -> list[GithubCiStatusItemRead]:
+    sessions = db.scalars(
+        select(ActivitySession)
+        .where(ActivitySession.action.in_(list(CI_SESSION_ACTIONS)))
+        .order_by(ActivitySession.date.desc())
+        .limit(500)
+    ).all()
+
+    latest_by_repo: dict[tuple[uuid.UUID | None, str], GithubCiStatusItemRead] = {}
+    latest_updated_at: dict[tuple[uuid.UUID | None, str], datetime] = {}
+
+    for session_row in sessions:
+        meta = session_row.meta or {}
+        repo = _get_string(meta, "repo_full_name") or _get_string(meta, "repo_html_url")
+        if not repo:
+            continue
+
+        updated_at = parse_github_datetime(
+            _get_string(meta, "updated_at")
+            or _get_string(meta, "completed_at")
+            or _get_string(meta, "started_at")
+            or _get_string(meta, "created_at")
+        ) or session_row.date
+        if updated_at is None:
+            continue
+
+        key = (session_row.entity_id, repo)
+        previous_updated_at = latest_updated_at.get(key)
+        if previous_updated_at is not None and previous_updated_at >= updated_at:
+            continue
+
+        latest_updated_at[key] = updated_at
+        latest_by_repo[key] = GithubCiStatusItemRead(
+            project_id=session_row.entity_id,
+            project_title=_get_string(meta, "project_title"),
+            repo=repo,
+            latest_status=_get_string(meta, "status") or "unknown",
+            latest_conclusion=_get_string(meta, "conclusion"),
+            workflow_name=_get_string(meta, "workflow_name") or _get_string(meta, "check_name") or "unknown",
+            url=_get_string(meta, "run_html_url") or _get_string(meta, "details_url") or _get_string(meta, "repo_html_url"),
+            updated_at=updated_at,
+        )
+
+    return sorted(
+        latest_by_repo.values(),
+        key=lambda item: item.updated_at or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
+    )
 
 
 def get_session_or_404(db: Session, session_id: uuid.UUID) -> ActivitySession:
@@ -251,6 +308,21 @@ def build_github_feed_url(session_row: ActivitySession) -> str | None:
     return _get_string(meta, "compare_url") or _get_string(meta, "repo_html_url")
 
 
+def parse_github_datetime(value: str | None) -> datetime | None:
+    if not value or not value.strip():
+        return None
+    raw_value = value.strip()
+    if raw_value.endswith("Z"):
+        raw_value = raw_value[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(raw_value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def _record_pull_request_event(db: Session, payload: dict[str, Any]) -> GithubEventRecord:
     raw_action = payload.get("action")
     if raw_action not in SUPPORTED_PULL_REQUEST_ACTIONS:
@@ -340,6 +412,87 @@ def _record_push_event(db: Session, payload: dict[str, Any]) -> GithubEventRecor
     db.commit()
     db.refresh(session_row)
     return GithubEventRecord(stored=True, action="push", session_id=session_row.id, project_id=project_match.entity_id)
+
+
+def _record_workflow_run_event(db: Session, payload: dict[str, Any]) -> GithubEventRecord:
+    workflow_run = payload.get("workflow_run")
+    repository = payload.get("repository")
+    if not isinstance(workflow_run, dict) or not isinstance(repository, dict):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="GitHub workflow_run payload is missing repository data")
+
+    repo_full_name = _get_string(repository, "full_name")
+    repo_html_url = _get_string(repository, "html_url")
+    project_match = match_project_for_repo(db, repo_html_url, repo_full_name)
+
+    meta = {
+        "source": "github",
+        "github_event": "workflow_run",
+        "github_action": _get_string(payload, "action"),
+        "repo_full_name": repo_full_name,
+        "repo_html_url": repo_html_url,
+        "repo_name": _get_string(repository, "name"),
+        "workflow_name": _get_string(workflow_run, "name"),
+        "status": _get_string(workflow_run, "status"),
+        "conclusion": _get_string(workflow_run, "conclusion"),
+        "run_html_url": _get_string(workflow_run, "html_url"),
+        "branch": _get_string(workflow_run, "head_branch"),
+        "event": _get_string(workflow_run, "event"),
+        "created_at": _get_string(workflow_run, "created_at"),
+        "updated_at": _get_string(workflow_run, "updated_at"),
+        "sender_login": _get_nested_string(payload, "sender", "login"),
+        "project_title": project_match.title,
+    }
+
+    session_row = ActivitySession(
+        id=uuid.uuid4(),
+        entity_id=project_match.entity_id,
+        action="workflow_run",
+        meta=meta,
+    )
+    db.add(session_row)
+    db.commit()
+    db.refresh(session_row)
+    return GithubEventRecord(stored=True, action="workflow_run", session_id=session_row.id, project_id=project_match.entity_id)
+
+
+def _record_check_run_event(db: Session, payload: dict[str, Any]) -> GithubEventRecord:
+    check_run = payload.get("check_run")
+    repository = payload.get("repository")
+    if not isinstance(check_run, dict) or not isinstance(repository, dict):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="GitHub check_run payload is missing repository data")
+
+    repo_full_name = _get_string(repository, "full_name")
+    repo_html_url = _get_string(repository, "html_url")
+    project_match = match_project_for_repo(db, repo_html_url, repo_full_name)
+
+    meta = {
+        "source": "github",
+        "github_event": "check_run",
+        "github_action": _get_string(payload, "action"),
+        "repo_full_name": repo_full_name,
+        "repo_html_url": repo_html_url,
+        "repo_name": _get_string(repository, "name"),
+        "check_name": _get_string(check_run, "name"),
+        "workflow_name": _get_string(check_run, "name"),
+        "status": _get_string(check_run, "status"),
+        "conclusion": _get_string(check_run, "conclusion"),
+        "details_url": _get_string(check_run, "details_url"),
+        "started_at": _get_string(check_run, "started_at"),
+        "completed_at": _get_string(check_run, "completed_at"),
+        "sender_login": _get_nested_string(payload, "sender", "login"),
+        "project_title": project_match.title,
+    }
+
+    session_row = ActivitySession(
+        id=uuid.uuid4(),
+        entity_id=project_match.entity_id,
+        action="check_run",
+        meta=meta,
+    )
+    db.add(session_row)
+    db.commit()
+    db.refresh(session_row)
+    return GithubEventRecord(stored=True, action="check_run", session_id=session_row.id, project_id=project_match.entity_id)
 
 
 def _get_string(payload: dict[str, Any], key: str) -> str | None:

@@ -14,6 +14,7 @@ from app.api.routes.entities import serialize_entity
 from app.db.session import get_db
 from app.models.entity import Entity
 from app.models.link import Link
+from app.schemas.analytics import GithubCiStatusResponse
 from app.schemas.github import GithubApproveTilRequest, GithubApproveTilResponse, GithubFeedItemRead, GithubTilDraftRead
 from app.services.embeddings import update_entity_embedding
 from app.services.github import (
@@ -24,6 +25,7 @@ from app.services.github import (
     get_session_or_404,
     is_github_pr_merge_session,
     list_github_feed_sessions,
+    list_latest_ci_status_items,
     sanitize_tags,
 )
 
@@ -67,6 +69,12 @@ def get_github_feed(
         )
 
     return feed
+
+
+@router.get("/ci-status", response_model=GithubCiStatusResponse)
+def get_github_ci_status(db: Session = Depends(get_db)) -> GithubCiStatusResponse:
+    ensure_github_integration_enabled()
+    return GithubCiStatusResponse(items=list_latest_ci_status_items(db))
 
 
 @router.post("/sessions/{session_id}/draft-til", response_model=GithubTilDraftRead)
