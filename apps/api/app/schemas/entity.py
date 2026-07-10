@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Literal
@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+AiAssistLevel = Literal["handwritten", "ai-scaffolded", "ai-generated", "ai-paired"]
 EntityType = Literal[
     "dsa_problem",
     "concept",
@@ -22,12 +23,46 @@ EntityType = Literal[
 ContentType = Literal["markdown", "blocks", "canvas_json", "code"]
 
 
+AI_ASSIST_LEVEL_VALUES: tuple[AiAssistLevel, ...] = (
+    "handwritten",
+    "ai-scaffolded",
+    "ai-generated",
+    "ai-paired",
+)
+
+
 def get_recommended_content_type_for_entity_type(entity_type: EntityType | None) -> ContentType | None:
     if entity_type == "note":
         return "blocks"
     if entity_type == "canvas":
         return "canvas_json"
     return None
+
+
+def validate_ai_assist_level(value: object) -> AiAssistLevel | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    if normalized in AI_ASSIST_LEVEL_VALUES:
+        return normalized  # type: ignore[return-value]
+    raise ValueError(
+        "metadata.ai_assist_level must be one of handwritten, ai-scaffolded, ai-generated, or ai-paired"
+    )
+
+
+def normalize_entity_metadata(entity_type: EntityType | None, metadata: dict[str, Any] | None) -> dict[str, Any]:
+    normalized = dict(metadata or {})
+    ai_assist_level = normalized.get("ai_assist_level")
+
+    if entity_type == "task":
+        if ai_assist_level is None:
+            normalized["ai_assist_level"] = "handwritten"
+        else:
+            normalized["ai_assist_level"] = validate_ai_assist_level(ai_assist_level)
+    elif ai_assist_level is not None:
+        normalized["ai_assist_level"] = validate_ai_assist_level(ai_assist_level)
+
+    return normalized
 
 
 class EntityCreate(BaseModel):

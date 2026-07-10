@@ -1,12 +1,14 @@
-﻿import { BrowserRouter, Route, Routes } from "react-router-dom"
+import { BrowserRouter, Route, Routes } from "react-router-dom"
 
 import { RootLayout } from "@/layouts/root-layout"
 import { AllEntitiesPage } from "@/pages/all-entities-page"
 import { CapturePage } from "@/pages/capture-page"
+import { ComprehensionChecksPage } from "@/pages/comprehension-checks-page"
 import { DsaPage } from "@/pages/dsa-page"
 import { EntityDetailPage } from "@/pages/entity-detail-page"
 import { GraphChatPage } from "@/pages/graph-chat-page"
 import { GraphPage } from "@/pages/graph-page"
+import { IdeasPage } from "@/pages/ideas-page"
 import { ProjectsPage } from "@/pages/projects-page"
 import { RecallPage } from "@/pages/recall-page"
 import { ReviewInboxPage } from "@/pages/review-inbox-page"
@@ -20,11 +22,13 @@ export default function App() {
         <Route element={<RootLayout />}>
           <Route index element={<TodayPage />} />
           <Route path="capture" element={<CapturePage />} />
+          <Route path="ideas" element={<IdeasPage />} />
           <Route path="dsa" element={<DsaPage />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="subjects" element={<SubjectsPage />} />
           <Route path="graph" element={<GraphPage />} />
           <Route path="recall" element={<RecallPage />} />
+          <Route path="comprehension-debt" element={<ComprehensionChecksPage />} />
           <Route path="ask-graph" element={<GraphChatPage />} />
           <Route path="review-inbox" element={<ReviewInboxPage />} />
           <Route path="entities" element={<AllEntitiesPage />} />

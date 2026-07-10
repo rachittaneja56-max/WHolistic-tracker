@@ -1,10 +1,12 @@
 import { useMemo, useState, type FormEvent } from "react"
 
 import {
+  aiAssistLevelOptions,
   createEntity,
   difficultyOptions,
   entityTypeOptions,
   taskStatusOptions,
+  type AiAssistLevel,
   type ContentType,
   type DsaDifficulty,
   type Entity,
@@ -71,6 +73,7 @@ export function CaptureEntityForm({
   const [status, setStatus] = useState<TaskStatus | "">("")
   const [examDate, setExamDate] = useState("")
   const [repoUrl, setRepoUrl] = useState("")
+  const [aiAssistLevel, setAiAssistLevel] = useState<AiAssistLevel>("handwritten")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
@@ -103,6 +106,9 @@ export function CaptureEntityForm({
     }
     if (nextType !== "project") {
       setRepoUrl("")
+    }
+    if (nextType !== "task") {
+      setAiAssistLevel("handwritten")
     }
   }
 
@@ -163,9 +169,11 @@ export function CaptureEntityForm({
     }
 
     if (type === "project" || type === "milestone" || type === "task") {
-      if (status) {
-        metadata.status = status
-      }
+      metadata.status = status || "todo"
+    }
+
+    if (type === "task") {
+      metadata.ai_assist_level = aiAssistLevel
     }
 
     if (type === "project" && repoUrl.trim()) {
@@ -203,6 +211,7 @@ export function CaptureEntityForm({
       setStatus("")
       setExamDate("")
       setRepoUrl("")
+      setAiAssistLevel("handwritten")
       setFieldErrors({})
       onCreated(entity)
     } catch (error) {
@@ -367,20 +376,40 @@ export function CaptureEntityForm({
           ) : null}
 
           {type === "project" || type === "milestone" || type === "task" ? (
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(value) => setStatus(value as TaskStatus)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {taskStatusOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid gap-5 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={status || "todo"} onValueChange={(value) => setStatus(value as TaskStatus)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {taskStatusOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {type === "task" ? (
+                <div className="space-y-2">
+                  <Label>AI Assist Level</Label>
+                  <Select value={aiAssistLevel} onValueChange={(value) => setAiAssistLevel(value as AiAssistLevel)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select AI assist level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {aiAssistLevelOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-zinc-500">Non-handwritten tasks will ask for a comprehension check when marked done.</p>
+                </div>
+              ) : null}
             </div>
           ) : null}
 

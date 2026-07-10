@@ -16,6 +16,8 @@ export const taskStatusOptions = ["todo", "in_progress", "done"] as const
 export const difficultyOptions = ["easy", "medium", "hard"] as const
 export const relationTypeOptions = ["structural_analogy", "prerequisite", "used_in", "reminds_me_of"] as const
 export const duplicateMatchTypeOptions = ["duplicate", "same_pattern", "related_but_different", "no_match"] as const
+export const aiAssistLevelOptions = ["handwritten", "ai-scaffolded", "ai-generated", "ai-paired"] as const
+export const comprehensionGradeOptions = ["passed", "flagged"] as const
 
 export type EntityType = (typeof entityTypeOptions)[number]
 export type ContentType = (typeof contentTypeOptions)[number]
@@ -23,6 +25,8 @@ export type TaskStatus = (typeof taskStatusOptions)[number]
 export type DsaDifficulty = (typeof difficultyOptions)[number]
 export type RelationType = (typeof relationTypeOptions)[number]
 export type DuplicateMatchType = (typeof duplicateMatchTypeOptions)[number]
+export type AiAssistLevel = (typeof aiAssistLevelOptions)[number]
+export type ComprehensionGrade = (typeof comprehensionGradeOptions)[number]
 export type LinkStatus = "agent_suggested" | "confirmed" | "rejected"
 export type GuidancePriority = "low" | "medium" | "high"
 export type RecallNextAction = "review_again" | "mark_revisited" | "strengthen_note"
@@ -329,6 +333,103 @@ export type CreateLinkPayload = {
   status?: LinkStatus
 }
 
+export type IdeaValidationPayload = {
+  idea: string
+}
+
+export type SimilarProduct = {
+  name: string
+  url: string | null
+  note: string
+}
+
+export type ExistingStrength = {
+  entity_id: string
+  title: string | null
+  reason: string
+}
+
+export type MissingPrerequisite = {
+  topic: string
+  why_needed: string
+}
+
+export type SuggestedMvpMilestone = {
+  milestone: string
+  tasks: string[]
+}
+
+export type IdeaValidationResult = {
+  idea_summary: string
+  similar_products: SimilarProduct[]
+  your_existing_strengths: ExistingStrength[]
+  missing_prerequisites: MissingPrerequisite[]
+  suggested_mvp: SuggestedMvpMilestone[]
+  risk_notes: string[]
+  web_search_configured: boolean
+  web_search_note: string | null
+  graph_candidates_considered: number
+  metadata: EntityMetadata
+}
+
+export type IdeaApprovePayload = {
+  idea: string
+  validation: IdeaValidationResult
+  title?: string | null
+  tags: string[]
+}
+
+export type IdeaApproveResult = {
+  entity: Entity
+}
+
+export type ComprehensionCheck = {
+  id: string
+  entity_id: string | null
+  ai_assist_level: string | null
+  question: string | null
+  your_answer: string | null
+  ai_grade: string | null
+  created_at: string | null
+  answered_at: string | null
+  entity: Entity | null
+  feedback: string | null
+  follow_up: string | null
+}
+
+export type GenerateComprehensionCheckPayload = {
+  task_entity_id: string
+  diff_or_summary?: string | null
+}
+
+export type GenerateComprehensionCheckResult = {
+  status: "not_required" | "generated" | "answered"
+  check_id: string | null
+  task_entity_id: string
+  ai_assist_level: AiAssistLevel | null
+  question: string | null
+  expected_answer: string | null
+  why_this_matters: string | null
+  used_fallback: boolean
+  message: string | null
+}
+
+export type AnswerComprehensionCheckPayload = {
+  your_answer: string
+  self_grade?: ComprehensionGrade
+}
+
+export type AnswerComprehensionCheckResult = {
+  check_id: string
+  entity_id: string | null
+  ai_grade: ComprehensionGrade
+  feedback: string
+  follow_up: string
+  answered_at: string
+  used_fallback: boolean
+  updated_confidence_score: number
+}
+
 const apiBaseUrl = (import.meta.env.VITE_API_URL ?? "http://localhost:8000").replace(/\/$/, "")
 
 async function getErrorMessage(response: Response) {
@@ -489,6 +590,20 @@ export function approveGithubTil(sessionId: string, payload: GithubApproveTilPay
   })
 }
 
+export function validateIdea(payload: IdeaValidationPayload) {
+  return request<IdeaValidationResult>("/ideas/validate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function approveIdea(payload: IdeaApprovePayload) {
+  return request<IdeaApproveResult>("/ideas/approve", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
 export function getDailyGuidance() {
   return request<DailyGuidance>("/agents/daily-guidance")
 }
@@ -499,6 +614,24 @@ export function getRecallDue(limit = 20) {
 
 export function gradeRecall(entityId: string, payload: RecallGradePayload) {
   return request<RecallGradeResult>(`/recall/${entityId}/grade`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getComprehensionChecks(status: "pending" | "answered" | "all" = "pending", limit = 100) {
+  return request<ComprehensionCheck[]>(`/comprehension-checks${buildQueryString({ status, limit })}`)
+}
+
+export function generateComprehensionCheck(payload: GenerateComprehensionCheckPayload) {
+  return request<GenerateComprehensionCheckResult>("/comprehension-checks/generate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function answerComprehensionCheck(checkId: string, payload: AnswerComprehensionCheckPayload) {
+  return request<AnswerComprehensionCheckResult>(`/comprehension-checks/${checkId}/answer`, {
     method: "POST",
     body: JSON.stringify(payload),
   })

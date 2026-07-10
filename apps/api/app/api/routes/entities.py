@@ -17,7 +17,7 @@ from app.models.link import Link
 from app.models.review import Review
 from app.models.session import ActivitySession
 from app.schemas.embedding import EntityConnectionRead, EntityLinkCandidateRead, EntitySimilarityRead, RefreshAllEmbeddingsRead
-from app.schemas.entity import EntityCreate, EntityRead, EntityUpdate
+from app.schemas.entity import EntityCreate, EntityRead, EntityUpdate, normalize_entity_metadata
 from app.services.confidence import mark_entity_revisited
 from app.services.embeddings import get_similar_entities, update_entity_embedding
 
@@ -28,6 +28,7 @@ PREVIEW_LENGTH = 180
 WHITESPACE_PATTERN = re.compile(r"\s+")
 
 
+
 def build_content_preview(content: str | None) -> str:
     cleaned = WHITESPACE_PATTERN.sub(" ", (content or "").strip())
     if not cleaned:
@@ -35,6 +36,7 @@ def build_content_preview(content: str | None) -> str:
     if len(cleaned) <= PREVIEW_LENGTH:
         return cleaned
     return f"{cleaned[: PREVIEW_LENGTH - 3].rstrip()}..."
+
 
 
 def serialize_entity(entity: Entity) -> EntityRead:
@@ -54,6 +56,7 @@ def serialize_entity(entity: Entity) -> EntityRead:
             "has_embedding": entity.embedding is not None,
         }
     )
+
 
 
 def serialize_connection(link: Link, current_entity_id: uuid.UUID) -> EntityConnectionRead | None:
@@ -77,11 +80,13 @@ def serialize_connection(link: Link, current_entity_id: uuid.UUID) -> EntityConn
     )
 
 
+
 def get_entity_or_404(db: Session, entity_id: uuid.UUID) -> Entity:
     entity = db.get(Entity, entity_id)
     if entity is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entity not found")
     return entity
+
 
 
 def apply_entity_filters(
@@ -103,10 +108,12 @@ def apply_entity_filters(
     return query
 
 
+
 def merge_metadata(current_metadata: dict[str, Any] | None, incoming_metadata: dict[str, Any] | None) -> dict[str, Any] | None:
     if incoming_metadata is None:
         return current_metadata
     return {**(current_metadata or {}), **incoming_metadata}
+
 
 
 def try_refresh_entity_embedding(entity_id: uuid.UUID) -> Entity | None:
@@ -115,6 +122,7 @@ def try_refresh_entity_embedding(entity_id: uuid.UUID) -> Entity | None:
     except Exception:
         logger.exception("Unable to refresh embedding for entity %s", entity_id)
         return None
+
 
 
 def get_linked_entity_ids(db: Session, entity_id: uuid.UUID) -> set[uuid.UUID]:
@@ -156,6 +164,11 @@ def create_entity(payload: EntityCreate, db: Session = Depends(get_db)) -> Entit
     if payload.parent_id is not None and db.get(Entity, payload.parent_id) is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Parent entity does not exist")
 
+    try:
+        normalized_metadata = normalize_entity_metadata(payload.type, payload.metadata)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
     entity = Entity(
         id=uuid.uuid4(),
         type=payload.type,
@@ -165,7 +178,7 @@ def create_entity(payload: EntityCreate, db: Session = Depends(get_db)) -> Entit
         content_type=payload.content_type,
         tags=payload.tags,
         confidence_score=payload.confidence_score,
-        entity_metadata=payload.metadata,
+        entity_metadata=normalized_metadata,
     )
     db.add(entity)
     record_session(
@@ -360,9 +373,19 @@ def update_entity(entity_id: uuid.UUID, payload: EntityUpdate, db: Session = Dep
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Parent entity does not exist")
 
     previous_status = (entity.entity_metadata or {}).get("status")
+    next_entity_type = updates.get("type", entity.type)
 
     if "metadata" in updates:
-        entity.entity_metadata = merge_metadata(entity.entity_metadata, updates.pop("metadata"))
+        merged_metadata = merge_metadata(entity.entity_metadata, updates.pop("metadata"))
+        try:
+            entity.entity_metadata = normalize_entity_metadata(next_entity_type, merged_metadata)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    elif "type" in updates:
+        try:
+            entity.entity_metadata = normalize_entity_metadata(next_entity_type, entity.entity_metadata)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     if "title" in updates and updates["title"] is not None:
         updates["title"] = updates["title"].strip()
@@ -409,5 +432,3 @@ def delete_entity(entity_id: uuid.UUID, db: Session = Depends(get_db)) -> Respon
     db.delete(entity)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-

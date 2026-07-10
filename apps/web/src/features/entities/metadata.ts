@@ -1,4 +1,4 @@
-import type { DsaDifficulty, Entity, TaskStatus } from "@/lib/api"
+import type { AiAssistLevel, DsaDifficulty, Entity, TaskStatus } from "@/lib/api"
 
 function getStringMetadata(entity: Entity, key: string) {
   const value = entity.metadata[key]
@@ -13,6 +13,11 @@ export function getEntityDifficulty(entity: Entity): DsaDifficulty | null {
 export function getEntityStatus(entity: Entity): TaskStatus | null {
   const value = getStringMetadata(entity, "status")
   return value === "todo" || value === "in_progress" || value === "done" ? value : null
+}
+
+export function getEntityAiAssistLevel(entity: Entity): AiAssistLevel | null {
+  const value = getStringMetadata(entity, "ai_assist_level")
+  return value === "handwritten" || value === "ai-scaffolded" || value === "ai-generated" || value === "ai-paired" ? value : null
 }
 
 export function getEntityExamDate(entity: Entity) {

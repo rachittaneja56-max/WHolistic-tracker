@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     github_integration_enabled: bool = False
     github_webhook_secret: str | None = None
     github_access_token: str | None = None
+    web_search_enabled: bool = False
+    web_search_provider: Literal["tavily"] = "tavily"
+    tavily_api_key: str | None = None
+    cli_capture_token: str | None = None
 
     @field_validator("cors_origins", mode="before")
     @classmethod

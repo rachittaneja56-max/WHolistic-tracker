@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
-import { Link, useOutletContext } from "react-router-dom"
+import { Link, useNavigate, useOutletContext } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,13 +8,16 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { EntitiesLayoutContext } from "@/features/entities/layout-context"
-import { formatEntityDate, getEntityStatus } from "@/features/entities/metadata"
+import { formatEntityDate, getEntityAiAssistLevel, getEntityStatus } from "@/features/entities/metadata"
 import {
+  aiAssistLevelOptions,
   createEntity,
   createLink,
+  generateComprehensionCheck,
   getEntities,
   getEntityChildren,
   taskStatusOptions,
+  type AiAssistLevel,
   type Entity,
   type TaskStatus,
   updateEntity,
@@ -34,10 +37,21 @@ function getStatusVariant(status: TaskStatus | null): "default" | "success" | "w
   return "default"
 }
 
+function getAiAssistVariant(level: AiAssistLevel | null): "default" | "warning" | "blue" {
+  if (level === "handwritten" || level === null) {
+    return "default"
+  }
+  if (level === "ai-generated") {
+    return "warning"
+  }
+  return "blue"
+}
+
 type TaskGroups = Record<TaskStatus, Entity[]>
 type EntityCollectionSetter = Dispatch<SetStateAction<Entity[]>>
 
 export function ProjectsPage() {
+  const navigate = useNavigate()
   const { addEntityToList, refreshEntities, upsertEntityInList } = useOutletContext<EntitiesLayoutContext>()
   const [projects, setProjects] = useState<Entity[]>([])
   const [milestones, setMilestones] = useState<Entity[]>([])
@@ -52,6 +66,11 @@ export function ProjectsPage() {
   const [tilContent, setTilContent] = useState("")
   const [tilError, setTilError] = useState<string | null>(null)
   const [isSavingTil, setIsSavingTil] = useState(false)
+  const [pendingComprehensionTask, setPendingComprehensionTask] = useState<Entity | null>(null)
+  const [comprehensionContext, setComprehensionContext] = useState("")
+  const [generatedCheckId, setGeneratedCheckId] = useState<string | null>(null)
+  const [comprehensionError, setComprehensionError] = useState<string | null>(null)
+  const [isGeneratingCheck, setIsGeneratingCheck] = useState(false)
 
   async function loadProjects() {
     setIsProjectsLoading(true)
@@ -183,6 +202,16 @@ export function ProjectsPage() {
     await handleStatusUpdate(task, nextStatus, setTasks, { promptForTil: true })
   }
 
+  async function handleTaskAiAssistChange(task: Entity, nextLevel: AiAssistLevel) {
+    try {
+      const updatedTask = await updateEntity(task.id, { metadata: { ai_assist_level: nextLevel } })
+      setTasks((currentTasks) => currentTasks.map((currentTask) => (currentTask.id === updatedTask.id ? updatedTask : currentTask)))
+      upsertEntityInList(updatedTask)
+    } catch (updateError) {
+      setError(getErrorMessage(updateError))
+    }
+  }
+
   async function handleCompleteTask() {
     if (!pendingCompletionTask) {
       return
@@ -217,12 +246,48 @@ export function ProjectsPage() {
       upsertEntityInList(updatedTask)
       addEntityToList(tilEntity)
       void refreshEntities()
+
+      const aiAssistLevel = getEntityAiAssistLevel(updatedTask)
+      const needsComprehensionCheck = aiAssistLevel !== null && aiAssistLevel !== "handwritten"
+
       setPendingCompletionTask(null)
       setTilContent("")
+
+      if (needsComprehensionCheck) {
+        setPendingComprehensionTask(updatedTask)
+        setGeneratedCheckId(null)
+        setComprehensionContext("")
+        setComprehensionError(null)
+      }
     } catch (saveError) {
       setTilError(getErrorMessage(saveError))
     } finally {
       setIsSavingTil(false)
+    }
+  }
+
+  async function handleGenerateComprehensionCheck() {
+    if (!pendingComprehensionTask) {
+      return
+    }
+
+    setIsGeneratingCheck(true)
+    setComprehensionError(null)
+
+    try {
+      const result = await generateComprehensionCheck({
+        task_entity_id: pendingComprehensionTask.id,
+        diff_or_summary: comprehensionContext.trim() || null,
+      })
+      if (result.status === "not_required") {
+        setComprehensionError(result.message ?? "This task does not require a comprehension check.")
+      } else {
+        setGeneratedCheckId(result.check_id)
+      }
+    } catch (generationError) {
+      setComprehensionError(getErrorMessage(generationError))
+    } finally {
+      setIsGeneratingCheck(false)
     }
   }
 
@@ -323,7 +388,7 @@ export function ProjectsPage() {
             <CardTitle>Tasks</CardTitle>
             <CardDescription>
               {selectedMilestone
-                ? `Children of ${selectedMilestone.title ?? "this milestone"}. Move a task to done to capture a TIL and create a link back to the task.`
+                ? `Children of ${selectedMilestone.title ?? "this milestone"}. Move a task to done to capture a TIL, then generate a comprehension check for AI-assisted work.`
                 : "Select a milestone to manage tasks."}
             </CardDescription>
           </CardHeader>
@@ -342,40 +407,58 @@ export function ProjectsPage() {
                     {taskGroups[statusKey].length === 0 ? (
                       <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-950 px-4 py-4 text-sm text-zinc-500">No tasks in this group.</div>
                     ) : (
-                      taskGroups[statusKey].map((task) => (
-                        <div key={task.id} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4">
-                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="space-y-2">
-                              <p className="text-sm font-medium text-zinc-100">{task.title ?? "Untitled task"}</p>
-                              <p className="text-sm text-zinc-300">{task.content?.trim() || "No task notes yet."}</p>
-                              <div className="flex flex-wrap gap-2">
-                                {task.tags.map((tag) => (
-                                  <Badge key={tag}>{tag}</Badge>
-                                ))}
-                              </div>
-                              <p className="font-mono text-xs text-zinc-500">{formatEntityDate(task.created_at)}</p>
-                            </div>
-
-                            <div className="flex w-full gap-3 lg:w-[220px] lg:flex-col">
-                              <Select value={getEntityStatus(task) ?? "todo"} onValueChange={(value) => void handleTaskStatusChange(task, value as TaskStatus)}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Update status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {taskStatusOptions.map((option) => (
-                                    <SelectItem key={option} value={option}>
-                                      {option}
-                                    </SelectItem>
+                      taskGroups[statusKey].map((task) => {
+                        const aiAssistLevel = getEntityAiAssistLevel(task)
+                        const requiresComprehension = aiAssistLevel !== null && aiAssistLevel !== "handwritten"
+                        return (
+                          <div key={task.id} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                              <div className="space-y-2">
+                                <p className="text-sm font-medium text-zinc-100">{task.title ?? "Untitled task"}</p>
+                                <p className="text-sm text-zinc-300">{task.content?.trim() || "No task notes yet."}</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {task.tags.map((tag) => (
+                                    <Badge key={tag}>{tag}</Badge>
                                   ))}
-                                </SelectContent>
-                              </Select>
-                              <Button asChild variant="outline">
-                                <Link to={`/entities/${task.id}`}>Open Entity</Link>
-                              </Button>
+                                  <Badge variant={getAiAssistVariant(aiAssistLevel)}>{aiAssistLevel ?? "handwritten"}</Badge>
+                                  {requiresComprehension ? <Badge variant="warning">comprehension debt when done</Badge> : null}
+                                </div>
+                                <p className="font-mono text-xs text-zinc-500">{formatEntityDate(task.created_at)}</p>
+                              </div>
+
+                              <div className="flex w-full gap-3 lg:w-[240px] lg:flex-col">
+                                <Select value={getEntityStatus(task) ?? "todo"} onValueChange={(value) => void handleTaskStatusChange(task, value as TaskStatus)}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Update status" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {taskStatusOptions.map((option) => (
+                                      <SelectItem key={option} value={option}>
+                                        {option}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Select value={aiAssistLevel ?? "handwritten"} onValueChange={(value) => void handleTaskAiAssistChange(task, value as AiAssistLevel)}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="AI assist level" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {aiAssistLevelOptions.map((option) => (
+                                      <SelectItem key={option} value={option}>
+                                        {option}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Button asChild variant="outline">
+                                  <Link to={`/entities/${task.id}`}>Open Entity</Link>
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))
+                        )
+                      })
                     )}
                   </div>
                 ))
@@ -404,6 +487,12 @@ export function ProjectsPage() {
                 />
               </div>
 
+              {getEntityAiAssistLevel(pendingCompletionTask) !== "handwritten" ? (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-zinc-300">
+                  This task is marked as AI-assisted, so after the TIL is saved we will prompt you to generate a comprehension check.
+                </div>
+              ) : null}
+
               {tilError ? <p className="text-sm text-red-300">{tilError}</p> : null}
 
               <div className="flex items-center justify-end gap-3">
@@ -421,6 +510,68 @@ export function ProjectsPage() {
                 <Button type="button" onClick={() => void handleCompleteTask()} disabled={isSavingTil}>
                   {isSavingTil ? "Saving..." : "Complete Task and Create TIL"}
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {pendingComprehensionTask ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <Card className="w-full max-w-2xl">
+            <CardHeader>
+              <CardTitle>Generate Comprehension Check</CardTitle>
+              <CardDescription>
+                <span className="text-zinc-100">{pendingComprehensionTask.title ?? "This task"}</span> used AI assistance. Generate a follow-up question so you can confirm the reasoning behind the work.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="comprehension-context">Optional diff or summary</Label>
+                <Textarea
+                  id="comprehension-context"
+                  value={comprehensionContext}
+                  onChange={(event) => setComprehensionContext(event.target.value)}
+                  placeholder="Paste a diff summary or a short description if you want a more specific question."
+                  className="min-h-[160px]"
+                />
+              </div>
+
+              {generatedCheckId ? (
+                <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-sm text-zinc-300">
+                  Comprehension check created. Open the debt queue to answer it.
+                </div>
+              ) : null}
+
+              {comprehensionError ? <p className="text-sm text-red-300">{comprehensionError}</p> : null}
+
+              <div className="flex items-center justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setPendingComprehensionTask(null)
+                    setComprehensionContext("")
+                    setGeneratedCheckId(null)
+                    setComprehensionError(null)
+                  }}
+                >
+                  Close
+                </Button>
+                {generatedCheckId ? (
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      navigate("/comprehension-debt")
+                    }}
+                  >
+                    Open Comprehension Debt
+                  </Button>
+                ) : (
+                  <Button type="button" onClick={() => void handleGenerateComprehensionCheck()} disabled={isGeneratingCheck}>
+                    {isGeneratingCheck ? "Generating..." : "Generate Check"}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

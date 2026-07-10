@@ -3,40 +3,22 @@
 Monorepo for a personal knowledge graph with:
 - `apps/api`: FastAPI + SQLAlchemy + Alembic
 - `apps/web`: React + TypeScript + Vite + Tailwind + shadcn-style UI components
+- `packages/klog`: small CLI capture client
 - `docker-compose.yml`: Postgres with pgvector and Redis
 
 ## What is included
 
 This repo currently covers the stable foundation plus the implemented Phase 1-4 layers from `PROJECT_BRIEF.md`:
 - Stable schema tables: `entities`, `links`, `sessions`, `reviews`, `comprehension_checks`
-- FastAPI CRUD for entities, links, and sessions
 - Dashboard and tracker views built on the shared `entities` table
 - Embedding generation and pgvector similarity search
 - Cytoscape graph view with confidence decay support
 - Reviewable agent infrastructure with provider abstraction and prompt files
 - Rich content editors for `blocks` and `canvas_json`
 - Single-webhook GitHub integration that stores PR/push activity in `sessions`
-- PR-to-TIL starter drafts that require user approval before creating a final `til`
-
-## Project shape
-
-### Backend
-- `app/main.py`
-- `app/core/config.py`
-- `app/db/base.py`
-- `app/db/session.py`
-- `app/models/`
-- `app/schemas/`
-- `app/services/`
-- `app/agents/`
-- `app/api/routes/`
-
-### Frontend
-- `src/components/`
-- `src/features/entities/`
-- `src/lib/api.ts`
-- `src/layouts/`
-- `src/pages/`
+- Idea validation against your own graph with optional web-search provider support
+- AI assist level on tasks plus comprehension debt workflows
+- CLI capture endpoint and `klog` client
 
 ## Prerequisites
 
@@ -55,11 +37,9 @@ From the repo root:
 docker compose up -d
 ```
 
-This project uses:
+Services:
 - Postgres on `localhost:5433`
 - Redis on `localhost:6379`
-
-`5433` is intentional so this repo does not collide with another local Postgres already using `5432`.
 
 ### 2. Set up and run the backend
 
@@ -80,30 +60,10 @@ Optional local semantic backend:
 python -m pip install -r requirements-embeddings.txt
 ```
 
-By default, `EMBEDDING_BACKEND=auto`:
-- uses `sentence-transformers/all-MiniLM-L6-v2` if the optional dependency is installed and the model can load
-- otherwise falls back to a deterministic 384-dimension local hash embedding backend so entity writes still succeed
-
-By default, `AI_ENABLED=false`:
-- the backend still starts normally without `OPENAI_API_KEY`
-- `GET /agents/status` reports safe configuration state
-- `GET /agents/daily-guidance` falls back to deterministic guidance
-- `POST /recall/{entity_id}/grade` accepts `self_score` fallback grading
-- `POST /chat/graph` remains disabled until AI is enabled
-- `POST /github/sessions/{session_id}/draft-til` falls back to a deterministic starter draft
-
 Backend URLs:
 - API: `http://localhost:8000`
-- Health check: `http://localhost:8000/health`
-- OpenAPI docs: `http://localhost:8000/docs`
-
-If port `8000` is already in use, run:
-
-```powershell
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
-```
-
-If you use `8001`, also update `apps/web/.env` to point `VITE_API_URL` at `http://localhost:8001`.
+- Health: `http://localhost:8000/health`
+- Docs: `http://localhost:8000/docs`
 
 ### 3. Set up and run the frontend
 
@@ -118,82 +78,25 @@ npm run dev
 Frontend URL:
 - App: `http://localhost:5173`
 
-### 4. Refresh embeddings for existing entities
+### 4. Optional AI and search configuration
 
-Refresh one entity:
+Add these in `apps/api/.env` only when you want them:
 
-```powershell
-Invoke-WebRequest -Method Post http://localhost:8000/entities/{ENTITY_ID}/embedding/refresh
+```env
+AI_ENABLED=true
+OPENAI_API_KEY=...
+OPENAI_MODEL_FAST=gpt-4.1-mini
+OPENAI_MODEL_SMART=gpt-4.1
+WEB_SEARCH_ENABLED=true
+WEB_SEARCH_PROVIDER=tavily
+TAVILY_API_KEY=...
 ```
 
-Refresh every entity:
+Behavior notes:
+- If `AI_ENABLED=false`, idea validation and comprehension checks still work with deterministic fallback behavior.
+- If web search is disabled or unconfigured, the idea validator still returns graph-based validation and includes a clear note that web search is unavailable.
 
-```powershell
-Invoke-WebRequest -Method Post http://localhost:8000/entities/embedding/refresh-all
-```
-
-Check similar candidates for one entity:
-
-```powershell
-Invoke-WebRequest -UseBasicParsing http://localhost:8000/entities/{ENTITY_ID}/similar
-```
-
-### 5. Verify the current entity and graph flow
-
-1. Start Docker services.
-2. Run Alembic migrations.
-3. Start the FastAPI server.
-4. Start the Vite frontend.
-5. Open `http://localhost:5173`.
-6. Create an entity from the capture form.
-7. Confirm it appears in the entity list.
-8. Open the entity detail view.
-9. Confirm embedding status appears on the detail page.
-10. Use the `Refresh embedding` button if the embedding is missing.
-11. Confirm the similar entities panel loads candidate matches.
-12. Create a confirmed link and verify it appears in the graph view.
-
-### 6. Verify daily guidance and recall mode
-
-1. Create a few entities with low confidence or older revisit dates.
-2. Add a `subject_topic` entity with `metadata.exam_date` in the near future.
-3. Open `Today` and confirm the `Today's Guidance` card recommends real due items.
-4. Open `Recall` and start a review from the queue.
-5. Confirm the content is hidden before grading.
-6. Submit an answer.
-7. Confirm a `reviews` row is created and the entity confidence updates.
-8. Set `AI_ENABLED=false` and repeat the review flow using self-grade fallback.
-
-### 7. Verify graph chat grounding
-
-1. Create or refresh embeddings for a few related notes.
-2. Open `Ask Graph`.
-3. Ask a question covered by your entities.
-4. Confirm the answer includes citations that link back to entity detail pages.
-5. Ask a question your notes do not cover.
-6. Confirm the app says `You have not written enough about this yet.`
-
-### 8. Verify AI safety infrastructure
-
-1. Start the backend without setting `OPENAI_API_KEY`.
-2. Confirm the app still starts and `GET /agents/status` reports a missing key instead of crashing.
-3. Set `AI_ENABLED=false` and call:
-
-```powershell
-Invoke-WebRequest -Method Post -Uri http://localhost:8000/agents/test-json -ContentType 'application/json' -Body '{}'
-```
-
-4. Confirm the endpoint returns a clear disabled message.
-5. Set `AI_ENABLED=true` and configure `OPENAI_API_KEY`.
-6. Call `POST /agents/test-json` again with a small JSON body:
-
-```powershell
-Invoke-WebRequest -Method Post -Uri http://localhost:8000/agents/test-json -ContentType 'application/json' -Body '{"prompt":"Return a short structured output test response."}'
-```
-
-7. Confirm the response is valid JSON and that no entities or links were created or changed.
-
-### 9. GitHub webhook setup
+### 5. GitHub webhook setup
 
 1. In `apps/api/.env`, set:
 
@@ -203,30 +106,45 @@ GITHUB_WEBHOOK_SECRET=your-shared-secret
 GITHUB_ACCESS_TOKEN=
 ```
 
-2. Create or update a `project` entity whose `metadata.repo_url` matches the repo.
-   Accepted forms include:
-   - `https://github.com/owner/repo`
-   - `https://github.com/owner/repo.git`
-   - `owner/repo`
-   - `git@github.com:owner/repo.git`
-
-3. Start the backend and ensure `POST /webhooks/github` is reachable from GitHub.
-4. In the GitHub repository settings, add a webhook:
+2. Make sure each relevant `project` entity has `metadata.repo_url`.
+3. In the GitHub repo settings, add a webhook:
    - Payload URL: `http://YOUR_HOST:8000/webhooks/github`
    - Content type: `application/json`
-   - Secret: the same value as `GITHUB_WEBHOOK_SECRET`
+   - Secret: same value as `GITHUB_WEBHOOK_SECRET`
    - Events: `Pull requests` and `Pushes`
 
-5. Open or merge a pull request, or push commits.
-6. Check the dashboard `GitHub Feed` panel or call:
+### 6. CLI capture setup
 
-```powershell
-Invoke-WebRequest -UseBasicParsing http://localhost:8000/github/feed
+1. In `apps/api/.env`, set:
+
+```env
+CLI_CAPTURE_TOKEN=replace-me
 ```
 
-7. For a merged PR, click `Draft TIL` in the UI.
-8. Review the returned draft, edit it, and click `Save TIL`.
-9. Confirm the final TIL appears as an entity only after approval.
+2. Use the local CLI directly:
+
+```powershell
+$env:KLOG_API_URL="http://localhost:8000"
+$env:KLOG_TOKEN="replace-me"
+node packages/klog/index.mjs "learned why pgvector cosine distance matters" --type til --tags pgvector,embeddings
+node packages/klog/index.mjs "fix graph layout bug" --type task --project personal-dev-kg
+```
+
+3. Optional local bin install:
+
+```powershell
+npm install -g ./packages/klog
+klog "capture from anywhere" --type note --tags quick-capture
+```
+
+Optional git hook example:
+
+```bash
+#!/usr/bin/env bash
+klog "post-commit note: explain what changed and why" --type til --project personal-dev-kg
+```
+
+Do not install that automatically. It is only a reference pattern.
 
 ## Environment variables
 
@@ -250,6 +168,10 @@ OPENAI_MODEL_SMART=gpt-4.1
 GITHUB_INTEGRATION_ENABLED=false
 GITHUB_WEBHOOK_SECRET=
 GITHUB_ACCESS_TOKEN=
+WEB_SEARCH_ENABLED=false
+WEB_SEARCH_PROVIDER=tavily
+TAVILY_API_KEY=
+CLI_CAPTURE_TOKEN=
 ```
 
 ### `apps/web/.env`
@@ -258,14 +180,27 @@ GITHUB_ACCESS_TOKEN=
 VITE_API_URL=http://localhost:8000
 ```
 
+## Key flows
+
+### Idea validator
+- `POST /ideas/validate` uses embeddings to retrieve related entities from your own graph.
+- It also inspects matching tags plus related project/concept candidates.
+- If web search is configured, similar-product results are added as external context.
+- Nothing is saved until `POST /ideas/approve` is called.
+
+### Comprehension debt
+- Tasks store `metadata.ai_assist_level`.
+- `handwritten` means no check required.
+- Non-handwritten tasks can generate a comprehension check when they are completed.
+- Answering a check can return `passed` or `flagged`.
+- Flagged checks reduce task confidence slightly so the task is more likely to reappear in recall-oriented flows.
+
 ## Notes
 
 - `parent_id` is used only for hierarchy.
 - `links` is reserved for graph-style relationships.
 - Embeddings are used for candidate retrieval, not final reasoning.
-- Rich notes and canvases still live in the same `entities` table.
-- GitHub activity is stored in `sessions`, not in a separate pull request table.
+- GitHub activity is stored in `sessions`, not a separate pull-request table.
 - PR-to-TIL drafts are suggestions only. Final TIL entities are created only after approval.
-- Agents never auto-confirm links, auto-delete entities, or write knowledge without user review.
-- Entity create and update still succeed if embedding generation fails; the entity remains saved with a missing embedding.
-- No schema changes were required beyond the existing Phase 0 migration.
+- Idea validation is also suggestion-only. Saving an idea requires explicit approval.
+- No new task, note, or idea tables were created.
