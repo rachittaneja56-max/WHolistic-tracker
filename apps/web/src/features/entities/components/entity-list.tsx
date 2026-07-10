@@ -1,9 +1,10 @@
-import { Link } from "react-router-dom"
+﻿import { Link } from "react-router-dom"
 
 import type { Entity } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { getEntityContentPreview } from "@/features/entities/content"
 import { cn } from "@/lib/utils"
 
 type EntityListProps = {
@@ -86,6 +87,7 @@ export function EntityList({
                       <Badge>{entity.type ?? "unknown"}</Badge>
                       <Badge>{entity.content_type ?? "unset"}</Badge>
                     </div>
+                    <p className="text-sm text-zinc-500">{getEntityContentPreview(entity)}</p>
                   </div>
                   <span className="font-mono text-xs text-zinc-500">{formatDate(entity.created_at)}</span>
                 </div>

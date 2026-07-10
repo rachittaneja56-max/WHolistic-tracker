@@ -1,7 +1,8 @@
-import { Link, useOutletContext } from "react-router-dom"
+﻿import { Link, useOutletContext } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { getEntityContentPreview } from "@/features/entities/content"
 import type { EntitiesLayoutContext } from "@/features/entities/layout-context"
 import { formatEntityDate } from "@/features/entities/metadata"
 
@@ -12,7 +13,7 @@ export function AllEntitiesPage() {
     <Card>
       <CardHeader>
         <CardTitle>All Entities</CardTitle>
-        <CardDescription>A shared list view across every Phase 1 tracker.</CardDescription>
+        <CardDescription>A shared list view across every tracker and rich content type.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {isEntitiesLoading ? <p className="text-sm text-zinc-500">Loading entities...</p> : null}
@@ -37,6 +38,7 @@ export function AllEntitiesPage() {
                     <Badge>{entity.type ?? "unknown"}</Badge>
                     <Badge>{entity.content_type ?? "unset"}</Badge>
                   </div>
+                  <p className="text-sm text-zinc-500">{getEntityContentPreview(entity)}</p>
                 </div>
                 <span className="font-mono text-xs text-zinc-500">{formatEntityDate(entity.created_at)}</span>
               </Link>

@@ -1,4 +1,4 @@
-import type { Entity } from "@/lib/api"
+﻿import type { Entity } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -39,12 +39,6 @@ export function EntityDetailCard({ entity, isRefreshingEmbedding, embeddingActio
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-          <p className="whitespace-pre-wrap text-sm leading-7 text-zinc-300">
-            {entity.content?.trim() ? entity.content : "No content has been captured for this entity yet."}
-          </p>
-        </div>
-
         <div className="space-y-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500">Entity metadata</h2>

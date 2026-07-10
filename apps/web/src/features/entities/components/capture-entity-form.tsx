@@ -1,7 +1,6 @@
 ﻿import { useMemo, useState, type FormEvent } from "react"
 
 import {
-  contentTypeOptions,
   createEntity,
   difficultyOptions,
   entityTypeOptions,
@@ -17,7 +16,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
+import { EntityEditor } from "@/features/entities/components/entity-editor"
+import { getDefaultContentTypeForEntityType } from "@/features/entities/content"
 
 type CaptureEntityFormProps = {
   onCreated: (entity: Entity) => void
@@ -34,6 +34,19 @@ type FieldErrors = {
   contentType?: string
   parentId?: string
 }
+
+type CreateShortcut = {
+  label: string
+  type: EntityType
+  contentType: ContentType
+}
+
+const createShortcuts: CreateShortcut[] = [
+  { label: "New Note", type: "note", contentType: "blocks" },
+  { label: "New Canvas", type: "canvas", contentType: "canvas_json" },
+  { label: "New DSA Problem", type: "dsa_problem", contentType: "markdown" },
+  { label: "New TIL", type: "til", contentType: "markdown" },
+]
 
 function getSubmitErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to create entity."
@@ -87,6 +100,23 @@ export function CaptureEntityForm({
     if (nextType !== "milestone" && nextType !== "task") {
       setParentId("")
     }
+  }
+
+  function applyEntityType(nextType: EntityType) {
+    setType(nextType)
+    resetConditionalFields(nextType)
+    const suggestedContentType = getDefaultContentTypeForEntityType(nextType)
+    if (!contentType || suggestedContentType) {
+      setContentType(suggestedContentType ?? contentType)
+    }
+  }
+
+  function applyShortcut(shortcut: CreateShortcut) {
+    setType(shortcut.type)
+    resetConditionalFields(shortcut.type)
+    setContentType(shortcut.contentType)
+    setSubmitError(null)
+    setFieldErrors({})
   }
 
   function validateForm() {
@@ -178,11 +208,22 @@ export function CaptureEntityForm({
       <CardHeader>
         <CardTitle>Capture Entity</CardTitle>
         <CardDescription>
-          Capture every tracker object into the shared entities table and use metadata only for type-specific details.
+          Notes and canvases stay in the shared entities table. `content_type` decides whether the editor is markdown, blocks, canvas JSON, or code.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+          <div className="space-y-3">
+            <Label>Create shortcut</Label>
+            <div className="flex flex-wrap gap-2">
+              {createShortcuts.map((shortcut) => (
+                <Button key={shortcut.label} type="button" variant="outline" size="sm" onClick={() => applyShortcut(shortcut)}>
+                  {shortcut.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="title">Title</Label>
             <Input
@@ -207,8 +248,7 @@ export function CaptureEntityForm({
                 value={type}
                 onValueChange={(value) => {
                   const nextType = value as EntityType
-                  setType(nextType)
-                  resetConditionalFields(nextType)
+                  applyEntityType(nextType)
                   if (fieldErrors.type) {
                     setFieldErrors((currentErrors) => ({ ...currentErrors, type: undefined }))
                   }
@@ -243,11 +283,10 @@ export function CaptureEntityForm({
                   <SelectValue placeholder="Select content type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {contentTypeOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="markdown">markdown</SelectItem>
+                  <SelectItem value="blocks">blocks</SelectItem>
+                  <SelectItem value="canvas_json">canvas_json</SelectItem>
+                  <SelectItem value="code">code</SelectItem>
                 </SelectContent>
               </Select>
               {fieldErrors.contentType ? <p className="text-sm text-red-300">{fieldErrors.contentType}</p> : null}
@@ -300,13 +339,7 @@ export function CaptureEntityForm({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="solution-code">Solution Code</Label>
-                <Textarea
-                  id="solution-code"
-                  value={solutionCode}
-                  onChange={(event) => setSolutionCode(event.target.value)}
-                  placeholder="Store a code snippet in metadata.solution_code for the DSA tracker view."
-                  className="min-h-[180px] font-mono text-xs"
-                />
+                <EntityEditor contentType="code" value={solutionCode} onChange={setSolutionCode} resetKey="capture-solution-code" />
               </div>
             </div>
           ) : null}
@@ -337,14 +370,9 @@ export function CaptureEntityForm({
           ) : null}
 
           <div className="space-y-2">
-            <Label htmlFor="content">Content / Notes</Label>
-            <Textarea
-              id="content"
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              placeholder="Capture notes, context, or markdown details here."
-            />
-            <p className="text-sm text-zinc-500">Use `content` for notes and metadata only for tracker-specific fields.</p>
+            <Label htmlFor="content">Content</Label>
+            <EntityEditor contentType={contentType || "markdown"} value={content} onChange={setContent} resetKey={`capture-${type || "unknown"}-${contentType || "markdown"}`} />
+            <p className="text-sm text-zinc-500">BlockNote stores serialized block JSON. Excalidraw stores serialized scene JSON. Markdown and code continue as strings.</p>
           </div>
 
           <div className="space-y-2">

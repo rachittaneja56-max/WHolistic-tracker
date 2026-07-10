@@ -1,4 +1,4 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -18,4 +18,62 @@
   #root {
     @apply min-h-screen;
   }
+}
+
+.kg-rich-editor .bn-container,
+.kg-rich-editor .bn-editor,
+.kg-rich-editor .bn-side-menu,
+.kg-rich-editor .bn-formatting-toolbar,
+.kg-rich-editor .bn-link-toolbar,
+.kg-rich-editor .bn-suggestion-menu {
+  background-color: #18181b;
+  color: #d4d4d8;
+}
+
+.kg-rich-editor .bn-container {
+  border-radius: 0.75rem;
+}
+
+.kg-rich-editor .bn-editor {
+  min-height: 22rem;
+  padding: 1rem;
+}
+
+.kg-rich-editor .bn-side-menu,
+.kg-rich-editor .bn-formatting-toolbar,
+.kg-rich-editor .bn-link-toolbar,
+.kg-rich-editor .bn-suggestion-menu {
+  border: 1px solid #27272a;
+  box-shadow: none;
+}
+
+.kg-rich-editor .bn-editor [data-placeholder]::before {
+  color: #71717a;
+}
+
+.kg-excalidraw .excalidraw {
+  --color-primary: #3b82f6;
+  --color-primary-darker: #2563eb;
+  --default-bg-color: #18181b;
+  --sidebar-border-color: #27272a;
+  --button-gray-1: #18181b;
+  --button-gray-2: #27272a;
+  --button-gray-3: #3f3f46;
+  --button-special-active-bg-color: #1d4ed8;
+  --button-special-border-color: #3b82f6;
+  --dialog-border-color: #27272a;
+  --popup-bg-color: #18181b;
+  --popup-secondary-bg-color: #09090b;
+  --text-primary-color: #f4f4f5;
+  --text-secondary-color: #a1a1aa;
+  background-color: #18181b;
+}
+
+.kg-excalidraw .Island,
+.kg-excalidraw .App-toolbar,
+.kg-excalidraw .App-menu_top,
+.kg-excalidraw .dropdown-menu,
+.kg-excalidraw .layer-ui__wrapper__top-right,
+.kg-excalidraw .sidebar {
+  box-shadow: none;
 }
