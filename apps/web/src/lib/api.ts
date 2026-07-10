@@ -1,4 +1,4 @@
-export const entityTypeOptions = [
+﻿export const entityTypeOptions = [
   "dsa_problem",
   "concept",
   "subject_topic",
@@ -24,6 +24,8 @@ export type DsaDifficulty = (typeof difficultyOptions)[number]
 export type RelationType = (typeof relationTypeOptions)[number]
 export type DuplicateMatchType = (typeof duplicateMatchTypeOptions)[number]
 export type LinkStatus = "agent_suggested" | "confirmed" | "rejected"
+export type GuidancePriority = "low" | "medium" | "high"
+export type RecallNextAction = "review_again" | "mark_revisited" | "strengthen_note"
 export type EntityMetadata = Record<string, unknown>
 
 export type Entity = {
@@ -154,6 +156,55 @@ export type DashboardToday = {
   recent_sessions: SessionRecord[]
   open_tasks: Entity[]
   upcoming_subject_topics: Entity[]
+}
+
+export type DailyGuidanceAction = {
+  label: string
+  reason: string
+  entity_id: string | null
+  priority: GuidancePriority
+}
+
+export type DailyGuidance = {
+  date: string
+  summary: string
+  actions: DailyGuidanceAction[]
+}
+
+export type RecallDueItem = {
+  entity: Entity
+  due_score: number
+  due_reasons: string[]
+  days_since_review: number | null
+  days_until_exam: number | null
+}
+
+export type RecallGradePayload = {
+  answer: string
+  self_score?: number
+}
+
+export type RecallGradeResult = {
+  entity_id: string
+  recalled_score: number
+  feedback: string
+  missed_points: string[]
+  next_action: RecallNextAction
+  reviewed_at: string
+  updated_confidence_score: number
+  used_fallback: boolean
+}
+
+export type GraphChatCitation = {
+  entity_id: string
+  title: string
+  reason_used: string
+}
+
+export type GraphChatResult = {
+  answer: string
+  citations: GraphChatCitation[]
+  missing: boolean
 }
 
 export type AgentStatus = {
@@ -376,6 +427,28 @@ export function rejectLink(linkId: string) {
 
 export function getDashboardToday() {
   return request<DashboardToday>("/dashboard/today")
+}
+
+export function getDailyGuidance() {
+  return request<DailyGuidance>("/agents/daily-guidance")
+}
+
+export function getRecallDue(limit = 20) {
+  return request<RecallDueItem[]>(`/recall/due${buildQueryString({ limit })}`)
+}
+
+export function gradeRecall(entityId: string, payload: RecallGradePayload) {
+  return request<RecallGradeResult>(`/recall/${entityId}/grade`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function askGraph(question: string) {
+  return request<GraphChatResult>("/chat/graph", {
+    method: "POST",
+    body: JSON.stringify({ question }),
+  })
 }
 
 export function getAgentStatus() {

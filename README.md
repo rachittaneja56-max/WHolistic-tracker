@@ -1,4 +1,4 @@
-# Personal Dev KG
+﻿# Personal Dev KG
 
 Foundation monorepo for a personal knowledge graph with:
 - `apps/api`: FastAPI + SQLAlchemy + Alembic
@@ -7,15 +7,18 @@ Foundation monorepo for a personal knowledge graph with:
 
 ## What is included
 
-This repo currently covers the core foundation plus the early Phase 1, Phase 2, and Phase 3 infrastructure pieces requested in `PROJECT_BRIEF.md`:
+This repo currently covers the core foundation plus the requested Phase 1, Phase 2, and Phase 3 layers from `PROJECT_BRIEF.md`:
 - Stable schema tables: `entities`, `links`, `sessions`, `reviews`, `comprehension_checks`
 - FastAPI CRUD for entities, links, and sessions
 - Dashboard and tracker views built on the shared `entities` table
 - Embedding generation pipeline using the existing `entities.embedding` column
 - Vector similarity search foundation for candidate retrieval only
 - Cytoscape graph view with confidence decay support
-- Safe AI provider abstraction, prompt scaffolding, and JSON-only internal agent test infrastructure
-- No full agents, no deep connection reasoning, no recall mode, no RAG chat, and no GitHub integration
+- Reviewable agent infrastructure with provider abstraction and prompt files
+- Daily guidance endpoint with deterministic fallback when AI is unavailable
+- Recall Mode with stored review history and self-grade fallback when AI is unavailable
+- Graph-scoped RAG chat that answers only from retrieved graph context
+- No duplicate merges, no auto-confirmed links, no GitHub integration, and no external-web answering
 
 ## Project shape
 
@@ -86,7 +89,9 @@ By default, `EMBEDDING_BACKEND=auto`:
 By default, `AI_ENABLED=false`:
 - the backend still starts normally without `OPENAI_API_KEY`
 - `GET /agents/status` reports safe configuration state
-- `POST /agents/test-json` returns a clear disabled message until AI is enabled
+- `GET /agents/daily-guidance` falls back to deterministic guidance
+- `POST /recall/{entity_id}/grade` accepts `self_score` fallback grading
+- `POST /chat/graph` remains disabled until AI is enabled
 
 Backend URLs:
 - API: `http://localhost:8000`
@@ -134,7 +139,7 @@ Check similar candidates for one entity:
 Invoke-WebRequest -UseBasicParsing http://localhost:8000/entities/{ENTITY_ID}/similar
 ```
 
-### 5. Verify the current flow
+### 5. Verify the current entity and graph flow
 
 1. Start Docker services.
 2. Run Alembic migrations.
@@ -147,21 +152,29 @@ Invoke-WebRequest -UseBasicParsing http://localhost:8000/entities/{ENTITY_ID}/si
 9. Confirm embedding status appears on the detail page.
 10. Use the `Refresh embedding` button if the embedding is missing.
 11. Confirm the similar entities panel loads candidate matches.
+12. Create a confirmed link and verify it appears in the graph view.
 
-### 6. Verify the graph and confidence flow
+### 6. Verify daily guidance and recall mode
 
-1. Create at least two entities with overlapping tags or related content.
-2. Open each entity detail page and refresh embeddings if the status is still missing.
-3. Use the `Suggested connections` panel to create a confirmed link with an explanation.
-4. Open the `Graph` page from the sidebar.
-5. Confirm the linked entities appear as nodes with a blue confirmed edge between them.
-6. Click the edge and confirm the explanation is visible in the inspector panel.
-7. Run `Run confidence decay` on the graph page.
-8. Confirm older nodes become more faded as `confidence_score` drops.
-9. Click a node and use `Mark revisited`.
-10. Confirm the node confidence returns to `1.0` and the node becomes more visible again.
+1. Create a few entities with low confidence or older revisit dates.
+2. Add a `subject_topic` entity with `metadata.exam_date` in the near future.
+3. Open `Today` and confirm the `Today's Guidance` card recommends real due items.
+4. Open `Recall` and start a review from the queue.
+5. Confirm the content is hidden before grading.
+6. Submit an answer.
+7. Confirm a `reviews` row is created and the entity confidence updates.
+8. Set `AI_ENABLED=false` and repeat the review flow using self-grade fallback.
 
-### 7. Verify the AI safety infrastructure
+### 7. Verify graph chat grounding
+
+1. Create or refresh embeddings for a few related notes.
+2. Open `Ask Graph`.
+3. Ask a question covered by your entities.
+4. Confirm the answer includes citations that link back to entity detail pages.
+5. Ask a question your notes do not cover.
+6. Confirm the app says `You have not written enough about this yet.`
+
+### 8. Verify AI safety infrastructure
 
 1. Start the backend without setting `OPENAI_API_KEY`.
 2. Confirm the app still starts and `GET /agents/status` reports a missing key instead of crashing.
@@ -212,7 +225,9 @@ VITE_API_URL=http://localhost:8000
 
 - `parent_id` is used only for hierarchy.
 - `links` is reserved for graph-style relationships.
-- Embeddings are used only for candidate retrieval in Phase 2, not for final reasoning.
-- Agent infrastructure is limited to provider abstraction, prompt files, status reporting, and JSON-only internal tests.
+- Embeddings are used for candidate retrieval, not final reasoning.
+- Daily guidance and recall fall back safely when AI is unavailable.
+- Graph chat is grounded in retrieved graph context only and should refuse unsupported questions.
+- Agents never auto-confirm links, auto-delete entities, or write knowledge without user review.
 - Entity create and update still succeed if embedding generation fails; the entity remains saved with a missing embedding.
 - No schema changes were required beyond the existing Phase 0 migration.

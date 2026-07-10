@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react"
+﻿import { useMemo, useState, type FormEvent } from "react"
 
 import {
   contentTypeOptions,
@@ -22,6 +22,10 @@ import { Textarea } from "@/components/ui/textarea"
 type CaptureEntityFormProps = {
   onCreated: (entity: Entity) => void
   availableEntities: Entity[]
+  initialTitle?: string
+  initialContent?: string
+  initialType?: EntityType
+  initialContentType?: ContentType
 }
 
 type FieldErrors = {
@@ -35,13 +39,20 @@ function getSubmitErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to create entity."
 }
 
-export function CaptureEntityForm({ onCreated, availableEntities }: CaptureEntityFormProps) {
-  const [title, setTitle] = useState("")
-  const [type, setType] = useState<EntityType | "">("")
+export function CaptureEntityForm({
+  onCreated,
+  availableEntities,
+  initialTitle = "",
+  initialContent = "",
+  initialType,
+  initialContentType,
+}: CaptureEntityFormProps) {
+  const [title, setTitle] = useState(initialTitle)
+  const [type, setType] = useState<EntityType | "">(initialType ?? "")
   const [parentId, setParentId] = useState("")
-  const [content, setContent] = useState("")
+  const [content, setContent] = useState(initialContent)
   const [tags, setTags] = useState("")
-  const [contentType, setContentType] = useState<ContentType | "">("")
+  const [contentType, setContentType] = useState<ContentType | "">(initialContentType ?? "")
   const [difficulty, setDifficulty] = useState<DsaDifficulty | "">("")
   const [solutionCode, setSolutionCode] = useState("")
   const [status, setStatus] = useState<TaskStatus | "">("")
@@ -167,7 +178,7 @@ export function CaptureEntityForm({ onCreated, availableEntities }: CaptureEntit
       <CardHeader>
         <CardTitle>Capture Entity</CardTitle>
         <CardDescription>
-          Capture every Phase 1 object into the shared entities table and use metadata only for type-specific details.
+          Capture every tracker object into the shared entities table and use metadata only for type-specific details.
         </CardDescription>
       </CardHeader>
       <CardContent>

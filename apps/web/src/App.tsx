@@ -1,12 +1,14 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom"
+﻿import { BrowserRouter, Route, Routes } from "react-router-dom"
 
 import { RootLayout } from "@/layouts/root-layout"
 import { AllEntitiesPage } from "@/pages/all-entities-page"
 import { CapturePage } from "@/pages/capture-page"
 import { DsaPage } from "@/pages/dsa-page"
 import { EntityDetailPage } from "@/pages/entity-detail-page"
+import { GraphChatPage } from "@/pages/graph-chat-page"
 import { GraphPage } from "@/pages/graph-page"
 import { ProjectsPage } from "@/pages/projects-page"
+import { RecallPage } from "@/pages/recall-page"
 import { ReviewInboxPage } from "@/pages/review-inbox-page"
 import { SubjectsPage } from "@/pages/subjects-page"
 import { TodayPage } from "@/pages/today-page"
@@ -22,6 +24,8 @@ export default function App() {
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="subjects" element={<SubjectsPage />} />
           <Route path="graph" element={<GraphPage />} />
+          <Route path="recall" element={<RecallPage />} />
+          <Route path="ask-graph" element={<GraphChatPage />} />
           <Route path="review-inbox" element={<ReviewInboxPage />} />
           <Route path="entities" element={<AllEntitiesPage />} />
           <Route path="entities/:entityId" element={<EntityDetailPage />} />

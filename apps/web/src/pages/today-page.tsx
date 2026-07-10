@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react"
+﻿import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatEntityDate, formatExamDate, getEntityExamDate, getEntityStatus } from "@/features/entities/metadata"
-import { getAgentStatus, getDashboardToday, type AgentStatus, type DashboardToday } from "@/lib/api"
+import { getAgentStatus, getDailyGuidance, getDashboardToday, type AgentStatus, type DailyGuidance, type DashboardToday, type GuidancePriority } from "@/lib/api"
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to load today's dashboard."
@@ -25,25 +25,46 @@ function getAiBadgeVariant(isHealthy: boolean): "blue" | "warning" {
   return isHealthy ? "blue" : "warning"
 }
 
+function getPriorityVariant(priority: GuidancePriority): "default" | "warning" | "blue" {
+  if (priority === "high") {
+    return "warning"
+  }
+  if (priority === "medium") {
+    return "blue"
+  }
+  return "default"
+}
+
 export function TodayPage() {
   const [summary, setSummary] = useState<DashboardToday | null>(null)
+  const [guidance, setGuidance] = useState<DailyGuidance | null>(null)
   const [aiStatus, setAiStatus] = useState<AgentStatus | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshingGuidance, setIsRefreshingGuidance] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [guidanceError, setGuidanceError] = useState<string | null>(null)
   const [aiStatusError, setAiStatusError] = useState<string | null>(null)
 
   async function loadDashboard() {
     setIsLoading(true)
     setError(null)
+    setGuidanceError(null)
     setAiStatusError(null)
 
-    const [dashboardResult, agentStatusResult] = await Promise.allSettled([getDashboardToday(), getAgentStatus()])
+    const [dashboardResult, guidanceResult, agentStatusResult] = await Promise.allSettled([getDashboardToday(), getDailyGuidance(), getAgentStatus()])
 
     if (dashboardResult.status === "fulfilled") {
       setSummary(dashboardResult.value)
     } else {
       setSummary(null)
       setError(getErrorMessage(dashboardResult.reason))
+    }
+
+    if (guidanceResult.status === "fulfilled") {
+      setGuidance(guidanceResult.value)
+    } else {
+      setGuidance(null)
+      setGuidanceError(getErrorMessage(guidanceResult.reason))
     }
 
     if (agentStatusResult.status === "fulfilled") {
@@ -54,6 +75,20 @@ export function TodayPage() {
     }
 
     setIsLoading(false)
+  }
+
+  async function refreshGuidance() {
+    setIsRefreshingGuidance(true)
+    setGuidanceError(null)
+
+    try {
+      const result = await getDailyGuidance()
+      setGuidance(result)
+    } catch (refreshError) {
+      setGuidanceError(getErrorMessage(refreshError))
+    } finally {
+      setIsRefreshingGuidance(false)
+    }
   }
 
   useEffect(() => {
@@ -68,7 +103,7 @@ export function TodayPage() {
     return [
       {
         title: "Recent Activity",
-        description: "Recent session records created by entity creation, status changes, and links.",
+        description: "Recent session records created by entity creation, status changes, links, and recall events.",
         content:
           summary.recent_sessions.length > 0 ? (
             <div className="space-y-3">
@@ -76,7 +111,7 @@ export function TodayPage() {
                 <div key={session.id} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3">
                   <p className="text-sm text-zinc-100">{String(session.meta.entity_title ?? "Untitled entity")}</p>
                   <p className="mt-1 font-mono text-xs uppercase tracking-[0.18em] text-zinc-500">
-                    {session.action ?? "activity"} � {formatEntityDate(session.date)}
+                    {session.action ?? "activity"} · {formatEntityDate(session.date)}
                   </p>
                 </div>
               ))}
@@ -156,7 +191,7 @@ export function TodayPage() {
       <Card>
         <CardHeader>
           <CardTitle>Today</CardTitle>
-          <CardDescription>Loading dashboard and AI safety status...</CardDescription>
+          <CardDescription>Loading dashboard, guidance, and AI safety status...</CardDescription>
         </CardHeader>
       </Card>
     )
@@ -183,8 +218,60 @@ export function TodayPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <CardTitle>Today&apos;s Guidance</CardTitle>
+              <CardDescription>
+                Grounded in your own graph only. When AI is unavailable, this falls back to deterministic review and deadline signals.
+              </CardDescription>
+            </div>
+            <Button type="button" variant="outline" onClick={() => void refreshGuidance()} disabled={isRefreshingGuidance}>
+              {isRefreshingGuidance ? "Refreshing..." : "Refresh guidance"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {guidance ? (
+            <>
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge variant={aiStatus?.provider_ready ? "blue" : "warning"}>{aiStatus?.provider_ready ? "AI guidance" : "Deterministic fallback"}</Badge>
+                  <span className="font-mono text-xs text-zinc-500">{guidance.date}</span>
+                </div>
+                <p className="mt-3 text-sm leading-7 text-zinc-300">{guidance.summary}</p>
+              </div>
+
+              {guidance.actions.length > 0 ? (
+                <div className="grid gap-3 xl:grid-cols-2">
+                  {guidance.actions.map((action, index) => {
+                    const destination = action.entity_id ? `/entities/${action.entity_id}` : "/review-inbox"
+                    return (
+                      <Link key={`${action.label}-${index}`} to={destination} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4 transition-colors hover:border-blue-500/40">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-medium text-zinc-100">{action.label}</p>
+                          <Badge variant={getPriorityVariant(action.priority)}>{action.priority}</Badge>
+                        </div>
+                        <p className="mt-2 text-sm text-zinc-300">{action.reason}</p>
+                      </Link>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-zinc-500">No action items were returned for today.</p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-zinc-500">Guidance is unavailable right now.</p>
+          )}
+
+          {guidanceError ? <p className="text-sm text-amber-300">{guidanceError}</p> : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>AI Status</CardTitle>
-          <CardDescription>Phase 3 infrastructure only. Agents are not active yet, and no secrets are exposed here.</CardDescription>
+          <CardDescription>Phase 3 guidance, recall, and graph chat stay reviewable and never expose secret keys.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {aiStatus ? (
@@ -221,7 +308,7 @@ export function TodayPage() {
               <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Provider</p>
                 <p className="mt-2 font-mono text-sm text-zinc-100">{aiStatus.provider_name}</p>
-                <p className="mt-2 text-sm text-zinc-500">{aiStatus.disabled_reason ?? "Provider configuration looks healthy for JSON-only internal tests."}</p>
+                <p className="mt-2 text-sm text-zinc-500">{aiStatus.disabled_reason ?? "Provider configuration looks healthy for grounded JSON-only workflows."}</p>
               </div>
             </>
           ) : (
