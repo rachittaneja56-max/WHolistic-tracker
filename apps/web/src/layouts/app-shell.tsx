@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { BookOpenText, Brain, Database, Inbox, LayoutGrid, Library, Lightbulb, ListChecks, MessageSquareText, Network, NotebookPen, RotateCcw, ShieldCheck, SunMedium, Tags } from "lucide-react"
+import { BookOpenText, Brain, ChartColumnIncreasing, Database, Inbox, LayoutGrid, Library, Lightbulb, ListChecks, MessageSquareText, Network, NotebookPen, RotateCcw, ShieldCheck, SunMedium, Tags } from "lucide-react"
 import { Link, NavLink } from "react-router-dom"
 
 import type { Entity } from "@/lib/api"
@@ -18,6 +18,7 @@ type AppShellProps = {
 const navigationItems = [
   { to: "/", label: "Today", icon: SunMedium },
   { to: "/weekly", label: "Weekly", icon: BookOpenText },
+  { to: "/analyst", label: "Analyst", icon: ChartColumnIncreasing },
   { to: "/capture", label: "Capture", icon: NotebookPen },
   { to: "/ideas", label: "Ideas", icon: Lightbulb },
   { to: "/dsa", label: "DSA", icon: LayoutGrid },

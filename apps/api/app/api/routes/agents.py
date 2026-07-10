@@ -1,6 +1,7 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -12,6 +13,7 @@ from app.agents.schemas.common import (
     DeepConnectionsRunResponseRead,
     DuplicateDetectorResponseRead,
 )
+from app.agents.services.analyst import get_default_analyst_range, get_weekly_analyst_brief
 from app.agents.services.daily_guidance import get_daily_guidance
 from app.agents.services.deep_connections import run_deep_connection_agent
 from app.agents.services.duplicate_detector import run_duplicate_detector
@@ -19,6 +21,7 @@ from app.agents.services.provider import get_ai_provider, get_agent_status_snaps
 from app.agents.utils.exceptions import AgentDisabledError, AgentProviderError, InvalidJSONError, MissingAPIKeyError, ModelResponseError, ProviderTimeoutError
 from app.agents.utils.prompts import read_prompt_file
 from app.db.session import get_db
+from app.schemas.analyst import AnalystWeeklyResponse
 from app.schemas.guidance import DailyGuidanceResponse
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -51,6 +54,36 @@ def get_daily_guidance_route(db: Session = Depends(get_db)) -> DailyGuidanceResp
 
     try:
         return get_daily_guidance(db, provider=provider)
+    except ProviderTimeoutError as exc:
+        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=str(exc)) from exc
+    except (InvalidJSONError, ModelResponseError, AgentProviderError) as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+
+@router.get("/analyst/weekly", response_model=AnalystWeeklyResponse)
+def get_weekly_analyst_route(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> AnalystWeeklyResponse:
+    default_start_date, default_end_date = get_default_analyst_range()
+    resolved_start_date = start_date or default_start_date
+    resolved_end_date = end_date or default_end_date
+    if resolved_start_date > resolved_end_date:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="start_date must be on or before end_date")
+
+    try:
+        provider = get_ai_provider()
+    except (AgentDisabledError, MissingAPIKeyError):
+        provider = None
+
+    try:
+        return get_weekly_analyst_brief(
+            db,
+            start_date=resolved_start_date,
+            end_date=resolved_end_date,
+            provider=provider,
+        )
     except ProviderTimeoutError as exc:
         raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=str(exc)) from exc
     except (InvalidJSONError, ModelResponseError, AgentProviderError) as exc:

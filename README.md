@@ -1,36 +1,44 @@
 # Personal Dev KG
 
-Monorepo for a personal knowledge graph with:
-- `apps/api`: FastAPI + SQLAlchemy + Alembic
-- `apps/web`: React + TypeScript + Vite + Tailwind + shadcn-style UI components
-- `packages/klog`: small CLI capture client
-- `docker-compose.yml`: Postgres with pgvector and Redis
+Personal Dev KG is a monorepo for a personal developer knowledge graph. Everything lives on one stable substrate: `entities` for captured knowledge and work items, `links` for graph relationships, `sessions` for activity, `reviews` for recall history, and `comprehension_checks` for AI-assisted verification.
 
-## What is included
+The current build includes:
+- Phase 0 foundation in FastAPI, React, Postgres, pgvector, Alembic, Tailwind, and shadcn-style UI.
+- Phase 1 tracker views for DSA, projects, subjects, Today, and task-to-TIL capture.
+- Phase 2 embeddings, similarity search, graph view, and confidence decay.
+- Phase 3 safe AI infrastructure with provider abstraction, prompts, JSON output validation, and suggestion-only agents.
+- Phase 4 rich content support, GitHub webhook activity, PR-to-TIL drafts, CLI capture, and comprehension checks.
+- Phase 5 weekly digest, tag taxonomy, analytics, CI visibility, and the weekly analyst brief.
 
-This repo currently covers the stable foundation plus the implemented Phase 1-4 layers from `PROJECT_BRIEF.md`:
-- Stable schema tables: `entities`, `links`, `sessions`, `reviews`, `comprehension_checks`
-- Dashboard and tracker views built on the shared `entities` table
-- Embedding generation and pgvector similarity search
-- Cytoscape graph view with confidence decay support
-- Reviewable agent infrastructure with provider abstraction and prompt files
-- Rich content editors for locks and canvas_json`r
-- Weekly digest, tag taxonomy, and coverage-gap surfaces built from existing graph data
-- Single-webhook GitHub integration that stores PR/push activity in `sessions`
-- Idea validation against your own graph with optional web-search provider support
-- AI assist level on tasks plus comprehension debt workflows
-- CLI capture endpoint and `klog` client
+## Architecture
+
+- Backend: `apps/api`
+- Frontend: `apps/web`
+- CLI capture tool: `packages/klog`
+- Local services: `docker-compose.yml`
+- Stable schema: `entities`, `links`, `sessions`, `reviews`, `comprehension_checks`
+
+Key rules:
+- `parent_id` is only for hierarchy.
+- `links` is only for graph relationships.
+- Embeddings retrieve candidates. Agents suggest. Users confirm.
+- No agent auto-creates final knowledge without an explicit user action.
+
+Additional architecture notes live in:
+- `docs/ARCHITECTURE.md`
+- `docs/PHASES.md`
+- `docs/AGENTS.md`
 
 ## Prerequisites
 
 - Docker Desktop
-- Python 3.13+ with `pip`
+- Python 3.13+
 - Node.js 22+
 - npm 11+
 
-## Local runbook
+## Phase 0 Local Runbook
 
-### 1. Start local services
+### 1. Start Postgres and Redis
 
 From the repo root:
 
@@ -39,10 +47,10 @@ docker compose up -d
 ```
 
 Services:
-- Postgres on `localhost:5433`
-- Redis on `localhost:6379`
+- Postgres: `localhost:5433`
+- Redis: `localhost:6379`
 
-### 2. Set up and run the backend
+### 2. Backend setup
 
 From `apps/api`:
 
@@ -50,12 +58,13 @@ From `apps/api`:
 copy .env.example .env
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 alembic upgrade head
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Optional local semantic backend:
+Optional local embedding model dependencies:
 
 ```powershell
 python -m pip install -r requirements-embeddings.txt
@@ -64,9 +73,9 @@ python -m pip install -r requirements-embeddings.txt
 Backend URLs:
 - API: `http://localhost:8000`
 - Health: `http://localhost:8000/health`
-- Docs: `http://localhost:8000/docs`
+- OpenAPI docs: `http://localhost:8000/docs`
 
-### 3. Set up and run the frontend
+### 3. Frontend setup
 
 From `apps/web`:
 
@@ -79,75 +88,17 @@ npm run dev
 Frontend URL:
 - App: `http://localhost:5173`
 
-### 4. Optional AI and search configuration
+### 4. Useful migration commands
 
-Add these in `apps/api/.env` only when you want them:
-
-```env
-AI_ENABLED=true
-OPENAI_API_KEY=...
-OPENAI_MODEL_FAST=gpt-4.1-mini
-OPENAI_MODEL_SMART=gpt-4.1
-WEB_SEARCH_ENABLED=true
-WEB_SEARCH_PROVIDER=tavily
-TAVILY_API_KEY=...
-```
-
-Behavior notes:
-- If `AI_ENABLED=false`, idea validation and comprehension checks still work with deterministic fallback behavior.
-- If web search is disabled or unconfigured, the idea validator still returns graph-based validation and includes a clear note that web search is unavailable.
-
-### 5. GitHub webhook setup
-
-1. In `apps/api/.env`, set:
-
-```env
-GITHUB_INTEGRATION_ENABLED=true
-GITHUB_WEBHOOK_SECRET=your-shared-secret
-GITHUB_ACCESS_TOKEN=
-```
-
-2. Make sure each relevant `project` entity has `metadata.repo_url`.
-3. In the GitHub repo settings, add a webhook:
-   - Payload URL: `http://YOUR_HOST:8000/webhooks/github`
-   - Content type: `application/json`
-   - Secret: same value as `GITHUB_WEBHOOK_SECRET`
-   - Events: `Pull requests` and `Pushes`
-
-### 6. CLI capture setup
-
-1. In `apps/api/.env`, set:
-
-```env
-CLI_CAPTURE_TOKEN=replace-me
-```
-
-2. Use the local CLI directly:
+From `apps/api`:
 
 ```powershell
-$env:KLOG_API_URL="http://localhost:8000"
-$env:KLOG_TOKEN="replace-me"
-node packages/klog/index.mjs "learned why pgvector cosine distance matters" --type til --tags pgvector,embeddings
-node packages/klog/index.mjs "fix graph layout bug" --type task --project personal-dev-kg
+alembic current
+alembic history
+alembic upgrade head
 ```
 
-3. Optional local bin install:
-
-```powershell
-npm install -g ./packages/klog
-klog "capture from anywhere" --type note --tags quick-capture
-```
-
-Optional git hook example:
-
-```bash
-#!/usr/bin/env bash
-klog "post-commit note: explain what changed and why" --type til --project personal-dev-kg
-```
-
-Do not install that automatically. It is only a reference pattern.
-
-## Environment variables
+## Environment Variables
 
 ### `apps/api/.env`
 
@@ -181,35 +132,90 @@ CLI_CAPTURE_TOKEN=
 VITE_API_URL=http://localhost:8000
 ```
 
-## Key flows
+## AI Setup
 
-### Weekly digest and tags
-- `GET /digest/weekly` builds a weekly recap from existing `entities`, `links`, `sessions`, `reviews`, and `comprehension_checks`.
-- If AI is enabled and configured, the digest summary uses a strict JSON prompt with the compact weekly context.
-- If AI is disabled or unconfigured, the backend returns a deterministic fallback summary.
-- `GET /tags/taxonomy` derives tag coverage directly from `entities.tags` with no separate tags table.
-- `GET /tags/{tag}/entities` returns the entities currently carrying that tag.
+Set these in `apps/api/.env` if you want AI-backed JSON generation instead of deterministic fallbacks:
 
-### Idea validator
-- `POST /ideas/validate` uses embeddings to retrieve related entities from your own graph.
-- It also inspects matching tags plus related project/concept candidates.
-- If web search is configured, similar-product results are added as external context.
-- Nothing is saved until `POST /ideas/approve` is called.
+```env
+AI_ENABLED=true
+OPENAI_API_KEY=your-key
+OPENAI_MODEL_FAST=gpt-4.1-mini
+OPENAI_MODEL_SMART=gpt-4.1
+```
 
-### Comprehension debt
-- Tasks store `metadata.ai_assist_level`.
-- `handwritten` means no check required.
-- Non-handwritten tasks can generate a comprehension check when they are completed.
-- Answering a check can return `passed` or `flagged`.
-- Flagged checks reduce task confidence slightly so the task is more likely to reappear in recall-oriented flows.
+Behavior with AI disabled:
+- Daily guidance still works with deterministic prioritization.
+- Weekly digest still works with deterministic grouping.
+- Analyst brief still works with deterministic trend and gap analysis.
+- The app should continue to load normally.
 
-## Notes
+## GitHub Webhook Setup
 
-- `parent_id` is used only for hierarchy.
-- `links` is reserved for graph-style relationships.
-- Embeddings are used for candidate retrieval, not final reasoning.
-- GitHub activity is stored in `sessions`, not a separate pull-request table.
-- PR-to-TIL drafts are suggestions only. Final TIL entities are created only after approval.
-- Idea validation is also suggestion-only. Saving an idea requires explicit approval.
-- No new task, note, or idea tables were created.
+1. Set these in `apps/api/.env`:
 
+```env
+GITHUB_INTEGRATION_ENABLED=true
+GITHUB_WEBHOOK_SECRET=your-shared-secret
+GITHUB_ACCESS_TOKEN=optional-but-useful
+```
+
+2. Make sure each `project` entity uses `metadata.repo_url`.
+3. In GitHub repository settings, add a webhook:
+- Payload URL: `http://YOUR_HOST:8000/webhooks/github`
+- Content type: `application/json`
+- Secret: same as `GITHUB_WEBHOOK_SECRET`
+- Events: `Pull requests`, `Pushes`, `Workflow runs`, and `Check runs`
+
+GitHub activity is stored in `sessions`. No separate PR, commit, or CI tables are introduced.
+
+## CLI `klog` Usage
+
+1. Set a capture token in `apps/api/.env`:
+
+```env
+CLI_CAPTURE_TOKEN=replace-me
+```
+
+2. Use the CLI locally:
+
+```powershell
+$env:KLOG_API_URL="http://localhost:8000"
+$env:KLOG_TOKEN="replace-me"
+node packages/klog/index.mjs "learned why pgvector cosine distance matters" --type til --tags pgvector,embeddings
+node packages/klog/index.mjs "fix graph layout bug" --type task --project personal-dev-kg
+```
+
+Optional install:
+
+```powershell
+npm install -g ./packages/klog
+klog "capture from anywhere" --type note --tags quick-capture
+```
+
+## Main Product Flows
+
+### Weekly digest
+- `GET /digest/weekly` builds a recap from existing `entities`, `links`, `sessions`, `reviews`, and `comprehension_checks`.
+- If AI is enabled, the digest uses strict JSON output from the configured provider.
+- If AI is disabled, the backend returns a deterministic summary.
+
+### Weekly analyst brief
+- `GET /agents/analyst/weekly` analyzes DSA activity, reviews, gaps, comprehension debt, pending links, project shipping activity, and upcoming deadlines.
+- Suggestions never auto-create tasks or notes.
+- The frontend opens a prefilled capture flow and still waits for user submission.
+
+### Tags and coverage gaps
+- `GET /tags/taxonomy` derives taxonomy information from `entities.tags` only.
+- `GET /tags/{tag}/entities` returns entities carrying that tag.
+
+### GitHub capture
+- Webhook events are stored in `sessions`.
+- Merged PRs can draft a TIL, but the final TIL entity is only created after approval.
+
+## Disabled Mode Safety
+
+- Secrets are never returned to the frontend.
+- Missing AI configuration should not crash the app.
+- Missing web search configuration should not break graph-backed idea validation.
+- Missing embeddings should not crash entity detail, graph, or similarity-driven pages.
+- GitHub integration can remain disabled without breaking the rest of the app.

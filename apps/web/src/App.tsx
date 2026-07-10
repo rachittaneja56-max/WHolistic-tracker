@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom"
 
 import { RootLayout } from "@/layouts/root-layout"
 import { AllEntitiesPage } from "@/pages/all-entities-page"
+import { AnalystPage } from "@/pages/analyst-page"
 import { CapturePage } from "@/pages/capture-page"
 import { ComprehensionChecksPage } from "@/pages/comprehension-checks-page"
 import { DsaPage } from "@/pages/dsa-page"
@@ -24,6 +25,7 @@ export default function App() {
         <Route element={<RootLayout />}>
           <Route index element={<TodayPage />} />
           <Route path="weekly" element={<WeeklyDigestPage />} />
+          <Route path="analyst" element={<AnalystPage />} />
           <Route path="capture" element={<CapturePage />} />
           <Route path="ideas" element={<IdeasPage />} />
           <Route path="dsa" element={<DsaPage />} />

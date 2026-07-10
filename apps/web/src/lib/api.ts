@@ -306,6 +306,41 @@ export type LearningVsShippingResponse = {
   days: LearningVsShippingDay[]
 }
 
+export type AnalystTrend = {
+  label: string
+  evidence: string
+  severity: "low" | "medium" | "high"
+}
+
+export type AnalystGap = {
+  gap: string
+  evidence: string
+  suggested_action: string
+  related_entity_ids: string[]
+}
+
+export type AnalystSolveRate = {
+  summary: string
+  easy: number
+  medium: number
+  hard: number
+}
+
+export type AnalystLearningDebt = {
+  label: string
+  reason: string
+  suggested_action: string
+}
+
+export type AnalystWeekly = {
+  headline: string
+  trends: AnalystTrend[]
+  gaps: AnalystGap[]
+  solve_rate: AnalystSolveRate
+  learning_debt: AnalystLearningDebt[]
+  next_week_focus: string[]
+}
+
 export type DailyGuidanceAction = {
   label: string
   reason: string
@@ -733,6 +768,10 @@ export function getDailyGuidance() {
   return request<DailyGuidance>("/agents/daily-guidance")
 }
 
+export function getWeeklyAnalyst(startDate?: string, endDate?: string) {
+  return request<AnalystWeekly>(`/agents/analyst/weekly${buildQueryString({ start_date: startDate, end_date: endDate })}`)
+}
+
 export function getRecallDue(limit = 20) {
   return request<RecallDueItem[]>(`/recall/due${buildQueryString({ limit })}`)
 }
@@ -784,5 +823,6 @@ export function runDeepConnections(batchLimit = 8) {
     method: "POST",
   })
 }
+
 
 

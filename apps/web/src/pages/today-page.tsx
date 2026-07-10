@@ -15,8 +15,10 @@ import {
   getDailyGuidance,
   getDashboardToday,
   getGithubFeed,
+  getWeeklyAnalyst,
   getWeeklyDigest,
   type AgentStatus,
+  type AnalystWeekly,
   type DailyGuidance,
   type DashboardToday,
   type GithubFeedItem,
@@ -89,6 +91,7 @@ export function TodayPage() {
   const [aiStatus, setAiStatus] = useState<AgentStatus | null>(null)
   const [githubFeed, setGithubFeed] = useState<GithubFeedItem[]>([])
   const [weeklyDigest, setWeeklyDigest] = useState<WeeklyDigest | null>(null)
+  const [analystBrief, setAnalystBrief] = useState<AnalystWeekly | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshingGuidance, setIsRefreshingGuidance] = useState(false)
   const [isLoadingDraft, setIsLoadingDraft] = useState(false)
@@ -98,6 +101,7 @@ export function TodayPage() {
   const [aiStatusError, setAiStatusError] = useState<string | null>(null)
   const [githubFeedError, setGithubFeedError] = useState<string | null>(null)
   const [weeklyDigestError, setWeeklyDigestError] = useState<string | null>(null)
+  const [analystBriefError, setAnalystBriefError] = useState<string | null>(null)
   const [draftError, setDraftError] = useState<string | null>(null)
   const [activeDraft, setActiveDraft] = useState<GithubTilDraft | null>(null)
   const [draftTitle, setDraftTitle] = useState("")
@@ -112,13 +116,15 @@ export function TodayPage() {
     setAiStatusError(null)
     setGithubFeedError(null)
     setWeeklyDigestError(null)
+    setAnalystBriefError(null)
 
-    const [dashboardResult, guidanceResult, agentStatusResult, githubFeedResult, weeklyDigestResult] = await Promise.allSettled([
+    const [dashboardResult, guidanceResult, agentStatusResult, githubFeedResult, weeklyDigestResult, analystBriefResult] = await Promise.allSettled([
       getDashboardToday(),
       getDailyGuidance(),
       getAgentStatus(),
       getGithubFeed(),
       getWeeklyDigest(),
+      getWeeklyAnalyst(),
     ])
 
     if (dashboardResult.status === "fulfilled") {
@@ -154,6 +160,13 @@ export function TodayPage() {
     } else {
       setWeeklyDigest(null)
       setWeeklyDigestError(getErrorMessage(weeklyDigestResult.reason))
+    }
+
+    if (analystBriefResult.status === "fulfilled") {
+      setAnalystBrief(analystBriefResult.value)
+    } else {
+      setAnalystBrief(null)
+      setAnalystBriefError(getErrorMessage(analystBriefResult.reason))
     }
 
     setIsLoading(false)
@@ -427,6 +440,44 @@ export function TodayPage() {
         </Card>
 
         <GithubAnalyticsPanel />
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Analyst Brief</CardTitle>
+            <CardDescription>Weekly trend and gap analysis grounded in your own graph only. Suggestions stay reviewable until you capture them yourself.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {analystBrief ? (
+              <>
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Badge variant="blue">Suggestion only</Badge>
+                    <span className="font-mono text-xs text-zinc-500">Latest 7 days</span>
+                  </div>
+                  <p className="mt-3 text-sm leading-7 text-zinc-300">{analystBrief.headline}</p>
+                </div>
+
+                {analystBrief.next_week_focus.length > 0 ? (
+                  <div className="grid gap-3 xl:grid-cols-3">
+                    {analystBrief.next_week_focus.slice(0, 3).map((item) => (
+                      <div key={item} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-300">
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                <Button asChild variant="outline">
+                  <Link to="/analyst">Open analyst page</Link>
+                </Button>
+              </>
+            ) : (
+              <p className="text-sm text-zinc-500">Analyst brief is unavailable right now.</p>
+            )}
+
+            {analystBriefError ? <p className="text-sm text-amber-300">{analystBriefError}</p> : null}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
