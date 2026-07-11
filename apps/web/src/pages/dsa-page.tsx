@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 
+import { DsaSyncPanel } from "@/features/dsa/dsa-sync-panel"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -105,6 +107,7 @@ export function DsaPage() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
+      <DsaSyncPanel onSynced={() => void loadProblems()} />
       <Card>
         <CardHeader>
           <CardTitle>DSA Tracker</CardTitle>

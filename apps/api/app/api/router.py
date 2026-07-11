@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.routes import (
+    dsa_integrations,
     auth,
     agents,
     analytics,
@@ -46,3 +47,4 @@ api_router.include_router(comprehension_checks.router)
 api_router.include_router(tags.router)
 api_router.include_router(webhooks.router)
 api_router.include_router(jobs.router)
+api_router.include_router(dsa_integrations.router)

@@ -825,3 +825,11 @@ export function runDeepConnections(batchLimit = 8) {
   })
 }
 
+
+export type DsaConnection = { platform: "leetcode" | "codeforces" | "codechef"; username: string; profile_url?: string | null; enabled: boolean }
+export type DsaIntegrationStatus = { connections: Array<DsaConnection & { last_synced_at?: string | null; last_error?: string | null }>; configured_platforms: DsaConnection["platform"][] }
+export type DsaSyncResponse = { results: Array<{ platform: DsaConnection["platform"]; status: "synced" | "skipped" | "failed"; imported_count: number; updated_count: number; skipped_count: number; message?: string | null }>; total_imported: number; total_updated: number; total_skipped: number }
+
+export function getDsaIntegrationStatus() { return request<DsaIntegrationStatus>("/integrations/dsa/status") }
+export function saveDsaConnections(payload: { connections: DsaConnection[] }) { return request<DsaIntegrationStatus>("/integrations/dsa/connections", { method: "PUT", body: JSON.stringify(payload) }) }
+export function syncDsaIntegrations() { return request<DsaSyncResponse>("/integrations/dsa/sync", { method: "POST" }) }
