@@ -52,7 +52,7 @@ def run_duplicate_detector(entity_id: UUID, db: Session, candidate_limit: int = 
     if not candidates:
         return DuplicateDetectorResponseRead(target_entity_id=target.id, matches=[])
 
-    active_provider = provider or get_ai_provider()
+    active_provider = provider or get_ai_provider(db)
     payload = active_provider.generate_json(
         messages=build_duplicate_detector_messages(target, candidates),
         json_schema=DUPLICATE_DETECTOR_SCHEMA,

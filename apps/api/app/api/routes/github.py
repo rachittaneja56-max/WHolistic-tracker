@@ -90,7 +90,7 @@ def create_github_til_draft(session_id: uuid.UUID, db: Session = Depends(get_db)
 
     provider = None
     try:
-        provider = get_ai_provider()
+        provider = get_ai_provider(db)
     except AgentProviderError:
         provider = None
 

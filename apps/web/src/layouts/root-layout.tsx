@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom"
 
 import { useEntities } from "@/features/entities/hooks/use-entities"
-import { AppShell } from "@/layouts/app-shell"
+import { ModernAppShell } from "@/layouts/modern-app-shell"
 
 export function RootLayout() {
   const location = useLocation()
@@ -9,7 +9,7 @@ export function RootLayout() {
   const activeEntityId = location.pathname.match(/^\/entities\/([^/]+)/)?.[1]
 
   return (
-    <AppShell
+    <ModernAppShell
       entities={entitiesState.entities}
       activeEntityId={activeEntityId}
       isEntitiesLoading={entitiesState.isEntitiesLoading}
@@ -19,6 +19,6 @@ export function RootLayout() {
       }}
     >
       <Outlet context={entitiesState} />
-    </AppShell>
+    </ModernAppShell>
   )
 }

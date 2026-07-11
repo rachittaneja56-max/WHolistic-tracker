@@ -11,6 +11,9 @@ class Settings(BaseSettings):
 
     app_name: str = "Personal Dev KG API"
     app_env: str = "development"
+    app_admin_password_hash: str | None = None
+    app_session_secret: str | None = None
+    frontend_origin: str = "http://localhost:5173"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5433/personal_dev_kg"
@@ -29,7 +32,6 @@ class Settings(BaseSettings):
     web_search_enabled: bool = False
     web_search_provider: Literal["tavily"] = "tavily"
     tavily_api_key: str | None = None
-    cli_capture_token: str | None = None
 
     @field_validator("cors_origins", mode="before")
     @classmethod

@@ -7,14 +7,13 @@ The current build includes:
 - Phase 1 tracker views for DSA, projects, subjects, Today, and task-to-TIL capture.
 - Phase 2 embeddings, similarity search, graph view, and confidence decay.
 - Phase 3 safe AI infrastructure with provider abstraction, prompts, JSON output validation, and suggestion-only agents.
-- Phase 4 rich content support, GitHub webhook activity, PR-to-TIL drafts, CLI capture, and comprehension checks.
+- Phase 4 rich content support, GitHub webhook activity, PR-to-TIL drafts, and comprehension checks.
 - Phase 5 weekly digest, tag taxonomy, analytics, CI visibility, and the weekly analyst brief.
 
 ## Architecture
 
 - Backend: `apps/api`
 - Frontend: `apps/web`
-- CLI capture tool: `packages/klog`
 - Local services: `docker-compose.yml`
 - Stable schema: `entities`, `links`, `sessions`, `reviews`, `comprehension_checks`
 
@@ -61,7 +60,7 @@ python -m venv .venv
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 alembic upgrade head
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Optional local embedding model dependencies:
@@ -123,7 +122,6 @@ GITHUB_ACCESS_TOKEN=
 WEB_SEARCH_ENABLED=false
 WEB_SEARCH_PROVIDER=tavily
 TAVILY_API_KEY=
-CLI_CAPTURE_TOKEN=
 ```
 
 ### `apps/web/.env`
@@ -168,30 +166,6 @@ GITHUB_ACCESS_TOKEN=optional-but-useful
 
 GitHub activity is stored in `sessions`. No separate PR, commit, or CI tables are introduced.
 
-## CLI `klog` Usage
-
-1. Set a capture token in `apps/api/.env`:
-
-```env
-CLI_CAPTURE_TOKEN=replace-me
-```
-
-2. Use the CLI locally:
-
-```powershell
-$env:KLOG_API_URL="http://localhost:8000"
-$env:KLOG_TOKEN="replace-me"
-node packages/klog/index.mjs "learned why pgvector cosine distance matters" --type til --tags pgvector,embeddings
-node packages/klog/index.mjs "fix graph layout bug" --type task --project personal-dev-kg
-```
-
-Optional install:
-
-```powershell
-npm install -g ./packages/klog
-klog "capture from anywhere" --type note --tags quick-capture
-```
-
 ## Main Product Flows
 
 ### Weekly digest
@@ -219,3 +193,50 @@ klog "capture from anywhere" --type note --tags quick-capture
 - Missing web search configuration should not break graph-backed idea validation.
 - Missing embeddings should not crash entity detail, graph, or similarity-driven pages.
 - GitHub integration can remain disabled without breaking the rest of the app.
+## Owner Authentication and Website Settings
+
+The SPA requires a single-owner session. Normal read APIs remain available, while settings mutations, delete/restore, link deletion, jobs, and manual agent runs require the signed owner session.
+
+Generate an Argon2id password hash interactively:
+
+```powershell
+cd apps/api
+.\.venv\Scripts\python.exe -m app.scripts.hash_password
+```
+
+Copy the printed hash to the backend `.env` together with a long random session secret:
+
+```env
+APP_ADMIN_PASSWORD_HASH=<argon2id-hash>
+APP_SESSION_SECRET=<long-random-value>
+FRONTEND_ORIGIN=http://localhost:5173
+```
+
+If locked out, stop the API, generate a replacement hash, update `APP_ADMIN_PASSWORD_HASH`, and restart. Existing sessions become invalid when `APP_SESSION_SECRET` changes.
+
+The frontend environment must contain only:
+
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+OpenAI, GitHub, database, webhook, web-search, cookie, and authorization secrets are backend-only. `GET /settings/status` returns booleans and model names only. The website AI switch stores only `{"enabled": boolean}` in the singleton `app_settings` row. The existing `AI_ENABLED` value seeds that row once; the database is authoritative afterward.
+
+## Routes
+
+- Primary: `/`, `/capture`
+- Trackers: `/trackers/dsa`, `/trackers/projects`, `/trackers/subjects`, `/trackers/subjects/:subjectId`
+- Knowledge: `/knowledge/entities`, `/knowledge/entities/:entityId`, `/knowledge/graph`, `/knowledge/tags`, `/knowledge/recall`
+- Agents: `/agents/ask-graph`, `/agents/review-inbox`, `/agents/ideas`, `/agents/analyst`
+- System: `/settings`
+- Secondary: `/insights/weekly`, `/knowledge/recall/comprehension`
+
+Legacy routes redirect to these locations.
+
+## Soft Delete and Restore
+
+`DELETE /entities/{id}` archives an entity by writing `metadata.deleted_at` and `metadata.deleted_by`. It never deletes links, history, reviews, checks, or children. Archived entities are excluded globally from normal entity queries and can be restored from Settings. Entities with children or links require exact-title confirmation at the API boundary.
+
+## Subject Metadata
+
+Subjects and topics remain `subject_topic` entities. A subject has `parent_id=null`; a topic uses its subject as `parent_id`. Supported metadata includes `exam_date`, `status`, `priority`, `syllabus_units`, `progress_percent`, `target_confidence`, `study_sessions_planned`, and optional topic `exam_weightage`. Legacy exam-date-only entities receive safe read defaults.

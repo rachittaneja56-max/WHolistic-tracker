@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -50,15 +50,54 @@ def validate_ai_assist_level(value: object) -> AiAssistLevel | None:
     )
 
 
-def normalize_entity_metadata(entity_type: EntityType | None, metadata: dict[str, Any] | None) -> dict[str, Any]:
+def _subject_number(metadata: dict[str, Any], key: str, default: float, minimum: float, maximum: float) -> float:
+    value = metadata.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not minimum <= float(value) <= maximum:
+        raise ValueError(f"metadata.{key} must be between {minimum:g} and {maximum:g}")
+    return float(value)
+
+
+def normalize_subject_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     normalized = dict(metadata or {})
+    status_value = normalized.get("status", "active")
+    priority_value = normalized.get("priority", "medium")
+    if status_value not in {"active", "paused", "completed"}:
+        raise ValueError("metadata.status must be active, paused, or completed for subject topics")
+    if priority_value not in {"low", "medium", "high"}:
+        raise ValueError("metadata.priority must be low, medium, or high")
+    exam_date = normalized.get("exam_date")
+    if exam_date not in (None, ""):
+        if not isinstance(exam_date, str):
+            raise ValueError("metadata.exam_date must use YYYY-MM-DD")
+        try:
+            date.fromisoformat(exam_date)
+        except ValueError as exc:
+            raise ValueError("metadata.exam_date must use YYYY-MM-DD") from exc
+    syllabus_units = normalized.get("syllabus_units", [])
+    if not isinstance(syllabus_units, list) or not all(isinstance(item, str) for item in syllabus_units):
+        raise ValueError("metadata.syllabus_units must be a list of strings")
+    sessions = normalized.get("study_sessions_planned", 0)
+    if isinstance(sessions, bool) or not isinstance(sessions, int) or sessions < 0:
+        raise ValueError("metadata.study_sessions_planned must be a non-negative integer")
+    normalized.update(
+        status=status_value,
+        priority=priority_value,
+        syllabus_units=[item.strip() for item in syllabus_units if item.strip()],
+        progress_percent=int(_subject_number(normalized, "progress_percent", 0, 0, 100)),
+        target_confidence=_subject_number(normalized, "target_confidence", 0.8, 0, 1),
+        study_sessions_planned=sessions,
+    )
+    if "exam_weightage" in normalized:
+        normalized["exam_weightage"] = _subject_number(normalized, "exam_weightage", 0, 0, 100)
+    return normalized
+
+
+def normalize_entity_metadata(entity_type: EntityType | None, metadata: dict[str, Any] | None) -> dict[str, Any]:
+    normalized = normalize_subject_metadata(metadata) if entity_type == "subject_topic" else dict(metadata or {})
     ai_assist_level = normalized.get("ai_assist_level")
 
     if entity_type == "task":
-        if ai_assist_level is None:
-            normalized["ai_assist_level"] = "handwritten"
-        else:
-            normalized["ai_assist_level"] = validate_ai_assist_level(ai_assist_level)
+        normalized["ai_assist_level"] = "handwritten" if ai_assist_level is None else validate_ai_assist_level(ai_assist_level)
     elif ai_assist_level is not None:
         normalized["ai_assist_level"] = validate_ai_assist_level(ai_assist_level)
 

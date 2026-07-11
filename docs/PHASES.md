@@ -32,7 +32,6 @@
 - Excalidraw canvas support
 - GitHub webhook ingestion
 - PR-to-TIL draft flow
-- CLI capture via `klog`
 - Comprehension checks and AI-assist debt surfaces
 
 ## Phase 5

@@ -3,10 +3,11 @@ from __future__ import annotations
 import logging
 import re
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import delete, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.activity import record_session
@@ -18,8 +19,11 @@ from app.models.review import Review
 from app.models.session import ActivitySession
 from app.schemas.embedding import EntityConnectionRead, EntityLinkCandidateRead, EntitySimilarityRead, RefreshAllEmbeddingsRead
 from app.schemas.entity import EntityCreate, EntityRead, EntityUpdate, normalize_entity_metadata
+from app.schemas.deletion import EntityDeleteRequest, EntityDeletionImpactRead, EntityDeletionResultRead
 from app.services.confidence import mark_entity_revisited
 from app.services.embeddings import get_similar_entities, update_entity_embedding
+from app.services.auth import require_authenticated_owner, require_owner_mutation
+from app.services.entity_visibility import active_entity_clause, archived_entity_clause, is_entity_deleted
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/entities", tags=["entities"])
@@ -62,7 +66,7 @@ def serialize_entity(entity: Entity) -> EntityRead:
 def serialize_connection(link: Link, current_entity_id: uuid.UUID) -> EntityConnectionRead | None:
     is_outgoing = link.from_id == current_entity_id
     connected_entity = link.to_entity if is_outgoing else link.from_entity
-    if connected_entity is None or connected_entity.id is None:
+    if connected_entity is None or connected_entity.id is None or is_entity_deleted(connected_entity):
         return None
 
     return EntityConnectionRead(
@@ -81,9 +85,16 @@ def serialize_connection(link: Link, current_entity_id: uuid.UUID) -> EntityConn
 
 
 
-def get_entity_or_404(db: Session, entity_id: uuid.UUID) -> Entity:
-    entity = db.get(Entity, entity_id)
+def get_any_entity_or_404(db: Session, entity_id: uuid.UUID) -> Entity:
+    entity = db.scalar(select(Entity).where(Entity.id == entity_id).execution_options(include_deleted=True))
     if entity is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entity not found")
+    return entity
+
+
+def get_entity_or_404(db: Session, entity_id: uuid.UUID) -> Entity:
+    entity = get_any_entity_or_404(db, entity_id)
+    if is_entity_deleted(entity):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entity not found")
     return entity
 
@@ -135,6 +146,16 @@ def get_linked_entity_ids(db: Session, entity_id: uuid.UUID) -> set[uuid.UUID]:
             linked_entity_ids.add(counterpart_id)
 
     return linked_entity_ids
+def build_deletion_impact(db: Session, entity: Entity) -> EntityDeletionImpactRead:
+    return EntityDeletionImpactRead(
+        child_count=db.scalar(select(func.count()).select_from(Entity).where(Entity.parent_id == entity.id).where(active_entity_clause())) or 0,
+        link_count=db.scalar(select(func.count()).select_from(Link).where(or_(Link.from_id == entity.id, Link.to_id == entity.id))) or 0,
+        review_count=db.scalar(select(func.count()).select_from(Review).where(Review.entity_id == entity.id)) or 0,
+        comprehension_check_count=db.scalar(select(func.count()).select_from(ComprehensionCheck).where(ComprehensionCheck.entity_id == entity.id)) or 0,
+        session_count=db.scalar(select(func.count()).select_from(ActivitySession).where(ActivitySession.entity_id == entity.id)) or 0,
+    )
+
+
 
 
 @router.get("", response_model=list[EntityRead])
@@ -146,7 +167,7 @@ def list_entities(
     limit: int = Query(default=100, ge=1, le=500),
     db: Session = Depends(get_db),
 ) -> list[EntityRead]:
-    query = select(Entity).order_by(Entity.created_at.desc())
+    query = select(Entity).where(active_entity_clause()).order_by(Entity.created_at.desc())
     query = apply_entity_filters(
         query,
         entity_type=entity_type,
@@ -157,11 +178,17 @@ def list_entities(
 
     entities = db.scalars(query).all()
     return [serialize_entity(entity) for entity in entities]
+@router.get("/archived", response_model=list[EntityRead])
+def list_archived_entities(limit: int = Query(default=200, ge=1, le=500), db: Session = Depends(get_db), _owner: str = Depends(require_authenticated_owner)) -> list[EntityRead]:
+    entities = db.scalars(select(Entity).where(archived_entity_clause()).order_by(Entity.created_at.desc()).limit(limit).execution_options(include_deleted=True)).all()
+    return [serialize_entity(entity) for entity in entities]
+
+
 
 
 @router.post("", response_model=EntityRead, status_code=status.HTTP_201_CREATED)
 def create_entity(payload: EntityCreate, db: Session = Depends(get_db)) -> EntityRead:
-    if payload.parent_id is not None and db.get(Entity, payload.parent_id) is None:
+    if payload.parent_id is not None and (db.get(Entity, payload.parent_id) is None or is_entity_deleted(db.get(Entity, payload.parent_id))):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Parent entity does not exist")
 
     try:
@@ -289,7 +316,7 @@ def list_child_entities(
 ) -> list[EntityRead]:
     get_entity_or_404(db, entity_id)
 
-    query = select(Entity).where(Entity.parent_id == entity_id).order_by(Entity.created_at.asc())
+    query = select(Entity).where(Entity.parent_id == entity_id).where(active_entity_clause()).order_by(Entity.created_at.asc())
     query = apply_entity_filters(query, entity_type=entity_type, tag=tag, metadata_status=metadata_status).limit(limit)
 
     children = db.scalars(query).all()
@@ -418,17 +445,34 @@ def update_entity(entity_id: uuid.UUID, payload: EntityUpdate, db: Session = Dep
     return serialize_entity(entity)
 
 
-@router.delete("/{entity_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_entity(entity_id: uuid.UUID, db: Session = Depends(get_db)) -> Response:
+@router.get("/{entity_id}/deletion-impact", response_model=EntityDeletionImpactRead)
+def get_deletion_impact(entity_id: uuid.UUID, db: Session = Depends(get_db), _owner: str = Depends(require_authenticated_owner)) -> EntityDeletionImpactRead:
     entity = get_entity_or_404(db, entity_id)
+    return build_deletion_impact(db, entity)
 
-    for child in db.scalars(select(Entity).where(Entity.parent_id == entity.id)).all():
-        child.parent_id = None
 
-    db.execute(delete(Link).where((Link.from_id == entity.id) | (Link.to_id == entity.id)))
-    db.execute(delete(ActivitySession).where(ActivitySession.entity_id == entity.id))
-    db.execute(delete(Review).where(Review.entity_id == entity.id))
-    db.execute(delete(ComprehensionCheck).where(ComprehensionCheck.entity_id == entity.id))
-    db.delete(entity)
+@router.delete("/{entity_id}", response_model=EntityDeletionResultRead)
+def delete_entity(entity_id: uuid.UUID, payload: EntityDeleteRequest | None = None, db: Session = Depends(get_db), _owner: str = Depends(require_owner_mutation)) -> EntityDeletionResultRead:
+    entity = get_entity_or_404(db, entity_id)
+    impact = build_deletion_impact(db, entity)
+    if (impact.child_count or impact.link_count) and ((payload.confirmation_title if payload else None) != (entity.title or "")):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Type the exact entity title to confirm deletion")
+    deleted_at = datetime.now(timezone.utc).isoformat()
+    entity.entity_metadata = {**(entity.entity_metadata or {}), "deleted_at": deleted_at, "deleted_by": "owner"}
+    record_session(db, entity_id=entity.id, action="deleted", meta={"entity_title": entity.title, "entity_type": entity.type})
     db.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    db.refresh(entity)
+    return EntityDeletionResultRead(entity=serialize_entity(entity), deleted_at=deleted_at)
+
+
+@router.post("/{entity_id}/restore", response_model=EntityRead)
+def restore_entity(entity_id: uuid.UUID, db: Session = Depends(get_db), _owner: str = Depends(require_owner_mutation)) -> EntityRead:
+    entity = get_any_entity_or_404(db, entity_id)
+    metadata = dict(entity.entity_metadata or {})
+    metadata.pop("deleted_at", None)
+    metadata.pop("deleted_by", None)
+    entity.entity_metadata = metadata
+    record_session(db, entity_id=entity.id, action="restored", meta={"entity_title": entity.title, "entity_type": entity.type})
+    db.commit()
+    db.refresh(entity)
+    return serialize_entity(entity)

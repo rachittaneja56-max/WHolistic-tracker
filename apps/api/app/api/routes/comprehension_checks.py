@@ -37,7 +37,7 @@ def generate_comprehension_check_route(
     db: Session = Depends(get_db),
 ) -> ComprehensionCheckGenerateResponse:
     try:
-        provider = get_ai_provider()
+        provider = get_ai_provider(db)
     except (AgentDisabledError, MissingAPIKeyError):
         provider = None
 
@@ -67,7 +67,7 @@ def answer_comprehension_check_route(
     db: Session = Depends(get_db),
 ) -> ComprehensionCheckAnswerResponse:
     try:
-        provider = get_ai_provider()
+        provider = get_ai_provider(db)
     except (AgentDisabledError, MissingAPIKeyError):
         provider = None
 

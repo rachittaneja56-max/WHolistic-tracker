@@ -65,23 +65,8 @@ function getNodeOpacity(confidenceScore: number) {
   return Math.max(0.28, Math.min(1, 0.2 + confidenceScore * 0.8))
 }
 
-function getNodeColor(type: string | null) {
-  switch (type) {
-    case "dsa_problem":
-      return "#3b82f6"
-    case "project":
-    case "milestone":
-    case "task":
-      return "#4ade80"
-    case "subject_topic":
-      return "#f59e0b"
-    case "til":
-      return "#60a5fa"
-    case "concept":
-      return "#94a3b8"
-    default:
-      return "#71717a"
-  }
+function getNodeColor(_type: string | null) {
+  return "#71717a"
 }
 
 function splitLongWord(word: string, maxLength: number) {
@@ -125,7 +110,7 @@ function wrapNodeTitle(title: string) {
   const cappedLines = lines.slice(0, NODE_LABEL_MAX_LINES)
   if (lines.length > NODE_LABEL_MAX_LINES) {
     const lastLine = cappedLines[cappedLines.length - 1] ?? ""
-    cappedLines[cappedLines.length - 1] = lastLine.length >= NODE_LABEL_MAX_LINE_LENGTH ? `${lastLine.slice(0, NODE_LABEL_MAX_LINE_LENGTH - 1)}…` : `${lastLine}…`
+    cappedLines[cappedLines.length - 1] = lastLine.length >= NODE_LABEL_MAX_LINE_LENGTH ? `${lastLine.slice(0, NODE_LABEL_MAX_LINE_LENGTH - 1)}â€¦` : `${lastLine}â€¦`
   }
 
   return cappedLines
@@ -460,17 +445,11 @@ export function GraphPage() {
                   Reset
                 </Button>
               </div>
-
-              <div className="flex items-end justify-end">
-                <Button type="button" onClick={() => void handleDecayConfidence()} disabled={isDecayRunning}>
-                  {isDecayRunning ? "Running decay..." : "Run confidence decay"}
-                </Button>
-              </div>
             </form>
 
             {isLoading ? <p className="text-sm text-zinc-500">Loading graph...</p> : null}
             {error ? <p className="text-sm text-red-300">{error}</p> : null}
-            {decayMessage ? <p className="text-sm text-zinc-500">{decayMessage}</p> : null}
+
 
             <div className="relative rounded-xl border border-zinc-800 bg-zinc-950">
               <div ref={containerRef} className="h-[70vh] min-h-[560px] w-full" />

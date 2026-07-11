@@ -20,7 +20,7 @@ router = APIRouter(prefix="/ideas", tags=["ideas"])
 @router.post("/validate", response_model=IdeaValidationResponse)
 def validate_idea_route(payload: IdeaValidationRequest, db: Session = Depends(get_db)) -> IdeaValidationResponse:
     try:
-        provider = get_ai_provider()
+        provider = get_ai_provider(db)
     except (AgentDisabledError, MissingAPIKeyError):
         provider = None
 

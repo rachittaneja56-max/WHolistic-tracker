@@ -35,7 +35,7 @@ def get_weekly_digest_route(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="start_date must be on or before end_date")
 
     try:
-        provider = get_ai_provider()
+        provider = get_ai_provider(db)
     except (AgentDisabledError, MissingAPIKeyError):
         provider = None
 

@@ -6,12 +6,15 @@ from http import HTTPStatus
 from typing import TypedDict
 from urllib import error, request
 
+from sqlalchemy.orm import Session
 from app.agents.schemas.common import AgentStatusRead, JsonSchema
 from app.agents.utils.exceptions import AgentDisabledError, MissingAPIKeyError, ModelResponseError, ProviderTimeoutError
 from app.agents.utils.json_output import parse_and_validate_json_output
 from app.agents.utils.logging import get_agent_logger, log_agent_event
 from app.core.config import settings
+from app.core.redaction import redact_text
 
+from app.services.runtime_settings import get_settings_status
 logger = get_agent_logger("provider")
 CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_TIMEOUT_SECONDS = 30
@@ -89,7 +92,7 @@ class OpenAIProvider:
             with request.urlopen(req, timeout=self.timeout_seconds) as response:
                 response_body = response.read().decode("utf-8")
         except error.HTTPError as exc:
-            detail = _read_error_detail(exc)
+            detail = redact_text(_read_error_detail(exc))
             log_agent_event(logger, 40, "provider_http_error", status=exc.code, detail=detail)
             if exc.code == HTTPStatus.UNAUTHORIZED:
                 raise MissingAPIKeyError("OpenAI rejected the API key. Check OPENAI_API_KEY.") from exc
@@ -107,7 +110,7 @@ class OpenAIProvider:
         try:
             parsed = json.loads(response_body)
         except json.JSONDecodeError as exc:
-            log_agent_event(logger, 40, "provider_invalid_response", body=response_body[:400])
+            log_agent_event(logger, 40, "provider_invalid_response", body=redact_text(response_body[:400]))
             raise ModelResponseError("The AI provider returned malformed JSON.") from exc
 
         if not isinstance(parsed, dict):
@@ -149,38 +152,29 @@ class OpenAIProvider:
         raise ModelResponseError("The AI provider returned an empty message.")
 
 
-def get_agent_status_snapshot() -> AgentStatusRead:
-    api_key_configured = bool(settings.openai_api_key and settings.openai_api_key.strip())
-    provider_ready = bool(settings.ai_enabled and api_key_configured)
-    disabled_reason = None
-
-    if not settings.ai_enabled:
-        disabled_reason = "AI is disabled. Set AI_ENABLED=true to enable agent endpoints."
-    elif not api_key_configured:
-        disabled_reason = "OPENAI_API_KEY is missing. Configure it before using agent endpoints."
-
+def get_agent_status_snapshot(db: Session) -> AgentStatusRead:
+    status_snapshot = get_settings_status(db).ai
     return AgentStatusRead(
-        ai_enabled=settings.ai_enabled,
-        provider_ready=provider_ready,
-        api_key_configured=api_key_configured,
-        fast_model=settings.openai_model_fast,
-        smart_model=settings.openai_model_smart,
-        disabled_reason=disabled_reason,
+        ai_enabled=status_snapshot.enabled,
+        provider_ready=status_snapshot.provider_ready,
+        api_key_configured=status_snapshot.openai_configured,
+        fast_model=status_snapshot.fast_model,
+        smart_model=status_snapshot.smart_model,
+        disabled_reason=status_snapshot.disabled_reason,
     )
 
 
-def get_ai_provider() -> OpenAIProvider:
-    if not settings.ai_enabled:
-        raise AgentDisabledError("AI is disabled. Set AI_ENABLED=true to enable agent endpoints.")
-
-    api_key = (settings.openai_api_key or "").strip()
-    if not api_key:
-        raise MissingAPIKeyError("OPENAI_API_KEY is missing. Configure it before using agent endpoints.")
+def get_ai_provider(db: Session) -> OpenAIProvider:
+    status_snapshot = get_settings_status(db).ai
+    if not status_snapshot.enabled:
+        raise AgentDisabledError("AI is disabled in website settings.")
+    if not status_snapshot.openai_configured:
+        raise MissingAPIKeyError("OpenAI is not configured on the server.")
 
     return OpenAIProvider(
-        api_key=api_key,
-        fast_model=settings.openai_model_fast,
-        smart_model=settings.openai_model_smart,
+        api_key=(settings.openai_api_key or "").strip(),
+        fast_model=status_snapshot.fast_model,
+        smart_model=status_snapshot.smart_model,
     )
 
 

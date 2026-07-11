@@ -12,6 +12,7 @@ from app.models.entity import Entity
 from app.models.link import Link
 from app.models.session import ActivitySession
 from app.schemas.link import LinkCreate, LinkRead, LinkUpdate, ReviewInboxLinkRead
+from app.services.auth import require_owner_mutation
 
 router = APIRouter(prefix="/links", tags=["links"])
 
@@ -209,7 +210,7 @@ def update_link(link_id: uuid.UUID, payload: LinkUpdate, db: Session = Depends(g
 
 
 @router.delete("/{link_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_link(link_id: uuid.UUID, db: Session = Depends(get_db)) -> Response:
+def delete_link(link_id: uuid.UUID, db: Session = Depends(get_db), _owner: str = Depends(require_owner_mutation)) -> Response:
     link = get_link_or_404(db, link_id)
     db.delete(link)
     db.commit()

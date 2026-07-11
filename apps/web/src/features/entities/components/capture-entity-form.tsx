@@ -28,6 +28,7 @@ type CaptureEntityFormProps = {
   initialContent?: string
   initialType?: EntityType
   initialContentType?: ContentType
+  initialParentId?: string
 }
 
 type FieldErrors = {
@@ -61,15 +62,23 @@ export function CaptureEntityForm({
   initialContent = "",
   initialType,
   initialContentType,
+  initialParentId = "",
 }: CaptureEntityFormProps) {
   const [title, setTitle] = useState(initialTitle)
   const [type, setType] = useState<EntityType | "">(initialType ?? "")
-  const [parentId, setParentId] = useState("")
+  const [parentId, setParentId] = useState(initialParentId)
   const [content, setContent] = useState(initialContent)
   const [tags, setTags] = useState("")
   const [contentType, setContentType] = useState<ContentType | "">(initialContentType ?? "")
   const [difficulty, setDifficulty] = useState<DsaDifficulty | "">("")
   const [solutionCode, setSolutionCode] = useState("")
+  const [subjectStatus, setSubjectStatus] = useState("active")
+  const [subjectPriority, setSubjectPriority] = useState("medium")
+  const [progressPercent, setProgressPercent] = useState("0")
+  const [targetConfidence, setTargetConfidence] = useState("0.8")
+  const [studySessionsPlanned, setStudySessionsPlanned] = useState("0")
+  const [syllabusUnits, setSyllabusUnits] = useState("")
+  const [examWeightage, setExamWeightage] = useState("")
   const [status, setStatus] = useState<TaskStatus | "">("")
   const [examDate, setExamDate] = useState("")
   const [repoUrl, setRepoUrl] = useState("")
@@ -89,6 +98,7 @@ export function CaptureEntityForm({
   }, [availableEntities, type])
 
   const requiresParent = type === "milestone" || type === "task"
+  const supportsParent = requiresParent || type === "subject_topic"
 
   function resetConditionalFields(nextType: EntityType | "") {
     if (nextType !== "dsa_problem") {
@@ -101,7 +111,7 @@ export function CaptureEntityForm({
     if (nextType !== "project" && nextType !== "milestone" && nextType !== "task") {
       setStatus("")
     }
-    if (nextType !== "milestone" && nextType !== "task") {
+    if (nextType !== "milestone" && nextType !== "task" && nextType !== "subject_topic") {
       setParentId("")
     }
     if (nextType !== "project") {
@@ -201,6 +211,15 @@ export function CaptureEntityForm({
       })
 
       setTitle("")
+      metadata.status = subjectStatus
+      metadata.priority = subjectPriority
+      metadata.progress_percent = Number(progressPercent)
+      metadata.target_confidence = Number(targetConfidence)
+      metadata.study_sessions_planned = Number(studySessionsPlanned)
+      metadata.syllabus_units = syllabusUnits.split(",").map((item) => item.trim()).filter(Boolean)
+      if (parentId && examWeightage) {
+        metadata.exam_weightage = Number(examWeightage)
+      }
       setType("")
       setParentId("")
       setContent("")
@@ -311,9 +330,9 @@ export function CaptureEntityForm({
             </div>
           </div>
 
-          {requiresParent ? (
+          {supportsParent ? (
             <div className="space-y-2">
-              <Label>{type === "milestone" ? "Parent Project" : "Parent Milestone"}</Label>
+              <Label>{type === "milestone" ? "Parent Project" : type === "task" ? "Parent Milestone" : "Parent Subject (optional)"}</Label>
               <Select
                 value={parentId}
                 onValueChange={(value) => {
@@ -324,7 +343,7 @@ export function CaptureEntityForm({
                 }}
               >
                 <SelectTrigger aria-invalid={Boolean(fieldErrors.parentId)}>
-                  <SelectValue placeholder={type === "milestone" ? "Select parent project" : "Select parent milestone"} />
+                  <SelectValue placeholder={type === "milestone" ? "Select parent project" : type === "task" ? "Select parent milestone" : "Top-level subject"} />
                 </SelectTrigger>
                 <SelectContent>
                   {parentOptions.map((option) => (
@@ -414,9 +433,15 @@ export function CaptureEntityForm({
           ) : null}
 
           {type === "subject_topic" ? (
-            <div className="space-y-2">
-              <Label htmlFor="exam-date">Exam Date</Label>
-              <Input id="exam-date" type="date" value={examDate} onChange={(event) => setExamDate(event.target.value)} />
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              <div className="space-y-2"><Label htmlFor="exam-date">Exam Date</Label><Input id="exam-date" type="date" value={examDate} onChange={(event) => setExamDate(event.target.value)} /></div>
+              <div className="space-y-2"><Label>Status</Label><Select value={subjectStatus} onValueChange={setSubjectStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">active</SelectItem><SelectItem value="paused">paused</SelectItem><SelectItem value="completed">completed</SelectItem></SelectContent></Select></div>
+              <div className="space-y-2"><Label>Priority</Label><Select value={subjectPriority} onValueChange={setSubjectPriority}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">low</SelectItem><SelectItem value="medium">medium</SelectItem><SelectItem value="high">high</SelectItem></SelectContent></Select></div>
+              <div className="space-y-2"><Label htmlFor="subject-progress">Progress percent</Label><Input id="subject-progress" type="number" min="0" max="100" value={progressPercent} onChange={(event) => setProgressPercent(event.target.value)} /></div>
+              <div className="space-y-2"><Label htmlFor="target-confidence">Target confidence</Label><Input id="target-confidence" type="number" min="0" max="1" step="0.05" value={targetConfidence} onChange={(event) => setTargetConfidence(event.target.value)} /></div>
+              <div className="space-y-2"><Label htmlFor="planned-sessions">Planned sessions</Label><Input id="planned-sessions" type="number" min="0" value={studySessionsPlanned} onChange={(event) => setStudySessionsPlanned(event.target.value)} /></div>
+              <div className="space-y-2 md:col-span-2"><Label htmlFor="syllabus-units">Syllabus units</Label><Input id="syllabus-units" value={syllabusUnits} onChange={(event) => setSyllabusUnits(event.target.value)} placeholder="Unit 1, Unit 2" /></div>
+              {parentId ? <div className="space-y-2"><Label htmlFor="exam-weightage">Exam weightage</Label><Input id="exam-weightage" type="number" min="0" max="100" value={examWeightage} onChange={(event) => setExamWeightage(event.target.value)} /></div> : null}
             </div>
           ) : null}
 

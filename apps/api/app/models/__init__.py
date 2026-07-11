@@ -1,4 +1,5 @@
 __all__ = [
+    "AppSetting",
     "ActivitySession",
     "ComprehensionCheck",
     "Entity",

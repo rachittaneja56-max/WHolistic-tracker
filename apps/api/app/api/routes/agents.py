@@ -21,6 +21,7 @@ from app.agents.services.provider import get_ai_provider, get_agent_status_snaps
 from app.agents.utils.exceptions import AgentDisabledError, AgentProviderError, InvalidJSONError, MissingAPIKeyError, ModelResponseError, ProviderTimeoutError
 from app.agents.utils.prompts import read_prompt_file
 from app.db.session import get_db
+from app.services.auth import require_owner_mutation
 from app.schemas.analyst import AnalystWeeklyResponse
 from app.schemas.guidance import DailyGuidanceResponse
 
@@ -41,14 +42,14 @@ TEST_JSON_SCHEMA = {
 
 
 @router.get("/status", response_model=AgentStatusRead)
-def get_agent_status() -> AgentStatusRead:
-    return get_agent_status_snapshot()
+def get_agent_status(db: Session = Depends(get_db)) -> AgentStatusRead:
+    return get_agent_status_snapshot(db)
 
 
 @router.get("/daily-guidance", response_model=DailyGuidanceResponse)
 def get_daily_guidance_route(db: Session = Depends(get_db)) -> DailyGuidanceResponse:
     try:
-        provider = get_ai_provider()
+        provider = get_ai_provider(db)
     except (AgentDisabledError, MissingAPIKeyError):
         provider = None
 
@@ -73,7 +74,7 @@ def get_weekly_analyst_route(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="start_date must be on or before end_date")
 
     try:
-        provider = get_ai_provider()
+        provider = get_ai_provider(db)
     except (AgentDisabledError, MissingAPIKeyError):
         provider = None
 
@@ -91,9 +92,9 @@ def get_weekly_analyst_route(
 
 
 @router.post("/test-json", response_model=AgentTestJsonResponse)
-def test_agent_json(payload: AgentTestJsonRequest) -> AgentTestJsonResponse:
+def test_agent_json(payload: AgentTestJsonRequest, db: Session = Depends(get_db), _owner: str = Depends(require_owner_mutation)) -> AgentTestJsonResponse:
     try:
-        provider = get_ai_provider()
+        provider = get_ai_provider(db)
         system_rules = read_prompt_file("system_rules.md")
         output = provider.generate_json(
             messages=[
@@ -122,9 +123,9 @@ def test_agent_json(payload: AgentTestJsonRequest) -> AgentTestJsonResponse:
 
 
 @router.post("/duplicate-detector/entities/{entity_id}", response_model=DuplicateDetectorResponseRead)
-def run_duplicate_detector_route(entity_id: uuid.UUID, db: Session = Depends(get_db)) -> DuplicateDetectorResponseRead:
+def run_duplicate_detector_route(entity_id: uuid.UUID, db: Session = Depends(get_db), _owner: str = Depends(require_owner_mutation)) -> DuplicateDetectorResponseRead:
     try:
-        provider = get_ai_provider()
+        provider = get_ai_provider(db)
         return run_duplicate_detector(entity_id, db=db, provider=provider)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
@@ -144,9 +145,10 @@ def run_duplicate_detector_route(entity_id: uuid.UUID, db: Session = Depends(get
 def run_deep_connections_route(
     batch_limit: int = Query(default=8, ge=1, le=20),
     db: Session = Depends(get_db),
+    _owner: str = Depends(require_owner_mutation),
 ) -> DeepConnectionsRunResponseRead:
     try:
-        provider = get_ai_provider()
+        provider = get_ai_provider(db)
         return run_deep_connection_agent(db=db, batch_limit=batch_limit, provider=provider)
     except (AgentDisabledError, MissingAPIKeyError) as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc

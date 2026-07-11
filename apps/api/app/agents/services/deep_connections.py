@@ -51,7 +51,7 @@ def run_deep_connection_agent(
     batch_limit: int = 8,
     provider: OpenAIProvider | None = None,
 ) -> DeepConnectionsRunResponseRead:
-    active_provider = provider or get_ai_provider()
+    active_provider = provider or get_ai_provider(db)
     candidate_pairs = build_candidate_pairs(db=db, batch_limit=batch_limit)
     if not candidate_pairs:
         return DeepConnectionsRunResponseRead(candidate_pairs_considered=0, suggestions_created=0, suggestions=[])

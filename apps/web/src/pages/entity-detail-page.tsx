@@ -1,5 +1,5 @@
-﻿import { useEffect, useMemo, useState } from "react"
-import { Link, useOutletContext, useParams } from "react-router-dom"
+import { useEffect, useMemo, useState } from "react"
+import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { EntityDetailCard } from "@/features/entities/components/entity-detail-card"
+import { EntityDeleteControl } from "@/features/entities/components/entity-delete-control"
 import { EntityEditor } from "@/features/entities/components/entity-editor"
 import type { EntitiesLayoutContext } from "@/features/entities/layout-context"
 import {
@@ -75,8 +76,9 @@ function getDraftStorageKey(entityId: string) {
 
 export function EntityDetailPage() {
   const params = useParams()
+  const navigate = useNavigate()
   const entityId = params.entityId
-  const { upsertEntityInList } = useOutletContext<EntitiesLayoutContext>()
+  const { upsertEntityInList, refreshEntities } = useOutletContext<EntitiesLayoutContext>()
   const [entity, setEntity] = useState<Entity | null>(null)
   const [draftContent, setDraftContent] = useState("")
   const [linkCandidates, setLinkCandidates] = useState<LinkCandidate[]>([])
@@ -375,7 +377,7 @@ export function EntityDetailPage() {
     <>
       <div className="space-y-4">
         <Button asChild variant="outline">
-          <Link to="/entities">Back to entities</Link>
+          <Link to="/knowledge/entities">Back to entities</Link>
         </Button>
 
         <EntityDetailCard
@@ -384,6 +386,8 @@ export function EntityDetailPage() {
           embeddingActionError={embeddingActionError}
           onRefreshEmbedding={() => void handleRefreshEmbedding()}
         />
+
+        <EntityDeleteControl entity={entity} onDeleted={async () => { await refreshEntities(); navigate("/knowledge/entities") }} onRestored={refreshEntities} />
 
         <Card>
           <CardHeader>

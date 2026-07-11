@@ -599,6 +599,7 @@ function buildQueryString(params?: Record<string, string | number | undefined>) 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
@@ -823,6 +824,4 @@ export function runDeepConnections(batchLimit = 8) {
     method: "POST",
   })
 }
-
-
 

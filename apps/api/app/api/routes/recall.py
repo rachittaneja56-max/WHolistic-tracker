@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import uuid
 
@@ -40,7 +40,7 @@ def grade_recall_entity(
     db: Session = Depends(get_db),
 ) -> RecallGradeResponse:
     try:
-        provider = get_ai_provider()
+        provider = get_ai_provider(db)
     except (AgentDisabledError, MissingAPIKeyError):
         provider = None
 

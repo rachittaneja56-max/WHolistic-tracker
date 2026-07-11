@@ -172,7 +172,7 @@ comprehension_checks (            -- AI-usage comprehension gate
 - [ ] **GitHub webhook**: single webhook per repo → `pull_request`/`push` events → stored as `sessions` linked to matching `project` entity via `repo_url` in metadata → PR feed panel on dashboard
 - [ ] On PR merged: trigger the "what did you learn?" prompt automatically; agent drafts a starter TIL from the diff for you to approve/edit
 - [ ] **AI-usage toggle + comprehension checks**: `ai_assist_level` on tasks; above `handwritten` triggers agent-generated, diff-specific leading questions → graded like Recall Mode → "comprehension debt" tasks get scheduled back into Recall Mode if flagged
-- [ ] **Capture hook**: small CLI (`klog "..."`) hitting your API directly, optionally wired to a git `post-commit` hook, auto-linking to the matching project
+
 
 **AI usage:** Webhook handler, GitHub API client, BlockNote/Excalidraw wiring → Codex, pure outer ring. The comprehension-check question generator (needs to read a real diff and ask something *specific*, not generic) → inner ring, write it yourself.
 

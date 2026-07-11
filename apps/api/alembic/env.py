@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.db.base import Base
 from app.models.comprehension_check import ComprehensionCheck
 from app.models.entity import Entity
+from app.models.app_setting import AppSetting
 from app.models.link import Link
 from app.models.review import Review
 from app.models.session import ActivitySession
