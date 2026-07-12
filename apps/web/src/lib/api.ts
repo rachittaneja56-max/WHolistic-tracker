@@ -829,7 +829,25 @@ export function runDeepConnections(batchLimit = 8) {
 export type DsaConnection = { platform: "leetcode" | "codeforces" | "codechef"; username: string; profile_url?: string | null; enabled: boolean }
 export type DsaIntegrationStatus = { connections: Array<DsaConnection & { last_synced_at?: string | null; last_error?: string | null }>; configured_platforms: DsaConnection["platform"][] }
 export type DsaSyncResponse = { results: Array<{ platform: DsaConnection["platform"]; status: "synced" | "skipped" | "failed"; imported_count: number; updated_count: number; skipped_count: number; message?: string | null }>; total_imported: number; total_updated: number; total_skipped: number }
+export type DsaProblemStats = { solved: number; this_week: number; review_due: number; platforms: number }
+export type DsaProblemPage = { items: Entity[]; total: number; limit: number; offset: number; stats: DsaProblemStats }
+export type DsaProblemQuery = {
+  search?: string
+  platform?: string
+  difficulty?: string
+  status?: string
+  tag?: string
+  sort?: "updated_desc" | "updated_asc" | "title_asc" | "difficulty_asc"
+  limit?: number
+  offset?: number
+}
+export type DsaExtensionStatus = { paired: boolean; last_used_at: string | null; imported_problem_count: number }
+export type DsaPairingCode = { code: string; expires_at: string }
 
 export function getDsaIntegrationStatus() { return request<DsaIntegrationStatus>("/integrations/dsa/status") }
 export function saveDsaConnections(payload: { connections: DsaConnection[] }) { return request<DsaIntegrationStatus>("/integrations/dsa/connections", { method: "PUT", body: JSON.stringify(payload) }) }
 export function syncDsaIntegrations() { return request<DsaSyncResponse>("/integrations/dsa/sync", { method: "POST" }) }
+export function getDsaProblems(query?: DsaProblemQuery) { return request<DsaProblemPage>(`/integrations/dsa/problems${buildQueryString(query)}`) }
+export function getDsaExtensionStatus() { return request<DsaExtensionStatus>("/integrations/dsa/extension/pairing") }
+export function createDsaPairingCode() { return request<DsaPairingCode>("/integrations/dsa/extension/pairing-codes", { method: "POST" }) }
+export function revokeDsaExtension() { return request<void>("/integrations/dsa/extension/pairing", { method: "DELETE" }) }

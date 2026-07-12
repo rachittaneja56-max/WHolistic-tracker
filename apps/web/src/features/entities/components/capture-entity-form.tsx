@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { EntityEditor } from "@/features/entities/components/entity-editor"
-import { getDefaultContentTypeForEntityType } from "@/features/entities/content"
+import { convertEntityContent, getDefaultContentTypeForEntityType } from "@/features/entities/content"
 
 type CaptureEntityFormProps = {
   onCreated: (entity: Entity) => void
@@ -127,13 +127,18 @@ export function CaptureEntityForm({
     resetConditionalFields(nextType)
     const suggestedContentType = getDefaultContentTypeForEntityType(nextType)
     if (!contentType || suggestedContentType) {
-      setContentType(suggestedContentType ?? contentType)
+      const nextContentType = suggestedContentType ?? contentType
+      if (nextContentType) {
+        setContent((current) => convertEntityContent(current, contentType, nextContentType))
+        setContentType(nextContentType)
+      }
     }
   }
 
   function applyShortcut(shortcut: CreateShortcut) {
     setType(shortcut.type)
     resetConditionalFields(shortcut.type)
+    setContent((current) => convertEntityContent(current, contentType, shortcut.contentType))
     setContentType(shortcut.contentType)
     setSubmitError(null)
     setFieldErrors({})
@@ -310,7 +315,9 @@ export function CaptureEntityForm({
               <Select
                 value={contentType}
                 onValueChange={(value) => {
-                  setContentType(value as ContentType)
+                  const nextContentType = value as ContentType
+                  setContent((current) => convertEntityContent(current, contentType, nextContentType))
+                  setContentType(nextContentType)
                   if (fieldErrors.contentType) {
                     setFieldErrors((currentErrors) => ({ ...currentErrors, contentType: undefined }))
                   }

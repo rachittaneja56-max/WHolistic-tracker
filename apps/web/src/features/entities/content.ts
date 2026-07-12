@@ -75,12 +75,71 @@ export function parseBlockNoteContent(value: string | null | undefined): { block
     }
     return { blocks: undefined, invalid: true }
   } catch {
-    return { blocks: undefined, invalid: true }
+    return { blocks: plainTextToBlocks(rawValue), invalid: false }
   }
 }
 
 export function serializeBlockNoteContent(blocks: unknown): string {
   return JSON.stringify(Array.isArray(blocks) ? blocks : [])
+}
+
+export function convertEntityContent(value: string, from: ContentType | "" | null, to: ContentType): string {
+  if (!value.trim() || from === to) {
+    return value
+  }
+  if (to === "canvas_json") {
+    return ""
+  }
+
+  const plainText = from === "blocks"
+    ? blockContentToPlainText(value)
+    : from === "canvas_json"
+      ? ""
+      : value
+
+  if (to === "blocks") {
+    return JSON.stringify(plainTextToBlocks(plainText))
+  }
+  return plainText
+}
+
+function plainTextToBlocks(value: string): unknown[] {
+  const lines = value.split(/\r?\n/)
+  return lines.map((line) => ({
+    id: crypto.randomUUID(),
+    type: "paragraph",
+    props: {
+      textColor: "default",
+      backgroundColor: "default",
+      textAlignment: "left",
+    },
+    content: line ? [{ type: "text", text: line, styles: {} }] : [],
+    children: [],
+  }))
+}
+
+function blockContentToPlainText(value: string): string {
+  const parsed = parseBlockNoteContent(value)
+  if (!parsed.blocks) {
+    return ""
+  }
+  return parsed.blocks.map((block) => extractBlockText(block)).filter(Boolean).join("\n")
+}
+
+function extractBlockText(value: unknown): string {
+  if (typeof value === "string") {
+    return value
+  }
+  if (Array.isArray(value)) {
+    return value.map(extractBlockText).join("")
+  }
+  if (!isPlainObject(value)) {
+    return ""
+  }
+  const ownText = typeof value.text === "string" ? value.text : ""
+  const contentText = extractBlockText(value.content)
+  const childText = extractBlockText(value.children)
+  return [ownText || contentText, childText].filter(Boolean).join("\n")
 }
 
 export function getDefaultCanvasDocument(): CanvasDocument {

@@ -33,11 +33,16 @@ export function formatEntityDate(value: string | null, options?: Intl.DateTimeFo
     return "No timestamp"
   }
 
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return "Invalid date"
+  }
+
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: options?.timeStyle ?? "short",
     ...options,
-  }).format(new Date(value))
+  }).format(parsed)
 }
 
 export function formatExamDate(value: string | null) {
