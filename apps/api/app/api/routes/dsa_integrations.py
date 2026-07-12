@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db.session import get_db
 from app.schemas.dsa_integrations import DsaConnectionsUpdate, DsaIntegrationStatusRead, DsaSyncResponse
 from app.services.auth import require_owner_mutation

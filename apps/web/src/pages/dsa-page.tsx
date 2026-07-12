@@ -57,7 +57,7 @@ export function DsaPage() {
     setError(null)
 
     try {
-      const results = await getEntities({ type: "dsa_problem", limit: 200 })
+      const results = await getEntities({ type: "dsa_problem", limit: 500 })
       setProblems(results)
       setSelectedProblemId((currentSelected) => currentSelected ?? results[0]?.id ?? null)
     } catch (loadError) {

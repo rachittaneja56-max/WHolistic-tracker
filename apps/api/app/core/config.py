@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     web_search_enabled: bool = False
     web_search_provider: Literal["tavily"] = "tavily"
     tavily_api_key: str | None = None
+    leetcode_session_cookie: str | None = None
+    leetcode_csrf_token: str | None = None
 
     @field_validator("cors_origins", mode="before")
     @classmethod

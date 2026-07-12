@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { EntityDetailCard } from "@/features/entities/components/entity-detail-card"
 import { EntityDeleteControl } from "@/features/entities/components/entity-delete-control"
 import { EntityEditor } from "@/features/entities/components/entity-editor"
+import { EntityPropertiesEditor } from "@/features/entities/components/entity-properties-editor"
 import type { EntitiesLayoutContext } from "@/features/entities/layout-context"
 import {
   createLink,
@@ -387,7 +388,9 @@ export function EntityDetailPage() {
           onRefreshEmbedding={() => void handleRefreshEmbedding()}
         />
 
-        <EntityDeleteControl entity={entity} onDeleted={async () => { await refreshEntities(); navigate("/knowledge/entities") }} onRestored={refreshEntities} />
+        <EntityPropertiesEditor entity={entity} onSaved={(updatedEntity) => { setEntity(updatedEntity); upsertEntityInList(updatedEntity) }} />
+
+        <EntityDeleteControl entity={entity} onDeleted={async () => { await refreshEntities(); navigate("/knowledge/entities") }} />
 
         <Card>
           <CardHeader>

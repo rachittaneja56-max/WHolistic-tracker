@@ -1,0 +1,71 @@
+import { useEffect, useState } from "react"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { difficultyOptions, taskStatusOptions, updateEntity, type DsaDifficulty, type Entity, type TaskStatus } from "@/lib/api"
+
+function value(entity: Entity, key: string, fallback = "") {
+  const current = entity.metadata[key]
+  return current === undefined || current === null ? fallback : String(current)
+}
+
+export function EntityPropertiesEditor({ entity, onSaved }: { entity: Entity; onSaved: (entity: Entity) => void }) {
+  const [title, setTitle] = useState(entity.title ?? "")
+  const [tags, setTags] = useState(entity.tags.join(", "))
+  const [metadata, setMetadata] = useState<Record<string, unknown>>(entity.metadata)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setTitle(entity.title ?? "")
+    setTags(entity.tags.join(", "))
+    setMetadata(entity.metadata)
+  }, [entity.id, entity.title, entity.tags, entity.metadata])
+
+  function setField(key: string, next: unknown) {
+    setMetadata((current) => ({ ...current, [key]: next }))
+  }
+
+  async function save() {
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await updateEntity(entity.id, {
+        title: title.trim(),
+        tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+        metadata,
+      })
+      onSaved(updated)
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Unable to save properties.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return <div className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+    <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-zinc-100">Editable properties</p><p className="text-xs text-zinc-500">Changes are saved to the same entity used by the tracker.</p></div><Badge>{entity.type ?? "entity"}</Badge></div>
+    <div className="grid gap-4 md:grid-cols-2">
+      <div className="space-y-2"><Label>Title</Label><Input value={title} onChange={(event) => setTitle(event.target.value)} /></div>
+      <div className="space-y-2"><Label>Tags</Label><Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="Comma-separated tags" /></div>
+      {entity.type === "dsa_problem" ? <>
+        <div className="space-y-2"><Label>Difficulty</Label><Select value={value({ ...entity, metadata }, "difficulty", "")} onValueChange={(next) => setField("difficulty", next as DsaDifficulty)}><SelectTrigger><SelectValue placeholder="Difficulty" /></SelectTrigger><SelectContent>{difficultyOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div>
+        <div className="space-y-2 md:col-span-2"><Label>Solution code</Label><Textarea value={value({ ...entity, metadata }, "solution_code")} onChange={(event) => setField("solution_code", event.target.value)} /></div>
+      </> : null}
+      {entity.type === "project" ? <div className="space-y-2"><Label>Repository URL</Label><Input value={value({ ...entity, metadata }, "repo_url")} onChange={(event) => setField("repo_url", event.target.value)} /></div> : null}
+      {entity.type === "project" || entity.type === "milestone" || entity.type === "task" ? <div className="space-y-2"><Label>Status</Label><Select value={value({ ...entity, metadata }, "status", "todo")} onValueChange={(next) => setField("status", next as TaskStatus)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{taskStatusOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div> : null}
+      {entity.type === "subject_topic" ? <>
+        <div className="space-y-2"><Label>Exam date</Label><Input type="date" value={value({ ...entity, metadata }, "exam_date")} onChange={(event) => setField("exam_date", event.target.value)} /></div>
+        <div className="space-y-2"><Label>Priority</Label><Select value={value({ ...entity, metadata }, "priority", "medium")} onValueChange={(next) => setField("priority", next)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["low", "medium", "high"].map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div>
+        <div className="space-y-2"><Label>Progress %</Label><Input type="number" min="0" max="100" value={value({ ...entity, metadata }, "progress_percent", "0")} onChange={(event) => setField("progress_percent", Number(event.target.value))} /></div>
+        <div className="space-y-2"><Label>Study sessions planned</Label><Input type="number" min="0" value={value({ ...entity, metadata }, "study_sessions_planned", "0")} onChange={(event) => setField("study_sessions_planned", Number(event.target.value))} /></div>
+        <div className="space-y-2 md:col-span-2"><Label>Syllabus units</Label><Input value={Array.isArray(metadata.syllabus_units) ? metadata.syllabus_units.join(", ") : ""} onChange={(event) => setField("syllabus_units", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} /></div>
+      </> : null}
+    </div>
+    <div className="flex items-center gap-3"><Button type="button" onClick={() => void save()} disabled={saving || !title.trim()}>{saving ? "Saving..." : "Save properties"}</Button>{error ? <p className="text-sm text-red-300">{error}</p> : null}</div>
+  </div>
+}

@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react"
-import { ArchiveRestore, Database, LogOut, RefreshCw } from "lucide-react"
+import { Database, LogOut, RefreshCw } from "lucide-react"
 
 import { PageHeader } from "@/components/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/features/auth/auth-context"
-import { decayConfidenceJob, type Entity } from "@/lib/api"
-import { getArchivedEntities, getSettingsStatus, restoreEntity, updateAiSetting, type SettingsStatus } from "@/lib/system-api"
+import { decayConfidenceJob } from "@/lib/api"
+import { getSettingsStatus, updateAiSetting, type SettingsStatus } from "@/lib/system-api"
 
 function StateBadge({ ready, children }: { ready: boolean; children: string }) {
   return <Badge variant={ready ? "blue" : "warning"}>{children}</Badge>
@@ -16,15 +16,14 @@ function StateBadge({ ready, children }: { ready: boolean; children: string }) {
 export function SettingsPage() {
   const { logout } = useAuth()
   const [status, setStatus] = useState<SettingsStatus | null>(null)
-  const [archived, setArchived] = useState<Entity[]>([])
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [jobMessage, setJobMessage] = useState<string | null>(null)
 
   async function load() {
     try {
-      const [nextStatus, nextArchived] = await Promise.all([getSettingsStatus(), getArchivedEntities()])
-      setStatus(nextStatus); setArchived(nextArchived); setError(null)
+      const nextStatus = await getSettingsStatus()
+      setStatus(nextStatus); setError(null)
     } catch (value) { setError(value instanceof Error ? value.message : "Unable to load settings.") }
   }
   useEffect(() => { void load() }, [])
@@ -61,10 +60,9 @@ export function SettingsPage() {
         <div className="rounded-md border border-zinc-800 bg-zinc-950 p-4"><p className="font-medium text-zinc-100">GitHub</p><div className="mt-3 flex gap-2"><StateBadge ready={Boolean(status?.github.enabled)}>{status?.github.enabled ? "enabled" : "disabled"}</StateBadge><StateBadge ready={Boolean(status?.github.webhook_secret_configured)}>{status?.github.webhook_secret_configured ? "webhook configured" : "webhook missing"}</StateBadge></div></div>
         <div className="rounded-md border border-zinc-800 bg-zinc-950 p-4"><p className="font-medium text-zinc-100">Web search</p><div className="mt-3 flex gap-2"><StateBadge ready={Boolean(status?.web_search.enabled)}>{status?.web_search.enabled ? "enabled" : "disabled"}</StateBadge><StateBadge ready={Boolean(status?.web_search.api_key_configured)}>{status?.web_search.api_key_configured ? "configured" : "missing"}</StateBadge></div></div>
       </CardContent></Card>
-      <Card><CardHeader><CardTitle>Data</CardTitle><CardDescription>Local drafts stay in this browser. Archived entities remain fully restorable.</CardDescription></CardHeader><CardContent className="space-y-4">
+      <Card><CardHeader><CardTitle>Data</CardTitle><CardDescription>Local drafts stay in this browser. Deleted entities are permanently removed.</CardDescription></CardHeader><CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={clearDrafts}><Database className="mr-2 h-4 w-4" />Clear browser drafts</Button><Button variant="outline" onClick={() => void decayConfidenceJob().then((result) => setJobMessage(`Updated ${result.updated_count} confidence scores.`)).catch((value) => setError(value instanceof Error ? value.message : "Job failed."))}><RefreshCw className="mr-2 h-4 w-4" />Run confidence decay</Button></div>
         {jobMessage ? <p className="text-sm text-blue-300">{jobMessage}</p> : null}
-        <div><h3 className="mb-2 text-sm font-semibold text-zinc-100">Archived entities</h3>{archived.length === 0 ? <p className="text-sm text-zinc-500">No archived entities.</p> : <div className="space-y-2">{archived.map((entity) => <div key={entity.id} className="flex items-center justify-between rounded-md border border-zinc-800 bg-zinc-950 p-3"><div><p className="text-sm text-zinc-100">{entity.title ?? "Untitled entity"}</p><p className="font-mono text-xs text-zinc-500">{entity.type}</p></div><Button size="sm" variant="outline" onClick={() => void restoreEntity(entity.id).then(() => setArchived((items) => items.filter((item) => item.id !== entity.id)))}><ArchiveRestore className="mr-2 h-4 w-4" />Restore</Button></div>)}</div>}</div>
       </CardContent></Card>
     </div>
   </div>

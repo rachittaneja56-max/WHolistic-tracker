@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.activity import record_session
@@ -146,6 +146,15 @@ def get_linked_entity_ids(db: Session, entity_id: uuid.UUID) -> set[uuid.UUID]:
             linked_entity_ids.add(counterpart_id)
 
     return linked_entity_ids
+def get_entity_tree_ids(db: Session, root_id: uuid.UUID) -> set[uuid.UUID]:
+    ids = {root_id}
+    frontier = [root_id]
+    while frontier:
+        child_ids = db.scalars(select(Entity.id).where(Entity.parent_id.in_(frontier)).execution_options(include_deleted=True)).all()
+        frontier = [child_id for child_id in child_ids if child_id not in ids]
+        ids.update(frontier)
+    return ids
+
 def build_deletion_impact(db: Session, entity: Entity) -> EntityDeletionImpactRead:
     return EntityDeletionImpactRead(
         child_count=db.scalar(select(func.count()).select_from(Entity).where(Entity.parent_id == entity.id).where(active_entity_clause())) or 0,
@@ -456,14 +465,18 @@ def delete_entity(entity_id: uuid.UUID, payload: EntityDeleteRequest | None = No
     entity = get_entity_or_404(db, entity_id)
     impact = build_deletion_impact(db, entity)
     if (impact.child_count or impact.link_count) and ((payload.confirmation_title if payload else None) != (entity.title or "")):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Type the exact entity title to confirm deletion")
-    deleted_at = datetime.now(timezone.utc).isoformat()
-    entity.entity_metadata = {**(entity.entity_metadata or {}), "deleted_at": deleted_at, "deleted_by": "owner"}
-    record_session(db, entity_id=entity.id, action="deleted", meta={"entity_title": entity.title, "entity_type": entity.type})
-    db.commit()
-    db.refresh(entity)
-    return EntityDeletionResultRead(entity=serialize_entity(entity), deleted_at=deleted_at)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Type the exact entity title to confirm permanent deletion")
 
+    entity_ids = get_entity_tree_ids(db, entity.id)
+    serialized_entity = serialize_entity(entity)
+    deleted_at = datetime.now(timezone.utc).isoformat()
+    db.execute(delete(Link).where(or_(Link.from_id.in_(entity_ids), Link.to_id.in_(entity_ids))))
+    db.execute(delete(ActivitySession).where(ActivitySession.entity_id.in_(entity_ids)))
+    db.execute(delete(Review).where(Review.entity_id.in_(entity_ids)))
+    db.execute(delete(ComprehensionCheck).where(ComprehensionCheck.entity_id.in_(entity_ids)))
+    db.execute(delete(Entity).where(Entity.id.in_(entity_ids)))
+    db.commit()
+    return EntityDeletionResultRead(entity=serialized_entity, deleted_at=deleted_at)
 
 @router.post("/{entity_id}/restore", response_model=EntityRead)
 def restore_entity(entity_id: uuid.UUID, db: Session = Depends(get_db), _owner: str = Depends(require_owner_mutation)) -> EntityRead:

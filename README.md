@@ -122,6 +122,8 @@ GITHUB_ACCESS_TOKEN=
 WEB_SEARCH_ENABLED=false
 WEB_SEARCH_PROVIDER=tavily
 TAVILY_API_KEY=
+LEETCODE_SESSION_COOKIE=optional-private-account-cookie
+LEETCODE_CSRF_TOKEN=optional-csrf-token
 ```
 
 ### `apps/web/.env`
@@ -235,8 +237,10 @@ Legacy routes redirect to these locations.
 
 ## Soft Delete and Restore
 
-`DELETE /entities/{id}` archives an entity by writing `metadata.deleted_at` and `metadata.deleted_by`. It never deletes links, history, reviews, checks, or children. Archived entities are excluded globally from normal entity queries and can be restored from Settings. Entities with children or links require exact-title confirmation at the API boundary.
+`DELETE /entities/{id}` permanently deletes the entity, its descendants, links, history, reviews, and comprehension checks. Entities with children or links require exact-title confirmation at the API boundary.
 
 ## Subject Metadata
 
 Subjects and topics remain `subject_topic` entities. A subject has `parent_id=null`; a topic uses its subject as `parent_id`. Supported metadata includes `exam_date`, `status`, `priority`, `syllabus_units`, `progress_percent`, `target_confidence`, `study_sessions_planned`, and optional topic `exam_weightage`. Legacy exam-date-only entities receive safe read defaults.
+
+Full LeetCode imports require the owner-only `LEETCODE_SESSION_COOKIE` and optional `LEETCODE_CSRF_TOKEN` backend environment values. Without them, the public profile API is limited to recent submissions; private submissions, code, and notes are unavailable from a username alone.

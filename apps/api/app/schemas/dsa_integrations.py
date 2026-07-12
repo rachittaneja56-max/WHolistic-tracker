@@ -28,6 +28,7 @@ class DsaConnectionsUpdate(BaseModel):
 class DsaConnectionStatus(DsaConnection):
     last_synced_at: str | None = None
     last_error: str | None = None
+    auth_configured: bool = False
 
 
 class DsaIntegrationStatusRead(BaseModel):

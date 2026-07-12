@@ -319,6 +319,8 @@ export function ProjectsPage() {
                     <p className="mt-2 text-sm text-zinc-500">{project.content?.slice(0, 80) || "No project notes yet."}</p>
                   </button>
 
+                  <Button asChild type="button" variant="outline" size="sm"><Link to={`/entities/${project.id}`}>Edit project</Link></Button>
+
                   <Select value={getEntityStatus(project) ?? "todo"} onValueChange={(value) => void handleProjectStatusChange(project, value as TaskStatus)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Update project status" />
@@ -361,6 +363,8 @@ export function ProjectsPage() {
                     </div>
                     <p className="mt-2 font-mono text-xs text-zinc-500">{formatEntityDate(milestone.created_at)}</p>
                   </button>
+
+                  <Button asChild type="button" variant="outline" size="sm"><Link to={`/entities/${milestone.id}`}>Edit milestone</Link></Button>
 
                   <Select
                     value={getEntityStatus(milestone) ?? "todo"}
