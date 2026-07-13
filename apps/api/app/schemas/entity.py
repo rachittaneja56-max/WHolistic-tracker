@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from math import isfinite
+import re
 from typing import Any, Literal
 from uuid import UUID
 
@@ -29,6 +31,9 @@ AI_ASSIST_LEVEL_VALUES: tuple[AiAssistLevel, ...] = (
     "ai-generated",
     "ai-paired",
 )
+ACADEMIC_KIND_VALUES = {"assignment", "exam", "revision", "reading", "project"}
+SUBJECT_TEXT_FIELDS = ("course_code", "term", "instructor", "location")
+HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 def get_recommended_content_type_for_entity_type(entity_type: EntityType | None) -> ContentType | None:
@@ -57,6 +62,37 @@ def _subject_number(metadata: dict[str, Any], key: str, default: float, minimum:
     return float(value)
 
 
+def _optional_number(
+    metadata: dict[str, Any],
+    key: str,
+    *,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> int | float | None:
+    if key not in metadata or metadata[key] is None:
+        return None
+    value = metadata[key]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f'metadata.{key} must be a number')
+    numeric_value = float(value)
+    if not isfinite(numeric_value):
+        raise ValueError(f'metadata.{key} must be a finite number')
+    if minimum is not None and numeric_value < minimum:
+        raise ValueError(f'metadata.{key} must be at least {minimum:g}')
+    if maximum is not None and numeric_value > maximum:
+        raise ValueError(f'metadata.{key} must be at most {maximum:g}')
+    return value
+
+
+def _normalize_optional_text(metadata: dict[str, Any], key: str) -> None:
+    if key not in metadata or metadata[key] is None:
+        return
+    value = metadata[key]
+    if not isinstance(value, str):
+        raise ValueError(f'metadata.{key} must be a string')
+    metadata[key] = value.strip()
+
+
 def normalize_subject_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     normalized = dict(metadata or {})
     status_value = normalized.get("status", "active")
@@ -79,6 +115,17 @@ def normalize_subject_metadata(metadata: dict[str, Any] | None) -> dict[str, Any
     sessions = normalized.get("study_sessions_planned", 0)
     if isinstance(sessions, bool) or not isinstance(sessions, int) or sessions < 0:
         raise ValueError("metadata.study_sessions_planned must be a non-negative integer")
+    for key in SUBJECT_TEXT_FIELDS:
+        _normalize_optional_text(normalized, key)
+    color = normalized.get('color')
+    if color not in (None, ''):
+        if not isinstance(color, str) or HEX_COLOR_PATTERN.fullmatch(color.strip()) is None:
+            raise ValueError('metadata.color must be a hex color in #RRGGBB format')
+        normalized['color'] = color.strip().lower()
+    credits = _optional_number(normalized, 'credits', minimum=0)
+    if credits is not None:
+        normalized['credits'] = credits
+
     normalized.update(
         status=status_value,
         priority=priority_value,
@@ -92,8 +139,48 @@ def normalize_subject_metadata(metadata: dict[str, Any] | None) -> dict[str, Any
     return normalized
 
 
+def normalize_task_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    normalized = dict(metadata or {})
+    academic_kind = normalized.get('academic_kind')
+    if academic_kind is not None and academic_kind not in ACADEMIC_KIND_VALUES:
+        raise ValueError(
+            'metadata.academic_kind must be assignment, exam, revision, reading, or project'
+        )
+
+    due_at = normalized.get('due_at')
+    if due_at not in (None, ''):
+        if not isinstance(due_at, str):
+            raise ValueError('metadata.due_at must be an ISO date or datetime')
+        due_at = due_at.strip()
+        try:
+            datetime.fromisoformat(due_at.replace('Z', '+00:00'))
+        except ValueError as exc:
+            raise ValueError('metadata.due_at must be an ISO date or datetime') from exc
+        normalized['due_at'] = due_at
+
+    estimated_minutes = normalized.get('estimated_minutes')
+    if estimated_minutes is not None:
+        if isinstance(estimated_minutes, bool) or not isinstance(estimated_minutes, int) or estimated_minutes < 0:
+            raise ValueError('metadata.estimated_minutes must be a non-negative integer')
+
+    _normalize_optional_text(normalized, 'recurrence')
+    for key in ('points_earned', 'points_possible'):
+        value = _optional_number(normalized, key, minimum=0)
+        if value is not None:
+            normalized[key] = value
+    weight = _optional_number(normalized, 'weight_percent', minimum=0, maximum=100)
+    if weight is not None:
+        normalized['weight_percent'] = weight
+    return normalized
+
+
 def normalize_entity_metadata(entity_type: EntityType | None, metadata: dict[str, Any] | None) -> dict[str, Any]:
-    normalized = normalize_subject_metadata(metadata) if entity_type == "subject_topic" else dict(metadata or {})
+    if entity_type == "subject_topic":
+        normalized = normalize_subject_metadata(metadata)
+    elif entity_type == "task":
+        normalized = normalize_task_metadata(metadata)
+    else:
+        normalized = dict(metadata or {})
     ai_assist_level = normalized.get("ai_assist_level")
 
     if entity_type == "task":

@@ -6,7 +6,16 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SessionAction = Literal["created", "revisited", "linked", "pr_opened", "pr_merged", "push"]
+SessionAction = Literal[
+    "created",
+    "revisited",
+    "linked",
+    "pr_opened",
+    "pr_merged",
+    "push",
+    "study_planned",
+    "study_completed",
+]
 
 
 class SessionCreate(BaseModel):
@@ -14,6 +23,7 @@ class SessionCreate(BaseModel):
 
     entity_id: UUID | None = None
     action: SessionAction
+    date: datetime | None = None
     meta: dict[str, Any] = Field(default_factory=dict)
 
 

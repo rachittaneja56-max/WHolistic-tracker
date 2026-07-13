@@ -45,12 +45,15 @@ def create_session(payload: SessionCreate, db: Session = Depends(get_db)) -> Ses
     if payload.entity_id is not None and db.get(Entity, payload.entity_id) is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Entity does not exist")
 
-    session_row = ActivitySession(
+    session_values = dict(
         id=uuid.uuid4(),
         entity_id=payload.entity_id,
         action=payload.action,
         meta=payload.meta,
     )
+    if payload.date is not None:
+        session_values["date"] = payload.date
+    session_row = ActivitySession(**session_values)
     db.add(session_row)
     db.commit()
     db.refresh(session_row)

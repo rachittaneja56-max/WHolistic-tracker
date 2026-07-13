@@ -25,9 +25,26 @@ export type SettingsStatus = {
   web_search: { enabled: boolean; provider: string | null; api_key_configured: boolean }
 }
 export type DeletionImpact = { child_count: number; link_count: number; review_count: number; comprehension_check_count: number; session_count: number }
+export type SubjectSummaryMetrics = {
+  topic_count: number
+  completed_topic_count: number
+  open_task_count: number
+  overdue_task_count: number
+  due_review_count: number
+  progress_percent: number
+  mastery_score: number
+  grade_percent: number | null
+  next_deadline: string | null
+  planned_minutes_7d: number
+  studied_minutes_7d: number
+  last_studied_at: string | null
+}
+export type SubjectTrackerSummary = SubjectSummaryMetrics & { subject: Entity }
 export type SubjectOverview = {
   subject: Entity
   topics: Entity[]
+  academic_tasks: Entity[]
+  summary: SubjectSummaryMetrics
   linked_entities: Record<string, Entity[]>
   due_reviews: RecallDueItem[]
   recent_sessions: SessionRecord[]
@@ -48,4 +65,5 @@ export const getArchivedEntities = () => request<Entity[]>("/entities/archived")
 export const getDeletionImpact = (id: string) => request<DeletionImpact>(`/entities/${id}/deletion-impact`)
 export const deleteEntity = (id: string, confirmationTitle?: string) => request<{ entity: Entity; deleted_at: string }>(`/entities/${id}`, { method: "DELETE", body: JSON.stringify({ confirmation_title: confirmationTitle ?? null }) })
 export const restoreEntity = (id: string) => request<Entity>(`/entities/${id}/restore`, { method: "POST" })
+export const getSubjectTracker = () => request<SubjectTrackerSummary[]>("/subjects/tracker")
 export const getSubjectOverview = (id: string) => request<SubjectOverview>(`/subjects/${id}/overview`)

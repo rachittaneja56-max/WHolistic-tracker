@@ -244,6 +244,8 @@ Legacy routes redirect to these locations.
 
 ## Subject Metadata
 
-Subjects and topics remain `subject_topic` entities. A subject has `parent_id=null`; a topic uses its subject as `parent_id`. Supported metadata includes `exam_date`, `status`, `priority`, `syllabus_units`, `progress_percent`, `target_confidence`, `study_sessions_planned`, and optional topic `exam_weightage`. Legacy exam-date-only entities receive safe read defaults.
+Subjects and topics remain `subject_topic` entities. A subject has `parent_id=null`; a topic uses its subject as `parent_id`. Supported subject metadata includes `exam_date`, `status`, `priority`, `syllabus_units`, `progress_percent`, `target_confidence`, `study_sessions_planned`, `course_code`, `term`, `instructor`, `location`, `color`, and `credits`; topics may also use `exam_weightage`. Legacy exam-date-only entities receive safe read defaults.
+
+Academic assignments, exams, revision, readings, and projects remain `task` entities parented by a subject or topic. Their metadata can include `academic_kind`, `due_at`, `estimated_minutes`, `recurrence`, `points_earned`, `points_possible`, and `weight_percent`. Study blocks use session actions `study_planned` and `study_completed` with their duration in session metadata. `GET /subjects/tracker` derives workload, progress, mastery, grade, review debt, and rolling study totals without rewriting stored subject metadata.
 
 Full LeetCode imports require the owner-only `LEETCODE_SESSION_COOKIE` and optional `LEETCODE_CSRF_TOKEN` backend environment values. Without them, the public profile API is limited to recent submissions; private submissions, code, and notes are unavailable from a username alone.

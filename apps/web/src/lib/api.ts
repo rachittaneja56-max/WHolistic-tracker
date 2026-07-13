@@ -130,6 +130,15 @@ export type SessionRecord = {
   meta: EntityMetadata
 }
 
+export type SessionAction = "created" | "revisited" | "linked" | "pr_opened" | "pr_merged" | "push" | "study_planned" | "study_completed"
+
+export type CreateSessionPayload = {
+  entity_id?: string | null
+  action: SessionAction
+  date?: string | null
+  meta?: EntityMetadata
+}
+
 export type GithubFeedItem = {
   id: string
   entity_id: string | null
@@ -628,6 +637,13 @@ export function getEntity(entityId: string) {
 export function revisitEntity(entityId: string) {
   return request<Entity>(`/entities/${entityId}/revisit`, {
     method: "POST",
+  })
+}
+
+export function createSession(payload: CreateSessionPayload) {
+  return request<SessionRecord>("/sessions", {
+    method: "POST",
+    body: JSON.stringify(payload),
   })
 }
 
