@@ -13,6 +13,7 @@ from app.models.app_setting import AppSetting
 from app.models.link import Link
 from app.models.review import Review
 from app.models.session import ActivitySession
+from app.models.assistant import AssistantMessage, AssistantProposal, AssistantThread
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

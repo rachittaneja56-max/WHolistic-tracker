@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "@/features/auth/auth-context"
 import { RootLayout } from "@/layouts/root-layout"
 import { AllEntitiesPage } from "@/pages/all-entities-page"
 import { AnalystPage } from "@/pages/analyst-page"
+import { AssistantPage } from "@/pages/assistant-page"
 import { CapturePage } from "@/pages/capture-page"
 import { ComprehensionChecksPage } from "@/pages/comprehension-checks-page"
 import { DsaPage } from "@/pages/dsa-page"
@@ -47,6 +48,7 @@ function AuthGate() {
       <Route path="knowledge/tags" element={<TagsPage />} />
       <Route path="knowledge/recall" element={<RecallPage />} />
       <Route path="knowledge/recall/comprehension" element={<ComprehensionChecksPage />} />
+      <Route path="agents/assistant" element={<AssistantPage />} />
       <Route path="agents/ask-graph" element={<GraphChatPage />} />
       <Route path="agents/review-inbox" element={<ReviewInboxPage />} />
       <Route path="agents/ideas" element={<IdeasPage />} />
@@ -61,6 +63,7 @@ function AuthGate() {
       <Route path="graph" element={<Navigate replace to="/knowledge/graph" />} />
       <Route path="tags" element={<Navigate replace to="/knowledge/tags" />} />
       <Route path="recall" element={<Navigate replace to="/knowledge/recall" />} />
+      <Route path="assistant" element={<Navigate replace to="/agents/assistant" />} />
       <Route path="ask-graph" element={<Navigate replace to="/agents/ask-graph" />} />
       <Route path="review-inbox" element={<Navigate replace to="/agents/review-inbox" />} />
       <Route path="ideas" element={<Navigate replace to="/agents/ideas" />} />

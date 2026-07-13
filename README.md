@@ -138,9 +138,10 @@ Set these in `apps/api/.env` if you want AI-backed JSON generation instead of de
 
 ```env
 AI_ENABLED=true
-OPENAI_API_KEY=your-key
-OPENAI_MODEL_FAST=gpt-4.1-mini
-OPENAI_MODEL_SMART=gpt-4.1
+OPENAI_API_KEY=your-openai-key
+GEMINI_API_KEY=your-gemini-key
+MISTRAL_API_KEY=your-mistral-key
+API_PUBLIC_ORIGIN=https://your-public-api.example
 ```
 
 Behavior with AI disabled:
@@ -151,7 +152,9 @@ Behavior with AI disabled:
 
 ## GitHub Webhook Setup
 
-1. Set these in `apps/api/.env`:
+1. In **Settings → GitHub integration**, enable the integration, save a webhook secret, and optionally add a fine-grained read-only token for PR diff enrichment. Server environment values remain supported as fallbacks.
+
+2. Alternatively, set these in `apps/api/.env`:
 
 ```env
 GITHUB_INTEGRATION_ENABLED=true
@@ -159,8 +162,8 @@ GITHUB_WEBHOOK_SECRET=your-shared-secret
 GITHUB_ACCESS_TOKEN=optional-but-useful
 ```
 
-2. Make sure each `project` entity uses `metadata.repo_url`.
-3. In GitHub repository settings, add a webhook:
+3. Make sure each `project` entity uses `metadata.repo_url`.
+4. In GitHub repository settings, add a webhook:
 - Payload URL: `http://YOUR_HOST:8000/webhooks/github`
 - Content type: `application/json`
 - Secret: same as `GITHUB_WEBHOOK_SECRET`
@@ -222,14 +225,14 @@ The frontend environment must contain only:
 VITE_API_URL=http://localhost:8000
 ```
 
-OpenAI, GitHub, database, webhook, web-search, cookie, and authorization secrets are backend-only. `GET /settings/status` returns booleans and model names only. The website AI switch stores only `{"enabled": boolean}` in the singleton `app_settings` row. The existing `AI_ENABLED` value seeds that row once; the database is authoritative afterward.
+AI provider keys, GitHub, database, webhook, web-search, cookie, and authorization secrets are backend-only. `GET /settings/status` returns booleans and model names only. Owner-entered OpenAI, Gemini, and Mistral keys are encrypted using `APP_SESSION_SECRET`; environment keys remain supported as fallbacks. Provider selection, AI availability, and per-provider model names are stored in the singleton `app_settings` row.
 
 ## Routes
 
 - Primary: `/`, `/capture`
 - Trackers: `/trackers/dsa`, `/trackers/projects`, `/trackers/subjects`, `/trackers/subjects/:subjectId`
 - Knowledge: `/knowledge/entities`, `/knowledge/entities/:entityId`, `/knowledge/graph`, `/knowledge/tags`, `/knowledge/recall`
-- Agents: `/agents/ask-graph`, `/agents/review-inbox`, `/agents/ideas`, `/agents/analyst`
+- Agents: `/agents/assistant`, `/agents/ask-graph`, `/agents/review-inbox`, `/agents/ideas`, `/agents/analyst`
 - System: `/settings`
 - Secondary: `/insights/weekly`, `/knowledge/recall/comprehension`
 

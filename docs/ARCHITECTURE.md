@@ -76,6 +76,6 @@ GitHub events are stored in `sessions` with action names such as:
 Metadata on the session stores repo and event details. Matching back to a project happens through `project.metadata.repo_url`.
 ## System settings and archived entities
 
-`app_settings` is the only non-learning table added after the stable Phase 0 schema. It stores non-secret system preferences such as website AI availability. API keys remain process configuration.
+`app_settings` is the only non-learning table added after the stable Phase 0 schema. It stores system preferences plus encrypted owner-entered AI provider credentials. AI keys are encrypted using a key derived from `APP_SESSION_SECRET`, are never returned by the API, and fall back to process configuration when no database credential exists.
 
 Entity deletion is a reversible metadata state. Central SQLAlchemy loader criteria hide entities with `metadata.deleted_at` from ordinary queries, including tracker, graph, retrieval, and agent entity loads. Explicit authenticated archive/restore paths opt into archived visibility. Hierarchy and graph data are never cascaded or rewritten.

@@ -1,17 +1,55 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+AiProviderName = Literal["openai", "gemini", "mistral"]
+AiModelMode = Literal["auto", "fast", "smart"]
+GithubCredentialName = Literal["access_token", "webhook_secret"]
+
+
+class AiModelUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    fast_model: str = Field(min_length=1, max_length=120)
+    smart_model: str = Field(min_length=1, max_length=120)
 
 
 class AiSettingUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    enabled: bool | None = None
+    provider: AiProviderName | None = None
+    model_mode: AiModelMode | None = None
+    models: dict[AiProviderName, AiModelUpdate] | None = None
+
+
+class AiCredentialUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    api_key: str = Field(min_length=1, max_length=1000)
+
+
+class GithubSettingUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     enabled: bool
+
+
+class GithubCredentialUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    value: str = Field(min_length=1, max_length=1000)
+
+
+class AiProviderStatusRead(BaseModel):
+    configured: bool
+    fast_model: str
+    smart_model: str
 
 
 class AiStatusRead(BaseModel):
     enabled: bool
-    provider: str = "openai"
+    provider: AiProviderName = "openai"
+    model_mode: AiModelMode = "auto"
     openai_configured: bool
+    providers: dict[AiProviderName, AiProviderStatusRead] = Field(default_factory=dict)
     provider_ready: bool
     fast_model: str
     smart_model: str
@@ -22,6 +60,10 @@ class GithubStatusRead(BaseModel):
     enabled: bool
     webhook_secret_configured: bool
     access_token_configured: bool
+    ready: bool = False
+    disabled_reason: str | None = None
+    webhook_url: str = ""
+    webhook_events: list[str] = Field(default_factory=lambda: ["Pull requests", "Pushes", "Workflow runs", "Check runs"])
 
 
 class WebSearchStatusRead(BaseModel):

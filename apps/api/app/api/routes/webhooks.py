@@ -17,9 +17,9 @@ async def github_webhook(
     github_event: str | None = Header(default=None, alias="X-GitHub-Event"),
     github_signature: str | None = Header(default=None, alias="X-Hub-Signature-256"),
 ) -> GithubWebhookResponse:
-    ensure_github_integration_enabled()
+    ensure_github_integration_enabled(db)
     payload_bytes = await request.body()
-    if not verify_github_signature(payload_bytes, github_signature):
+    if not verify_github_signature(db, payload_bytes, github_signature):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid GitHub webhook signature")
 
     payload = parse_github_payload(payload_bytes)

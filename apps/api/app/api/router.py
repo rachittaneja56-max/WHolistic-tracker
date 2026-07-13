@@ -4,8 +4,11 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     dsa_integrations,
+    dsa_extension,
+    dsa_tracker,
     auth,
     agents,
+    assistant,
     analytics,
     chat,
     comprehension_checks,
@@ -32,6 +35,7 @@ api_router.include_router(health.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(digest.router)
 api_router.include_router(agents.router)
+api_router.include_router(assistant.router)
 api_router.include_router(chat.router)
 api_router.include_router(graph.router)
 api_router.include_router(entities.router)
@@ -48,3 +52,5 @@ api_router.include_router(tags.router)
 api_router.include_router(webhooks.router)
 api_router.include_router(jobs.router)
 api_router.include_router(dsa_integrations.router)
+api_router.include_router(dsa_extension.router)
+api_router.include_router(dsa_tracker.router)

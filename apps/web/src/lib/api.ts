@@ -851,3 +851,57 @@ export function getDsaProblems(query?: DsaProblemQuery) { return request<DsaProb
 export function getDsaExtensionStatus() { return request<DsaExtensionStatus>("/integrations/dsa/extension/pairing") }
 export function createDsaPairingCode() { return request<DsaPairingCode>("/integrations/dsa/extension/pairing-codes", { method: "POST" }) }
 export function revokeDsaExtension() { return request<void>("/integrations/dsa/extension/pairing", { method: "DELETE" }) }
+
+export type AssistantAction = {
+  id: string
+  action_type: "create_entity" | "update_entity" | "log_shipping"
+  entity_type: EntityType | null
+  target_id: string | null
+  parent_id: string | null
+  title: string | null
+  content: string | null
+  content_type: ContentType | null
+  tags: string[]
+  difficulty: DsaDifficulty | null
+  status: string | null
+  url: string | null
+  solution_code: string | null
+  summary: string
+}
+export type AssistantThread = { id: string; title: string; archived_at: string | null; created_at: string; updated_at: string }
+export type AssistantMessage = { id: string; thread_id: string; role: "user" | "assistant"; content: string; model_stage: string | null; payload: AssistantMessagePayload; created_at: string }
+export type AssistantThreadDetail = { thread: AssistantThread; messages: AssistantMessage[] }
+export type AssistantTurn = { thread: AssistantThread; user_message: AssistantMessage; assistant_message: AssistantMessage; proposal_id: string | null }
+export type AssistantProposalStatus = "pending" | "executing" | "executed" | "cancelled" | "expired" | "stale" | "failed"
+export type AssistantRecallItem = { entity: Entity; due_reasons: string[] }
+export type AssistantResultLink = { entity_id: string; title: string | null; status?: string; action_id?: string }
+export type AssistantMessagePayload =
+  | { kind: "answer"; [key: string]: unknown }
+  | { kind: "questions"; questions: string[]; [key: string]: unknown }
+  | { kind: "proposal"; proposal_id?: string; proposal_status?: AssistantProposalStatus; actions: AssistantAction[]; [key: string]: unknown }
+  | { kind: "recall_due"; items: AssistantRecallItem[]; [key: string]: unknown }
+  | { kind: "execution_result"; proposal_id?: string; status?: AssistantProposalStatus; results?: AssistantResultLink[]; [key: string]: unknown }
+  | { kind: "recall_result"; recalled_score?: number; feedback?: string; missed_points?: string[]; next_action?: string; [key: string]: unknown }
+  | { kind: "system_error"; retryable?: boolean; error?: string; [key: string]: unknown }
+  | ({ kind?: undefined } & Record<string, unknown>)
+export type AssistantExecution = { proposal_id: string; status: "executed"; results: Array<{ action_id: string; entity_id: string; title: string | null; status: string }>; message?: AssistantMessage }
+export type AssistantPageContext = { route: string; entity_id?: string; entity_type?: EntityType; entity_title?: string }
+export type AssistantRecallResponse = { grade: RecallGradeResult; message?: AssistantMessage }
+
+export function getAssistantThreads() { return request<AssistantThread[]>("/assistant/threads") }
+export function createAssistantThread() { return request<AssistantThread>("/assistant/threads", { method: "POST" }) }
+export function getAssistantThread(threadId: string) { return request<AssistantThreadDetail>(`/assistant/threads/${threadId}`) }
+export function archiveAssistantThread(threadId: string) { return request<void>(`/assistant/threads/${threadId}`, { method: "DELETE" }) }
+export function sendAssistantTurn(payload: { thread_id?: string | null; message: string; current_path: string; page_context?: AssistantPageContext }) {
+  return request<AssistantTurn>("/assistant/turns", { method: "POST", body: JSON.stringify(payload) })
+}
+export function updateAssistantProposal(proposalId: string, actions: AssistantAction[]) {
+  return request<{ proposal_id: string; actions: AssistantAction[]; status: string }>(`/assistant/proposals/${proposalId}`, { method: "PATCH", body: JSON.stringify({ actions }) })
+}
+export function executeAssistantProposal(proposalId: string, payload: { idempotency_key: string; action_ids?: string[] }) {
+  return request<AssistantExecution>(`/assistant/proposals/${proposalId}/execute`, { method: "POST", body: JSON.stringify(payload) })
+}
+export function cancelAssistantProposal(proposalId: string) { return request<void>(`/assistant/proposals/${proposalId}`, { method: "DELETE" }) }
+export function gradeAssistantRecall(payload: { entity_id: string; answer: string; self_score?: number; thread_id?: string; source_message_id?: string }) {
+  return request<AssistantRecallResponse>("/assistant/recall/grade", { method: "POST", body: JSON.stringify(payload) })
+}

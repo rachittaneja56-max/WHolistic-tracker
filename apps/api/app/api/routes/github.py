@@ -38,7 +38,7 @@ def get_github_feed(
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
 ) -> list[GithubFeedItemRead]:
-    ensure_github_integration_enabled()
+    ensure_github_integration_enabled(db)
     sessions = list_github_feed_sessions(db, limit=limit)
 
     feed: list[GithubFeedItemRead] = []
@@ -73,13 +73,13 @@ def get_github_feed(
 
 @router.get("/ci-status", response_model=GithubCiStatusResponse)
 def get_github_ci_status(db: Session = Depends(get_db)) -> GithubCiStatusResponse:
-    ensure_github_integration_enabled()
+    ensure_github_integration_enabled(db)
     return GithubCiStatusResponse(items=list_latest_ci_status_items(db))
 
 
 @router.post("/sessions/{session_id}/draft-til", response_model=GithubTilDraftRead)
 def create_github_til_draft(session_id: uuid.UUID, db: Session = Depends(get_db)) -> GithubTilDraftRead:
-    ensure_github_integration_enabled()
+    ensure_github_integration_enabled(db)
     session_row = get_session_or_404(db, session_id)
     if not is_github_pr_merge_session(session_row):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only merged pull request sessions can generate a TIL draft")
@@ -95,9 +95,9 @@ def create_github_til_draft(session_id: uuid.UUID, db: Session = Depends(get_db)
         provider = None
 
     try:
-        draft, used_ai = draft_til_from_pr_session(session_row, provider=provider)
+        draft, used_ai = draft_til_from_pr_session(session_row, db=db, provider=provider)
     except AgentProviderError:
-        draft, used_ai = draft_til_from_pr_session(session_row, provider=None)
+        draft, used_ai = draft_til_from_pr_session(session_row, db=db, provider=None)
 
     meta["github_til_draft"] = draft
     meta["github_til_draft_used_ai"] = used_ai
@@ -125,7 +125,7 @@ def approve_github_til(
     payload: GithubApproveTilRequest,
     db: Session = Depends(get_db),
 ) -> GithubApproveTilResponse:
-    ensure_github_integration_enabled()
+    ensure_github_integration_enabled(db)
     session_row = get_session_or_404(db, session_id)
     if not is_github_pr_merge_session(session_row):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only merged pull request sessions can create a TIL")

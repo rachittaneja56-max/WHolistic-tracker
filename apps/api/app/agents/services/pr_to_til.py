@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from sqlalchemy.orm import Session
 
 from app.agents.services.provider import OpenAIProvider
 from app.agents.utils.prompts import build_system_prompt
@@ -25,7 +26,7 @@ PR_TO_TIL_SCHEMA = {
 }
 
 
-def draft_til_from_pr_session(session_row: ActivitySession, *, provider: OpenAIProvider | None) -> tuple[dict[str, Any], bool]:
+def draft_til_from_pr_session(session_row: ActivitySession, *, db: Session, provider: OpenAIProvider | None) -> tuple[dict[str, Any], bool]:
     meta = dict(session_row.meta or {})
     cached_draft = meta.get("github_til_draft")
     if isinstance(cached_draft, dict):
@@ -36,7 +37,7 @@ def draft_til_from_pr_session(session_row: ActivitySession, *, provider: OpenAIP
     if provider is None:
         return build_deterministic_draft(meta), False
 
-    diff_summary = fetch_pull_request_diff_summary(meta)
+    diff_summary = fetch_pull_request_diff_summary(db, meta)
     context = build_pr_context(meta, diff_summary)
     payload = provider.generate_json(
         messages=[

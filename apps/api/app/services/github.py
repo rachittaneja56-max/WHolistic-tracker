@@ -16,7 +16,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.services.runtime_settings import get_github_credential, get_github_enabled
 from app.models.entity import Entity
 from app.models.session import ActivitySession
 from app.schemas.analytics import GithubCiStatusItemRead
@@ -48,16 +48,16 @@ class PullRequestDiffSummary:
     summary: str
 
 
-def ensure_github_integration_enabled() -> None:
-    if not settings.github_integration_enabled:
+def ensure_github_integration_enabled(db: Session) -> None:
+    if not get_github_enabled(db):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="GitHub integration is disabled. Set GITHUB_INTEGRATION_ENABLED=true to enable webhook and feed endpoints.",
         )
 
 
-def verify_github_signature(payload: bytes, signature_header: str | None) -> bool:
-    secret = (settings.github_webhook_secret or "").strip()
+def verify_github_signature(db: Session, payload: bytes, signature_header: str | None) -> bool:
+    secret = get_github_credential(db, "webhook_secret")
     if not secret:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -215,8 +215,8 @@ def sanitize_tags(values: list[str]) -> list[str]:
     return result
 
 
-def fetch_pull_request_diff_summary(meta: dict[str, Any]) -> PullRequestDiffSummary | None:
-    token = (settings.github_access_token or "").strip()
+def fetch_pull_request_diff_summary(db: Session, meta: dict[str, Any]) -> PullRequestDiffSummary | None:
+    token = get_github_credential(db, "access_token")
     repo_full_name = meta.get("repo_full_name")
     pr_number = meta.get("pr_number")
     if not token or not isinstance(repo_full_name, str) or not isinstance(pr_number, int):

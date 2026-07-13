@@ -1,4 +1,4 @@
-import { Brain, ChartColumnIncreasing, Database, Inbox, LayoutGrid, Library, Lightbulb, ListChecks, MessageSquareText, Network, NotebookPen, RotateCcw, Settings, SunMedium, Tags, type LucideIcon } from "lucide-react"
+import { Bot, Brain, ChartColumnIncreasing, Database, Inbox, LayoutGrid, Library, Lightbulb, ListChecks, MessageSquareText, Network, NotebookPen, RotateCcw, Settings, SunMedium, Tags, type LucideIcon } from "lucide-react"
 
 export type NavigationItem = { to: string; label: string; icon: LucideIcon; exact?: boolean }
 export type NavigationGroup = { label: string; items: NavigationItem[] }
@@ -18,6 +18,7 @@ export const navigationGroups: NavigationGroup[] = [
     { to: "/knowledge/recall", label: "Recall", icon: RotateCcw },
   ] },
   { label: "Agents", items: [
+    { to: "/agents/assistant", label: "Central AI", icon: Bot },
     { to: "/agents/ask-graph", label: "Ask Graph", icon: MessageSquareText },
     { to: "/agents/review-inbox", label: "Review Inbox", icon: Inbox },
     { to: "/agents/ideas", label: "Ideas", icon: Lightbulb },

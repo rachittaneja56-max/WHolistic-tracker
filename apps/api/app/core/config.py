@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:5173"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
+    api_public_origin: str | None = None
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5433/personal_dev_kg"
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
     embedding_backend: Literal["auto", "sentence_transformer", "hash"] = "auto"
@@ -26,6 +27,12 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model_fast: str = "gpt-4.1-mini"
     openai_model_smart: str = "gpt-4.1"
+    gemini_api_key: str | None = None
+    gemini_model_fast: str = "gemini-2.5-flash"
+    gemini_model_smart: str = "gemini-2.5-pro"
+    mistral_api_key: str | None = None
+    mistral_model_fast: str = "mistral-small-latest"
+    mistral_model_smart: str = "mistral-large-latest"
     github_integration_enabled: bool = False
     github_webhook_secret: str | None = None
     github_access_token: str | None = None

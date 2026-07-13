@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Personal Dev KG — DSA Importer",
+  "version": "1.0.0",
+  "description": "Explicitly capture LeetCode problems, accepted code, and notes into Personal Dev KG.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "https://leetcode.com/*",
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_title": "Personal Dev KG DSA Importer",
+    "default_popup": "popup.html"
+  }
+}
