@@ -10,14 +10,15 @@ export function AppTopbar({ onOpenMobile, aiStatus }: { onOpenMobile: () => void
   const assistantTarget = location.pathname === "/agents/assistant"
     ? `${location.pathname}${location.search}`
     : `/agents/assistant?from=${encodeURIComponent(`${location.pathname}${location.search}`)}`
+  const aiLabel = aiStatus === undefined ? "Checking AI..." : aiStatus?.ai.provider_ready ? "AI ready" : aiStatus?.ai.enabled ? "AI unavailable" : "AI off"
   return <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-4 border-b border-zinc-800 bg-zinc-900 px-4 md:px-6">
     <div className="flex min-w-0 items-center gap-3">
       <Button variant="ghost" size="sm" className="md:hidden" onClick={onOpenMobile} aria-label="Open navigation"><Menu className="h-5 w-5" /></Button>
       <div className="min-w-0"><p className="font-mono text-xs text-zinc-500">{meta.group}</p><h1 className="truncate text-lg font-semibold text-zinc-100">{meta.title}</h1></div>
     </div>
     <div className="flex items-center gap-2">
-      <Link to="/settings" className="hidden rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-xs text-zinc-500 sm:block">{aiStatus?.ai.provider_ready ? "AI ready" : aiStatus?.ai.enabled ? "AI unavailable" : "AI off"}</Link>
-      <Button asChild size="sm" variant="outline"><Link to={assistantTarget} title="Open Central AI (Ctrl/Cmd + J)"><Bot className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Assistant</span></Link></Button>
+      <Link to="/settings" className="hidden rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-xs text-zinc-500 sm:block">{aiLabel}</Link>
+      <Button asChild size="sm" variant="outline"><Link to={assistantTarget} title="Open AI Workspace (Ctrl/Cmd + J)"><Bot className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">AI Workspace</span></Link></Button>
       <Button asChild size="sm"><Link to="/capture"><Plus className="mr-2 h-4 w-4" />Capture</Link></Button>
     </div>
   </header>

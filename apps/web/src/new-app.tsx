@@ -10,13 +10,10 @@ import { CapturePage } from "@/pages/capture-page"
 import { ComprehensionChecksPage } from "@/pages/comprehension-checks-page"
 import { DsaPage } from "@/pages/dsa-page"
 import { EntityDetailPage } from "@/pages/entity-detail-page"
-import { GraphChatPage } from "@/pages/graph-chat-page"
 import { GraphPage } from "@/pages/graph-page"
-import { IdeasPage } from "@/pages/ideas-page"
 import { LoginPage } from "@/pages/login-page"
 import { ProjectsPage } from "@/pages/projects-page"
 import { RecallPage } from "@/pages/recall-page"
-import { ReviewInboxPage } from "@/pages/review-inbox-page"
 import { SettingsPage } from "@/pages/settings-page"
 import { SubjectDetailPage } from "@/pages/subject-detail-page"
 import { UpgradedSubjectsPage } from "@/pages/upgraded-subjects-page"
@@ -49,9 +46,9 @@ function AuthGate() {
       <Route path="knowledge/recall" element={<RecallPage />} />
       <Route path="knowledge/recall/comprehension" element={<ComprehensionChecksPage />} />
       <Route path="agents/assistant" element={<AssistantPage />} />
-      <Route path="agents/ask-graph" element={<GraphChatPage />} />
-      <Route path="agents/review-inbox" element={<ReviewInboxPage />} />
-      <Route path="agents/ideas" element={<IdeasPage />} />
+      <Route path="agents/ask-graph" element={<Navigate replace to="/agents/assistant?view=ask-graph" />} />
+      <Route path="agents/review-inbox" element={<Navigate replace to="/agents/assistant?view=review-inbox" />} />
+      <Route path="agents/ideas" element={<Navigate replace to="/agents/assistant?view=ideas" />} />
       <Route path="agents/analyst" element={<AnalystPage />} />
       <Route path="settings" element={<SettingsPage />} />
       <Route path="insights/weekly" element={<WeeklyDigestPage />} />
@@ -64,9 +61,9 @@ function AuthGate() {
       <Route path="tags" element={<Navigate replace to="/knowledge/tags" />} />
       <Route path="recall" element={<Navigate replace to="/knowledge/recall" />} />
       <Route path="assistant" element={<Navigate replace to="/agents/assistant" />} />
-      <Route path="ask-graph" element={<Navigate replace to="/agents/ask-graph" />} />
-      <Route path="review-inbox" element={<Navigate replace to="/agents/review-inbox" />} />
-      <Route path="ideas" element={<Navigate replace to="/agents/ideas" />} />
+      <Route path="ask-graph" element={<Navigate replace to="/agents/assistant?view=ask-graph" />} />
+      <Route path="review-inbox" element={<Navigate replace to="/agents/assistant?view=review-inbox" />} />
+      <Route path="ideas" element={<Navigate replace to="/agents/assistant?view=ideas" />} />
       <Route path="analyst" element={<Navigate replace to="/agents/analyst" />} />
       <Route path="weekly" element={<Navigate replace to="/insights/weekly" />} />
       <Route path="comprehension-debt" element={<Navigate replace to="/knowledge/recall/comprehension" />} />

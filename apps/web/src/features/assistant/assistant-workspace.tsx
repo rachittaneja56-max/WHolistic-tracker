@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useLocation, useSearchParams } from "react-router-dom"
 import {
   Archive,
@@ -80,7 +80,7 @@ function threadDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date)
 }
 
-export function AssistantWorkspace() {
+export function AssistantWorkspace({ sectionControl }: { sectionControl?: ReactNode }) {
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const settings = useAssistantSettings()
@@ -244,6 +244,13 @@ export function AssistantWorkspace() {
         current_path: pageContext.route,
         page_context: pageContext,
       })
+      const responsePayload = result.assistant_message.payload as Record<string, unknown>
+      const responseMessage: AssistantMessage = result.proposal_id && typeof responsePayload.proposal_id !== "string"
+        ? {
+            ...result.assistant_message,
+            payload: { ...responsePayload, proposal_id: result.proposal_id, proposal_status: "pending" } as AssistantMessage["payload"],
+          }
+        : result.assistant_message
       setThreads((current) => [result.thread, ...current.filter((item) => item.id !== result.thread.id)])
       const stillOnTarget = targetThreadId === null
         ? activeThreadRef.current === null || activeThreadRef.current === result.thread.id
@@ -252,7 +259,7 @@ export function AssistantWorkspace() {
         setThreadId(result.thread.id)
         activeThreadRef.current = result.thread.id
         window.localStorage.setItem("pdkg:assistant-thread", result.thread.id)
-        setMessages((current) => [...current.filter((item) => item.id !== optimisticId), result.user_message, result.assistant_message])
+        setMessages((current) => [...current.filter((item) => item.id !== optimisticId), result.user_message, responseMessage])
       }
     } catch (nextError) {
       if (requestId === sendRequestRef.current && activeThreadRef.current === targetThreadId) {
@@ -308,8 +315,8 @@ export function AssistantWorkspace() {
 
       <section className={cn("min-h-0 min-w-0 flex-col bg-zinc-950 xl:flex", tab === "conversation" ? "flex" : "hidden")}>
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3 md:px-5">
-          <div className="min-w-0"><div className="flex items-center gap-2"><Bot className="h-4 w-4 shrink-0 text-blue-400" /><h2 className="truncate text-sm font-medium text-zinc-100">{currentThread?.title || "Central AI"}</h2></div><p className="mt-1 text-xs text-zinc-500">{ready ? "Context-aware planning with confirmation before writes" : aiLoading ? "Checking AI availability..." : "AI is unavailable - configure it in Settings"}</p></div>
-          <div className="flex items-center gap-2">{originRoute ? <Badge variant="blue">Context: {pageContext.entity_title || routeLabel(originRoute)}</Badge> : null}<Button size="sm" variant="outline" onClick={() => void newChat()}><Plus className="mr-2 h-3.5 w-3.5" />New</Button></div>
+          <div className="min-w-0"><div className="flex items-center gap-2"><Bot className="h-4 w-4 shrink-0 text-blue-400" /><h2 className="truncate text-sm font-medium text-zinc-100">{currentThread?.title || "AI Workspace"}</h2></div><p className="mt-1 text-xs text-zinc-500">{ready ? "Context-aware planning with confirmation before writes" : aiLoading ? "Checking AI availability..." : "AI is unavailable - configure it in Settings"}</p></div>
+          <div className="flex flex-wrap items-center justify-end gap-2">{originRoute ? <Badge variant="blue">Context: {pageContext.entity_title || routeLabel(originRoute)}</Badge> : null}{sectionControl}<Button size="sm" variant="outline" onClick={() => void newChat()}><Plus className="mr-2 h-3.5 w-3.5" />New</Button></div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 md:px-6">

@@ -12,7 +12,7 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to answer from the graph."
 }
 
-export function GraphChatPage() {
+export function GraphChatPage({ sectionControl }: { sectionControl?: import("react").ReactNode } = {}) {
   const [question, setQuestion] = useState("")
   const [result, setResult] = useState<GraphChatResult | null>(null)
   const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null)
@@ -84,10 +84,15 @@ export function GraphChatPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Ask Graph</CardTitle>
-          <CardDescription>
-            This answer path uses only retrieved entities from your own graph plus one-hop confirmed links and optional hierarchy context. It does not use the web.
-          </CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Ask Graph</CardTitle>
+              <CardDescription>
+                This answer path uses only retrieved entities from your own graph plus one-hop confirmed links and optional hierarchy context. It does not use the web.
+              </CardDescription>
+            </div>
+            {sectionControl}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <form className="space-y-4" onSubmit={handleSubmit}>

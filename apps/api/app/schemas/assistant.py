@@ -85,7 +85,7 @@ class AssistantExecutionRead(BaseModel):
     proposal_id: UUID
     status: Literal["executed"]
     results: list[dict[str, Any]]
-    message: AssistantMessageRead | None = None
+    message: AssistantMessageRead
 
 
 class AssistantRecallRequest(BaseModel):

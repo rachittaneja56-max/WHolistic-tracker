@@ -43,6 +43,11 @@ function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }
 
+function createExecutionKey() {
+  if (typeof globalThis.crypto?.randomUUID === "function") return globalThis.crypto.randomUUID()
+  return "assistant-" + Date.now() + "-" + Math.random().toString(36).slice(2)
+}
+
 function textFromNode(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") return String(node)
   if (Array.isArray(node)) return node.map(textFromNode).join("")
@@ -126,12 +131,16 @@ function ProposalCard({ message, onPersistedMessage }: Pick<ResponseProps, "mess
   const [expanded, setExpanded] = useState(initialActions.length <= 3)
   const [results, setResults] = useState<Array<{ entity_id: string; title: string | null; status: string }>>([])
   const [error, setError] = useState<string | null>(null)
-  const locked = status !== "pending" || busy
+  const [actionsPrepared, setActionsPrepared] = useState(false)
+  const [executionKey] = useState(createExecutionKey)
+  const terminal = status === "executed" || status === "cancelled" || status === "expired" || status === "stale"
+  const locked = terminal || busy
   if (!proposalId || !actions.length) return null
   const activeProposalId = proposalId
 
   function edit(id: string, field: "title" | "content", value: string) {
     setActions((current) => current.map((item) => item.id === id ? { ...item, [field]: value } : item))
+    setActionsPrepared(false)
   }
   function chooseAll(nextSelected: boolean) {
     setSelected(new Set(nextSelected ? actions.map((item) => item.id) : []))
@@ -149,8 +158,11 @@ function ProposalCard({ message, onPersistedMessage }: Pick<ResponseProps, "mess
   async function execute() {
     setBusy(true); setStatus("executing"); setError(null)
     try {
-      await updateAssistantProposal(activeProposalId, actions)
-      const result = await executeAssistantProposal(activeProposalId, { idempotency_key: crypto.randomUUID(), action_ids: [...selected] })
+      if (!actionsPrepared) {
+        await updateAssistantProposal(activeProposalId, actions)
+        setActionsPrepared(true)
+      }
+      const result = await executeAssistantProposal(activeProposalId, { idempotency_key: executionKey, action_ids: [...selected] })
       setResults(result.results)
       setStatus("executed")
       if (result.message) onPersistedMessage(result.message)
@@ -163,7 +175,7 @@ function ProposalCard({ message, onPersistedMessage }: Pick<ResponseProps, "mess
   return <section className="mt-4 overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950/70">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 p-4">
       <div><div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-blue-400" /><h3 className="text-sm font-medium text-zinc-100">Proposed changes</h3><Badge variant={statusVariant(status)}>{status}</Badge></div><p className="mt-1 text-xs text-zinc-500">Review every selected action before anything is written.</p></div>
-      {!locked ? <div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => chooseAll(true)}>Select all</Button><Button size="sm" variant="ghost" onClick={() => chooseAll(false)}>None</Button></div> : null}
+      {!terminal ? <div className="flex gap-1"><Button size="sm" variant="ghost" disabled={busy} onClick={() => chooseAll(true)}>Select all</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => chooseAll(false)}>None</Button></div> : null}
     </header>
     <div className="space-y-2 p-3">
       {(expanded ? actions : actions.slice(0, 2)).map((action) => <div key={action.id} className={`rounded-lg border p-3 ${selected.has(action.id) ? "border-blue-500/30 bg-blue-500/5" : "border-zinc-800 bg-zinc-950 opacity-60"}`}>
@@ -176,8 +188,8 @@ function ProposalCard({ message, onPersistedMessage }: Pick<ResponseProps, "mess
       </div>)}
       {actions.length > 3 ? <Button size="sm" variant="ghost" className="w-full" onClick={() => setExpanded((current) => !current)}>{expanded ? <ChevronUp className="mr-2 h-4 w-4" /> : <ChevronDown className="mr-2 h-4 w-4" />}{expanded ? "Show less" : `Show all ${actions.length} actions`}</Button> : null}
       {results.length ? <div className="space-y-2 rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">{results.map((result) => <Link key={result.entity_id} to={`/knowledge/entities/${result.entity_id}`} className="flex items-center justify-between gap-3 text-sm text-blue-200 hover:text-blue-100"><span className="truncate">{result.title || "Open entity"}</span><ExternalLink className="h-3.5 w-3.5 shrink-0" /></Link>)}</div> : null}
-      {error ? <p className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-xs text-red-300">{error}</p> : null}
-      {!locked ? <div className="flex justify-end gap-2 pt-1"><Button size="sm" variant="outline" disabled={busy} onClick={() => void cancel()}><X className="mr-2 h-3.5 w-3.5" />Cancel</Button><Button size="sm" disabled={busy || selected.size === 0} onClick={() => void execute()}>{busy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-2 h-3.5 w-3.5" />}Confirm {selected.size}</Button></div> : null}
+      {error ? <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-xs text-red-300"><p>{error}</p><p className="mt-1 text-red-200/70">Review the selected fields, then try applying the proposal again.</p></div> : null}
+      {!terminal ? <div className="flex justify-end gap-2 pt-1"><Button size="sm" variant="outline" disabled={busy} onClick={() => void cancel()}><X className="mr-2 h-3.5 w-3.5" />Cancel</Button><Button size="sm" disabled={busy || selected.size === 0} onClick={() => void execute()}>{busy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : status === "failed" ? <RotateCcw className="mr-2 h-3.5 w-3.5" /> : <Check className="mr-2 h-3.5 w-3.5" />}{busy ? "Applying..." : status === "failed" ? `Retry ${selected.size} selected` : `Apply ${selected.size} selected`}</Button></div> : null}
     </div>
   </section>
 }

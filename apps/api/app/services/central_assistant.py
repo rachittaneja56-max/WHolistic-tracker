@@ -122,7 +122,9 @@ def thread_detail(db: Session, thread_id: UUID) -> AssistantThreadDetailRead:
         serialized = serialize_message(item)
         proposal = proposal_by_message.get(item.id)
         if proposal:
-            serialized.payload = serialized.payload.model_copy(update={"proposal_status": proposal.status})
+            serialized.payload = serialized.payload.model_copy(
+                update={"proposal_id": proposal.id, "proposal_status": proposal.status}
+            )
         serialized_messages.append(serialized)
     return AssistantThreadDetailRead(thread=serialize_thread(thread), messages=serialized_messages)
 
@@ -291,6 +293,20 @@ def _resolve_page_context(db: Session, current_path: str, page_context: dict[str
     return resolved
 
 
+def _attach_proposal_payload(
+    message: AssistantMessage,
+    payload: dict[str, Any],
+    proposal: AssistantProposal,
+) -> None:
+    # JSON columns do not detect in-place mutations after a flush. Assign a new
+    # object so proposal_id is persisted and the client can confirm the change.
+    message.payload = {
+        **payload,
+        "proposal_id": str(proposal.id),
+        "proposal_status": "pending",
+    }
+
+
 def run_turn(db: Session, provider: OpenAIProvider, *, thread_id: UUID | None, message: str, current_path: str, page_context: dict[str, Any] | None = None) -> AssistantTurnRead:
     thread = db.get(AssistantThread, thread_id) if thread_id else None
     if thread is None:
@@ -339,8 +355,7 @@ def run_turn(db: Session, provider: OpenAIProvider, *, thread_id: UUID | None, m
     if actions:
         proposal = AssistantProposal(id=uuid4(), thread_id=thread.id, source_message_id=assistant_message.id, status="pending", actions=actions, result={}, expires_at=_now() + PROPOSAL_TTL)
         db.add(proposal)
-        payload["proposal_id"] = str(proposal.id)
-        assistant_message.payload = payload
+        _attach_proposal_payload(assistant_message, payload, proposal)
     db.commit()
     db.refresh(thread); db.refresh(user_message); db.refresh(assistant_message)
     return AssistantTurnRead(thread=serialize_thread(thread), user_message=serialize_message(user_message), assistant_message=serialize_message(assistant_message), proposal_id=proposal.id if proposal else None)
@@ -350,12 +365,40 @@ def update_proposal(db: Session, proposal_id: UUID, actions: list[dict[str, Any]
     proposal = db.get(AssistantProposal, proposal_id)
     if proposal is None or proposal.status != "pending" or proposal.expires_at <= _now():
         raise HTTPException(status_code=409, detail="Proposal is unavailable or expired")
-    allowed_ids = {str(item) for item in db.scalars(select(Entity.id)).all()}
+
+    original_actions = list(proposal.actions or [])
+    original_by_id = {str(item.get("id")): item for item in original_actions}
+    submitted_ids = [str(item.get("id")) for item in actions if isinstance(item, dict)]
+    if (
+        len(original_by_id) != len(original_actions)
+        or len(submitted_ids) != len(actions)
+        or len(set(submitted_ids)) != len(submitted_ids)
+        or set(submitted_ids) != set(original_by_id)
+    ):
+        raise HTTPException(status_code=400, detail="Edited actions must match the original proposal")
+
+    immutable_fields = ("action_type", "entity_type", "target_id", "parent_id")
+    allowed_ids: set[str] = set()
+    for raw in actions:
+        original = original_by_id[str(raw["id"])]
+        if any(raw.get(field) != original.get(field) for field in immutable_fields):
+            raise HTTPException(status_code=400, detail="Proposal targets and action types cannot be changed")
+        for field in ("target_id", "parent_id"):
+            if original.get(field):
+                allowed_ids.add(str(original[field]))
+        if original.get("target_id") and original.get("_snapshot"):
+            target = db.get(Entity, UUID(str(original["target_id"])))
+            if target is None or _snapshot(target) != original["_snapshot"]:
+                raise HTTPException(status_code=409, detail="Proposal is stale; refresh it before editing")
+
     sanitized = sanitize_actions(db, actions, allowed_ids)
-    if not sanitized:
-        raise HTTPException(status_code=400, detail="Proposal contains no valid actions")
+    if len(sanitized) != len(original_actions):
+        raise HTTPException(status_code=400, detail="Proposal contains invalid actions")
+    for action in sanitized:
+        action["_snapshot"] = original_by_id[action["id"]].get("_snapshot")
     proposal.actions = sanitized
-    db.commit(); db.refresh(proposal)
+    db.commit()
+    db.refresh(proposal)
     return proposal
 
 
@@ -368,7 +411,32 @@ def cancel_proposal(db: Session, proposal_id: UUID) -> None:
         db.commit()
 
 
+def _new_execution_message(proposal: AssistantProposal, results: list[dict[str, Any]]) -> AssistantMessage:
+    return AssistantMessage(
+        id=uuid4(),
+        thread_id=proposal.thread_id,
+        role="assistant",
+        content=f"Applied {len(results)} change{'s' if len(results) != 1 else ''}.",
+        model_stage="deterministic",
+        payload={
+            "kind": "execution_result",
+            "proposal_id": str(proposal.id),
+            "source_message_id": str(proposal.source_message_id),
+            "status": "executed",
+            "results": results,
+        },
+    )
+
+
 def _execution_message(db: Session, proposal: AssistantProposal) -> AssistantMessage | None:
+    raw_message_id = (proposal.result or {}).get("message_id")
+    if raw_message_id:
+        try:
+            message = db.get(AssistantMessage, UUID(str(raw_message_id)))
+        except (TypeError, ValueError):
+            message = None
+        if message is not None and message.thread_id == proposal.thread_id:
+            return message
     messages = db.scalars(
         select(AssistantMessage)
         .where(AssistantMessage.thread_id == proposal.thread_id)
@@ -389,12 +457,24 @@ def _execution_message(db: Session, proposal: AssistantProposal) -> AssistantMes
 def execute_proposal(db: Session, proposal_id: UUID, *, execution_key: str, action_ids: list[str] | None) -> AssistantExecutionRead:
     existing = db.scalar(select(AssistantProposal).where(AssistantProposal.execution_key == execution_key))
     if existing is not None and existing.status == "executed":
+        if existing.id != proposal_id:
+            raise HTTPException(status_code=409, detail="Idempotency key was already used for another proposal")
+        results = list((existing.result or {}).get("results") or [])
         message = _execution_message(db, existing)
+        if message is None:
+            message = _new_execution_message(existing, results)
+            db.add(message)
+            existing.result = {**(existing.result or {}), "results": results, "message_id": str(message.id)}
+            thread = db.get(AssistantThread, existing.thread_id)
+            if thread is not None:
+                thread.updated_at = _now()
+            db.commit()
+            db.refresh(message)
         return AssistantExecutionRead(
             proposal_id=existing.id,
             status="executed",
-            results=list((existing.result or {}).get("results") or []),
-            message=serialize_message(message) if message else None,
+            results=results,
+            message=serialize_message(message),
         )
     proposal = db.scalar(select(AssistantProposal).where(AssistantProposal.id == proposal_id).with_for_update())
     if proposal is None or proposal.status != "pending" or proposal.expires_at <= _now():
@@ -439,20 +519,11 @@ def execute_proposal(db: Session, proposal_id: UUID, *, execution_key: str, acti
                 raise HTTPException(status_code=409, detail="The matched project changed; refresh the proposal")
             record_session(db, entity_id=project.id, action="project_shipped", meta={"proposal_id": str(proposal.id), "summary": action.get("content") or action.get("summary"), "project_title": project.title})
             results.append({"action_id": action["id"], "entity_id": str(project.id), "title": project.title, "status": "logged"})
-    proposal.status = "executed"; proposal.execution_key = execution_key; proposal.executed_at = _now(); proposal.result = {"results": results}
-    result_message = AssistantMessage(
-        id=uuid4(),
-        thread_id=proposal.thread_id,
-        role="assistant",
-        content=f"Applied {len(results)} change{'s' if len(results) != 1 else ''}.",
-        model_stage="deterministic",
-        payload={
-            "kind": "execution_result",
-            "proposal_id": str(proposal.id),
-            "source_message_id": str(proposal.source_message_id),
-            "results": results,
-        },
-    )
+    result_message = _new_execution_message(proposal, results)
+    proposal.status = "executed"
+    proposal.execution_key = execution_key
+    proposal.executed_at = _now()
+    proposal.result = {"results": results, "message_id": str(result_message.id)}
     db.add(result_message)
     thread = db.get(AssistantThread, proposal.thread_id)
     if thread is not None:

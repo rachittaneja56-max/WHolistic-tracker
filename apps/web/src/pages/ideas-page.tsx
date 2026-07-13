@@ -13,7 +13,7 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to validate idea."
 }
 
-export function IdeasPage() {
+export function IdeasPage({ sectionControl }: { sectionControl?: import("react").ReactNode } = {}) {
   const navigate = useNavigate()
   const { addEntityToList } = useOutletContext<EntitiesLayoutContext>()
   const [idea, setIdea] = useState("")
@@ -78,10 +78,15 @@ export function IdeasPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Idea Validator</CardTitle>
-          <CardDescription>
-            Validate a rough idea against your own graph first. Similar products are optional external context, but the app never saves an idea entity until you approve it.
-          </CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Idea Validator</CardTitle>
+              <CardDescription>
+                Validate a rough idea against your own graph first. Similar products are optional external context, but the app never saves an idea entity until you approve it.
+              </CardDescription>
+            </div>
+            {sectionControl}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">

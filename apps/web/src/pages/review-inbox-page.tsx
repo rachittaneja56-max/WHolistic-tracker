@@ -25,7 +25,7 @@ function formatDate(value: string | null) {
   }).format(new Date(value))
 }
 
-export function ReviewInboxPage() {
+export function ReviewInboxPage({ sectionControl }: { sectionControl?: import("react").ReactNode } = {}) {
   const [items, setItems] = useState<ReviewInboxLink[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRunningAgent, setIsRunningAgent] = useState(false)
@@ -104,9 +104,12 @@ export function ReviewInboxPage() {
             <CardTitle>Review Inbox</CardTitle>
             <CardDescription>Agent-suggested links wait here until you confirm or reject them. Nothing is auto-confirmed.</CardDescription>
           </div>
-          <Button type="button" onClick={() => void handleRunAgent()} disabled={isRunningAgent}>
-            {isRunningAgent ? "Running..." : "Run deep connection agent once"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {sectionControl}
+            <Button type="button" onClick={() => void handleRunAgent()} disabled={isRunningAgent}>
+              {isRunningAgent ? "Running..." : "Run deep connection agent once"}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
