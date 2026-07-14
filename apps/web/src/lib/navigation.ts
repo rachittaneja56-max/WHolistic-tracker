@@ -5,7 +5,7 @@ export type NavigationGroup = { label: string; items: NavigationItem[] }
 
 export const navigationGroups: NavigationGroup[] = [
   { label: "Capture", items: [{ to: "/capture", label: "Capture", icon: NotebookPen }] },
-  { label: "Today", items: [{ to: "/", label: "Today", icon: SunMedium, exact: true }] },
+  { label: "Today", items: [{ to: "/app", label: "Today", icon: SunMedium, exact: true }] },
   { label: "Trackers", items: [
     { to: "/trackers/dsa", label: "DSA", icon: LayoutGrid },
     { to: "/trackers/projects", label: "Projects", icon: ListChecks },

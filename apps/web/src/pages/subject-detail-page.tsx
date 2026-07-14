@@ -119,7 +119,30 @@ function TopicTable({ topics, dueReviews, subjectId }: { topics: Entity[]; dueRe
       <div><CardTitle className="text-sm">Syllabus & mastery</CardTitle><p className="mt-1 text-xs text-zinc-600">Reviews and weak areas surface first</p></div>
       <Button asChild size="sm" variant="outline"><Link to={`/capture?type=subject_topic&parent_id=${subjectId}`}><Plus className="mr-1.5 h-3.5 w-3.5" />Topic</Link></Button>
     </CardHeader>
-    {sorted.length ? <div className="overflow-x-auto"><table className="w-full min-w-[760px] table-fixed border-collapse">
+    {sorted.length ? <>
+      <div className="divide-y divide-zinc-800/80 md:hidden">
+        {sorted.map((topic) => {
+          const due = reviewsById.get(topic.id)
+          const progress = topicProgress(topic)
+          const mastery = confidencePercent(topic.confidence_score)
+          const weight = metadataNumber(topic, "exam_weightage", "exam_weight")
+          return <article key={topic.id} className="space-y-3 bg-zinc-950/40 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <Link to={`/knowledge/entities/${topic.id}`} className="inline-flex min-h-11 min-w-0 flex-1 items-center rounded-md text-sm font-medium text-zinc-200 hover:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">{topic.title ?? "Untitled topic"}</Link>
+              {due ? <Link to="/knowledge/recall" className="inline-flex min-h-11 shrink-0 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><Badge variant="warning" className="py-0.5">Due now</Badge></Link> : <span className="inline-flex min-h-11 shrink-0 items-center text-xs text-zinc-600">Review clear</span>}
+            </div>
+            <dl className="grid grid-cols-2 gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+              <div><dt className="text-[10px] uppercase tracking-wider text-zinc-600">Weight</dt><dd className="mt-1 font-mono text-xs text-zinc-300">{weight === null ? "--" : `${Math.round(weight)}%`}</dd></div>
+              <div><dt className="text-[10px] uppercase tracking-wider text-zinc-600">Last studied</dt><dd className="mt-1 text-xs text-zinc-300">{topic.last_revisited_at ? formatCompactDate(topic.last_revisited_at) : "Never"}</dd></div>
+            </dl>
+            <div className="space-y-3">
+              <div><div className="mb-1.5 flex items-center justify-between text-xs"><span className="text-zinc-500">Progress</span><span className="font-mono text-zinc-300">{Math.round(progress)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-blue-500" style={{ width: `${progress}%` }} /></div></div>
+              <div><div className="mb-1.5 flex items-center justify-between text-xs"><span className="text-zinc-500">Mastery</span><span className={cn("font-mono", mastery < 50 ? "text-amber-300" : "text-zinc-300")}>{Math.round(mastery)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-zinc-800"><div className={cn("h-full rounded-full", mastery < 50 ? "bg-amber-500" : "bg-teal-500")} style={{ width: `${mastery}%` }} /></div></div>
+            </div>
+          </article>
+        })}
+      </div>
+      <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[760px] table-fixed border-collapse">
       <thead className="border-b border-zinc-800 bg-zinc-950/70 text-left text-[10px] uppercase tracking-wider text-zinc-600"><tr><th className="w-[34%] px-4 py-2">Topic</th><th className="w-[10%] px-3 py-2">Weight</th><th className="w-[14%] px-3 py-2">Progress</th><th className="w-[14%] px-3 py-2">Mastery</th><th className="w-[15%] px-3 py-2">Last studied</th><th className="w-[13%] px-3 py-2">Review</th></tr></thead>
       <tbody>{sorted.map((topic) => {
         const due = reviewsById.get(topic.id)
@@ -135,7 +158,7 @@ function TopicTable({ topics, dueReviews, subjectId }: { topics: Entity[]; dueRe
           <td className="px-3 py-2">{due ? <Link to="/knowledge/recall" className="inline-flex rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><Badge variant="warning" className="py-0.5">Due now</Badge></Link> : <span className="text-xs text-zinc-600">Clear</span>}</td>
         </tr>
       })}</tbody>
-    </table></div> : <CardContent className="p-6 text-center"><BookOpen className="mx-auto h-5 w-5 text-zinc-700" /><p className="mt-2 text-sm text-zinc-400">No syllabus topics yet.</p><Button asChild size="sm" variant="outline" className="mt-3"><Link to={`/capture?type=subject_topic&parent_id=${subjectId}`}>Add first topic</Link></Button></CardContent>}
+    </table></div></> : <CardContent className="p-6 text-center"><BookOpen className="mx-auto h-5 w-5 text-zinc-700" /><p className="mt-2 text-sm text-zinc-400">No syllabus topics yet.</p><Button asChild size="sm" variant="outline" className="mt-3"><Link to={`/capture?type=subject_topic&parent_id=${subjectId}`}>Add first topic</Link></Button></CardContent>}
   </Card>
 }
 

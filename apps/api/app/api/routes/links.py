@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.activity import record_session
@@ -43,6 +43,40 @@ def get_entity_or_400(db: Session, entity_id: uuid.UUID) -> Entity:
     if entity is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Entity {entity_id} does not exist")
     return entity
+
+
+def get_existing_pair_link(
+    db: Session,
+    from_id: uuid.UUID,
+    to_id: uuid.UUID,
+    *,
+    exclude_link_id: uuid.UUID | None = None,
+) -> Link | None:
+    query = select(Link).where(
+        or_(
+            and_(Link.from_id == from_id, Link.to_id == to_id),
+            and_(Link.from_id == to_id, Link.to_id == from_id),
+        )
+    )
+    if exclude_link_id is not None:
+        query = query.where(Link.id != exclude_link_id)
+    return db.scalar(query.limit(1))
+
+
+def ensure_pair_is_available(
+    db: Session,
+    from_id: uuid.UUID,
+    to_id: uuid.UUID,
+    *,
+    exclude_link_id: uuid.UUID | None = None,
+) -> None:
+    existing = get_existing_pair_link(db, from_id, to_id, exclude_link_id=exclude_link_id)
+    if existing is None:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=f"A link already exists between these entities (status: {existing.status or 'unknown'}).",
+    )
 
 
 def load_agent_confidence_map(db: Session) -> dict[str, float]:
@@ -106,12 +140,17 @@ def get_review_inbox(limit: int = Query(default=100, ge=1, le=500), db: Session 
 
 
 @router.post("", response_model=LinkRead, status_code=status.HTTP_201_CREATED)
-def create_link(payload: LinkCreate, db: Session = Depends(get_db)) -> LinkRead:
+def create_link(
+    payload: LinkCreate,
+    db: Session = Depends(get_db),
+    _owner: str = Depends(require_owner_mutation),
+) -> LinkRead:
     from_entity = get_entity_or_400(db, payload.from_id)
     to_entity = get_entity_or_400(db, payload.to_id)
 
     if payload.from_id == payload.to_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="from_id and to_id cannot be the same")
+    ensure_pair_is_available(db, payload.from_id, payload.to_id)
 
     link = Link(
         id=uuid.uuid4(),
@@ -145,12 +184,18 @@ def create_link(payload: LinkCreate, db: Session = Depends(get_db)) -> LinkRead:
 
 
 @router.post("/{link_id}/confirm", response_model=LinkRead)
-def confirm_link(link_id: uuid.UUID, db: Session = Depends(get_db)) -> LinkRead:
+def confirm_link(
+    link_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _owner: str = Depends(require_owner_mutation),
+) -> LinkRead:
     link = get_link_or_404(db, link_id)
     if link.from_id is None or link.to_id is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Link is missing entity references")
 
     previous_status = link.status
+    if previous_status != "confirmed":
+        ensure_pair_is_available(db, link.from_id, link.to_id, exclude_link_id=link.id)
     link.status = "confirmed"
     from_entity = get_entity_or_400(db, link.from_id)
     to_entity = get_entity_or_400(db, link.to_id)
@@ -178,7 +223,11 @@ def confirm_link(link_id: uuid.UUID, db: Session = Depends(get_db)) -> LinkRead:
 
 
 @router.post("/{link_id}/reject", response_model=LinkRead)
-def reject_link(link_id: uuid.UUID, db: Session = Depends(get_db)) -> LinkRead:
+def reject_link(
+    link_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _owner: str = Depends(require_owner_mutation),
+) -> LinkRead:
     link = get_link_or_404(db, link_id)
     link.status = "rejected"
     db.commit()
@@ -187,7 +236,12 @@ def reject_link(link_id: uuid.UUID, db: Session = Depends(get_db)) -> LinkRead:
 
 
 @router.patch("/{link_id}", response_model=LinkRead)
-def update_link(link_id: uuid.UUID, payload: LinkUpdate, db: Session = Depends(get_db)) -> LinkRead:
+def update_link(
+    link_id: uuid.UUID,
+    payload: LinkUpdate,
+    db: Session = Depends(get_db),
+    _owner: str = Depends(require_owner_mutation),
+) -> LinkRead:
     link = get_link_or_404(db, link_id)
     updates = payload.model_dump(exclude_unset=True)
 
@@ -200,6 +254,8 @@ def update_link(link_id: uuid.UUID, payload: LinkUpdate, db: Session = Depends(g
     next_to_id = updates.get("to_id", link.to_id)
     if next_from_id is not None and next_to_id is not None and next_from_id == next_to_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="from_id and to_id cannot be the same")
+    if next_from_id is not None and next_to_id is not None:
+        ensure_pair_is_available(db, next_from_id, next_to_id, exclude_link_id=link.id)
 
     for field, value in updates.items():
         setattr(link, field, value)

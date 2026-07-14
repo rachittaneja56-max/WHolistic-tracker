@@ -1,586 +1,175 @@
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { Link, useNavigate, useOutletContext } from "react-router-dom"
+import { AlertTriangle, Archive, CalendarDays, CheckCircle2, CircleDot, FolderKanban, Plus, Search } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { EntitiesLayoutContext } from "@/features/entities/layout-context"
-import { formatEntityDate, getEntityAiAssistLevel, getEntityStatus } from "@/features/entities/metadata"
 import {
-  aiAssistLevelOptions,
   createEntity,
-  createLink,
-  generateComprehensionCheck,
-  getEntities,
-  getEntityChildren,
-  taskStatusOptions,
-  type AiAssistLevel,
-  type Entity,
-  type TaskStatus,
-  updateEntity,
+  getProjectTracker,
+  priorityOptions,
+  projectStatusOptions,
+  type ProjectHealth,
+  type ProjectTrackerItem,
+  type WorkPriority,
 } from "@/lib/api"
 
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Unable to load project tracker data."
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Unable to load projects."
 }
 
-function getStatusVariant(status: TaskStatus | null): "default" | "success" | "warning" {
-  if (status === "done") {
-    return "success"
-  }
-  if (status === "in_progress") {
-    return "warning"
-  }
+function metaString(item: ProjectTrackerItem, key: string, fallback = "") {
+  const value = item.project.metadata[key]
+  return typeof value === "string" ? value : fallback
+}
+
+function dateLabel(value: string | null) {
+  if (!value) return "No deadline"
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? value : new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(parsed)
+}
+
+function healthLabel(health: ProjectHealth) {
+  return health.replace("_", " ")
+}
+
+function healthVariant(health: ProjectHealth): "default" | "success" | "warning" | "blue" {
+  if (health === "completed") return "success"
+  if (health === "on_track") return "blue"
+  if (health === "at_risk" || health === "stalled") return "warning"
   return "default"
 }
 
-function getAiAssistVariant(level: AiAssistLevel | null): "default" | "warning" | "blue" {
-  if (level === "handwritten" || level === null) {
-    return "default"
-  }
-  if (level === "ai-generated") {
-    return "warning"
-  }
-  return "blue"
+function StatCard({ label, value, icon: Icon, tone = "text-zinc-400" }: { label: string; value: number; icon: typeof FolderKanban; tone?: string }) {
+  return <Card><CardContent className="flex items-center justify-between p-5"><div><p className="text-2xl font-semibold text-zinc-100">{value}</p><p className="text-sm text-zinc-500">{label}</p></div><Icon className={`h-5 w-5 ${tone}`} /></CardContent></Card>
 }
-
-type TaskGroups = Record<TaskStatus, Entity[]>
-type EntityCollectionSetter = Dispatch<SetStateAction<Entity[]>>
 
 export function ProjectsPage() {
   const navigate = useNavigate()
-  const { addEntityToList, refreshEntities, upsertEntityInList } = useOutletContext<EntitiesLayoutContext>()
-  const [projects, setProjects] = useState<Entity[]>([])
-  const [milestones, setMilestones] = useState<Entity[]>([])
-  const [tasks, setTasks] = useState<Entity[]>([])
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
-  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null)
-  const [isProjectsLoading, setIsProjectsLoading] = useState(true)
-  const [isMilestonesLoading, setIsMilestonesLoading] = useState(false)
-  const [isTasksLoading, setIsTasksLoading] = useState(false)
+  const { addEntityToList } = useOutletContext<EntitiesLayoutContext>()
+  const [rows, setRows] = useState<ProjectTrackerItem[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [pendingCompletionTask, setPendingCompletionTask] = useState<Entity | null>(null)
-  const [tilContent, setTilContent] = useState("")
-  const [tilError, setTilError] = useState<string | null>(null)
-  const [isSavingTil, setIsSavingTil] = useState(false)
-  const [pendingComprehensionTask, setPendingComprehensionTask] = useState<Entity | null>(null)
-  const [comprehensionContext, setComprehensionContext] = useState("")
-  const [generatedCheckId, setGeneratedCheckId] = useState<string | null>(null)
-  const [comprehensionError, setComprehensionError] = useState<string | null>(null)
-  const [isGeneratingCheck, setIsGeneratingCheck] = useState(false)
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState("active")
+  const [healthFilter, setHealthFilter] = useState("all")
+  const [showCreate, setShowCreate] = useState(false)
+  const [title, setTitle] = useState("")
+  const [objective, setObjective] = useState("")
+  const [successMetric, setSuccessMetric] = useState("")
+  const [targetAt, setTargetAt] = useState("")
+  const [repoUrl, setRepoUrl] = useState("")
+  const [tags, setTags] = useState("")
+  const [priority, setPriority] = useState<WorkPriority>("medium")
+  const [creating, setCreating] = useState(false)
 
-  async function loadProjects() {
-    setIsProjectsLoading(true)
+  async function load() {
+    setLoading(true)
     setError(null)
-
     try {
-      const results = await getEntities({ type: "project", limit: 200 })
-      setProjects(results)
-      setSelectedProjectId((currentSelected) => currentSelected ?? results[0]?.id ?? null)
+      setRows(await getProjectTracker())
     } catch (loadError) {
-      setError(getErrorMessage(loadError))
+      setError(errorMessage(loadError))
     } finally {
-      setIsProjectsLoading(false)
+      setLoading(false)
     }
   }
 
-  async function loadMilestones(projectId: string) {
-    setIsMilestonesLoading(true)
+  useEffect(() => { void load() }, [])
+
+  const filtered = useMemo(() => rows.filter((row) => {
+    const haystack = `${row.project.title ?? ""} ${row.project.content ?? ""} ${row.project.tags.join(" ")}`.toLowerCase()
+    const status = metaString(row, "status", "active")
+    return haystack.includes(search.trim().toLowerCase())
+      && (statusFilter === "all" || status === statusFilter || (statusFilter === "active" && ["in_progress", "todo"].includes(status)))
+      && (healthFilter === "all" || row.health === healthFilter)
+  }), [healthFilter, rows, search, statusFilter])
+
+  const activeCount = rows.filter((row) => ["active", "in_progress", "todo"].includes(metaString(row, "status", "active"))).length
+  const riskCount = rows.filter((row) => row.health === "at_risk" || row.health === "stalled").length
+  const blockedCount = rows.reduce((total, row) => total + row.blocked_task_count, 0)
+  const shippedCount = rows.reduce((total, row) => total + row.shipped_this_week, 0)
+
+  async function createProject(event: FormEvent) {
+    event.preventDefault()
+    if (!title.trim()) return
+    setCreating(true)
     setError(null)
-
     try {
-      const results = await getEntityChildren(projectId, { type: "milestone", limit: 200 })
-      setMilestones(results)
-      setSelectedMilestoneId((currentSelected) => {
-        const matchingMilestone = results.find((milestone) => milestone.id === currentSelected)
-        return matchingMilestone?.id ?? results[0]?.id ?? null
-      })
-    } catch (loadError) {
-      setError(getErrorMessage(loadError))
-    } finally {
-      setIsMilestonesLoading(false)
-    }
-  }
-
-  async function loadTasks(milestoneId: string) {
-    setIsTasksLoading(true)
-    setError(null)
-
-    try {
-      const results = await getEntityChildren(milestoneId, { type: "task", limit: 200 })
-      setTasks(results)
-    } catch (loadError) {
-      setError(getErrorMessage(loadError))
-    } finally {
-      setIsTasksLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    void loadProjects()
-  }, [])
-
-  useEffect(() => {
-    if (!selectedProjectId) {
-      setMilestones([])
-      setSelectedMilestoneId(null)
-      setTasks([])
-      return
-    }
-
-    void loadMilestones(selectedProjectId)
-  }, [selectedProjectId])
-
-  useEffect(() => {
-    if (!selectedMilestoneId) {
-      setTasks([])
-      return
-    }
-
-    void loadTasks(selectedMilestoneId)
-  }, [selectedMilestoneId])
-
-  const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null
-  const selectedMilestone = milestones.find((milestone) => milestone.id === selectedMilestoneId) ?? null
-
-  const taskGroups = useMemo<TaskGroups>(() => {
-    const grouped: TaskGroups = {
-      todo: [],
-      in_progress: [],
-      done: [],
-    }
-
-    tasks.forEach((task) => {
-      const status = getEntityStatus(task) ?? "todo"
-      grouped[status].push(task)
-    })
-
-    return grouped
-  }, [tasks])
-
-  async function handleStatusUpdate(
-    entity: Entity,
-    nextStatus: TaskStatus,
-    setCollection: EntityCollectionSetter,
-    options?: { promptForTil?: boolean },
-  ) {
-    const currentStatus = getEntityStatus(entity) ?? "todo"
-    if (currentStatus === nextStatus) {
-      return
-    }
-
-    if (options?.promptForTil && nextStatus === "done") {
-      setPendingCompletionTask(entity)
-      setTilContent("")
-      setTilError(null)
-      return
-    }
-
-    try {
-      const updatedEntity = await updateEntity(entity.id, { metadata: { status: nextStatus } })
-      setCollection((currentEntities) =>
-        currentEntities.map((currentEntity) => (currentEntity.id === updatedEntity.id ? updatedEntity : currentEntity)),
-      )
-      upsertEntityInList(updatedEntity)
-    } catch (updateError) {
-      setError(getErrorMessage(updateError))
-    }
-  }
-
-  async function handleProjectStatusChange(project: Entity, nextStatus: TaskStatus) {
-    await handleStatusUpdate(project, nextStatus, setProjects)
-  }
-
-  async function handleMilestoneStatusChange(milestone: Entity, nextStatus: TaskStatus) {
-    await handleStatusUpdate(milestone, nextStatus, setMilestones)
-  }
-
-  async function handleTaskStatusChange(task: Entity, nextStatus: TaskStatus) {
-    await handleStatusUpdate(task, nextStatus, setTasks, { promptForTil: true })
-  }
-
-  async function handleTaskAiAssistChange(task: Entity, nextLevel: AiAssistLevel) {
-    try {
-      const updatedTask = await updateEntity(task.id, { metadata: { ai_assist_level: nextLevel } })
-      setTasks((currentTasks) => currentTasks.map((currentTask) => (currentTask.id === updatedTask.id ? updatedTask : currentTask)))
-      upsertEntityInList(updatedTask)
-    } catch (updateError) {
-      setError(getErrorMessage(updateError))
-    }
-  }
-
-  async function handleCompleteTask() {
-    if (!pendingCompletionTask) {
-      return
-    }
-    if (!tilContent.trim()) {
-      setTilError("What did you learn? is required to create the TIL.")
-      return
-    }
-
-    setIsSavingTil(true)
-    setTilError(null)
-
-    try {
-      const updatedTask = await updateEntity(pendingCompletionTask.id, { metadata: { status: "done" } })
-      const tilEntity = await createEntity({
-        title: `TIL: ${pendingCompletionTask.title ?? "Completed task"}`,
-        type: "til",
-        content: tilContent.trim(),
+      const project = await createEntity({
+        type: "project",
+        title: title.trim(),
+        content: objective.trim(),
         content_type: "markdown",
-        tags: pendingCompletionTask.tags,
-        metadata: { source_task_id: pendingCompletionTask.id },
+        tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+        metadata: {
+          status: "active",
+          priority,
+          objective: objective.trim(),
+          success_metric: successMetric.trim(),
+          ...(targetAt ? { target_at: targetAt } : {}),
+          ...(repoUrl.trim() ? { repo_url: repoUrl.trim() } : {}),
+        },
       })
-      await createLink({
-        from_id: pendingCompletionTask.id,
-        to_id: tilEntity.id,
-        relation_type: "used_in",
-        explanation: "Learning captured after completing this task.",
-        status: "confirmed",
-      })
-
-      setTasks((currentTasks) => currentTasks.map((task) => (task.id === updatedTask.id ? updatedTask : task)))
-      upsertEntityInList(updatedTask)
-      addEntityToList(tilEntity)
-      void refreshEntities()
-
-      const aiAssistLevel = getEntityAiAssistLevel(updatedTask)
-      const needsComprehensionCheck = aiAssistLevel !== null && aiAssistLevel !== "handwritten"
-
-      setPendingCompletionTask(null)
-      setTilContent("")
-
-      if (needsComprehensionCheck) {
-        setPendingComprehensionTask(updatedTask)
-        setGeneratedCheckId(null)
-        setComprehensionContext("")
-        setComprehensionError(null)
-      }
-    } catch (saveError) {
-      setTilError(getErrorMessage(saveError))
+      addEntityToList(project)
+      navigate(`/trackers/projects/${project.id}`)
+    } catch (createError) {
+      setError(errorMessage(createError))
     } finally {
-      setIsSavingTil(false)
+      setCreating(false)
     }
   }
 
-  async function handleGenerateComprehensionCheck() {
-    if (!pendingComprehensionTask) {
-      return
-    }
+  return <div className="space-y-6">
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div><p className="font-mono text-xs uppercase tracking-[0.18em] text-blue-400">Delivery + learning</p><h1 className="mt-2 text-3xl font-semibold text-zinc-100">Project portfolio</h1><p className="mt-2 max-w-3xl text-sm text-zinc-400">Plan outcomes, move work, verify shipping evidence, and retain what you learned.</p></div>
+      <Button type="button" onClick={() => setShowCreate((current) => !current)}><Plus className="mr-2 h-4 w-4" />New project</Button>
+    </div>
 
-    setIsGeneratingCheck(true)
-    setComprehensionError(null)
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <StatCard label="Active projects" value={activeCount} icon={FolderKanban} tone="text-blue-400" />
+      <StatCard label="Need attention" value={riskCount} icon={AlertTriangle} tone="text-amber-400" />
+      <StatCard label="Blocked tasks" value={blockedCount} icon={CircleDot} tone="text-red-400" />
+      <StatCard label="Shipped this week" value={shippedCount} icon={CheckCircle2} tone="text-emerald-400" />
+    </div>
 
-    try {
-      const result = await generateComprehensionCheck({
-        task_entity_id: pendingComprehensionTask.id,
-        diff_or_summary: comprehensionContext.trim() || null,
-      })
-      if (result.status === "not_required") {
-        setComprehensionError(result.message ?? "This task does not require a comprehension check.")
-      } else {
-        setGeneratedCheckId(result.check_id)
-      }
-    } catch (generationError) {
-      setComprehensionError(getErrorMessage(generationError))
-    } finally {
-      setIsGeneratingCheck(false)
-    }
-  }
-
-  return (
-    <>
-      <div className="grid gap-6 xl:grid-cols-[280px_280px_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Projects</CardTitle>
-            <CardDescription>Top-level project entities. Milestones and tasks descend from these using `parent_id` only.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {isProjectsLoading ? <p className="text-sm text-zinc-500">Loading projects...</p> : null}
-            {!isProjectsLoading && error ? <p className="text-sm text-red-300">{error}</p> : null}
-            {!isProjectsLoading && !error && projects.length === 0 ? <p className="text-sm text-zinc-500">No projects captured yet.</p> : null}
-            {projects.map((project) => (
-              <div
-                key={project.id}
-                className={`rounded-lg border px-4 py-3 transition-colors ${
-                  selectedProject?.id === project.id ? "border-blue-500/50 bg-zinc-950" : "border-zinc-800 bg-zinc-950"
-                }`}
-              >
-                <div className="flex flex-col gap-3">
-                  <button type="button" onClick={() => setSelectedProjectId(project.id)} className="text-left">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-medium text-zinc-100">{project.title ?? "Untitled project"}</p>
-                      <Badge variant={getStatusVariant(getEntityStatus(project))}>{getEntityStatus(project) ?? "unset"}</Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-zinc-500">{project.content?.slice(0, 80) || "No project notes yet."}</p>
-                  </button>
-
-                  <Button asChild type="button" variant="outline" size="sm"><Link to={`/entities/${project.id}`}>Edit project</Link></Button>
-
-                  <Select value={getEntityStatus(project) ?? "todo"} onValueChange={(value) => void handleProjectStatusChange(project, value as TaskStatus)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Update project status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {taskStatusOptions.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Milestones</CardTitle>
-            <CardDescription>{selectedProject ? `Children of ${selectedProject.title ?? "this project"}` : "Select a project first."}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {isMilestonesLoading ? <p className="text-sm text-zinc-500">Loading milestones...</p> : null}
-            {!isMilestonesLoading && !selectedProject ? <p className="text-sm text-zinc-500">Choose a project to view milestones.</p> : null}
-            {!isMilestonesLoading && selectedProject && milestones.length === 0 ? <p className="text-sm text-zinc-500">No milestones under this project yet.</p> : null}
-            {milestones.map((milestone) => (
-              <div
-                key={milestone.id}
-                className={`rounded-lg border px-4 py-3 transition-colors ${
-                  selectedMilestone?.id === milestone.id ? "border-blue-500/50 bg-zinc-950" : "border-zinc-800 bg-zinc-950"
-                }`}
-              >
-                <div className="flex flex-col gap-3">
-                  <button type="button" onClick={() => setSelectedMilestoneId(milestone.id)} className="text-left">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-medium text-zinc-100">{milestone.title ?? "Untitled milestone"}</p>
-                      <Badge variant={getStatusVariant(getEntityStatus(milestone))}>{getEntityStatus(milestone) ?? "unset"}</Badge>
-                    </div>
-                    <p className="mt-2 font-mono text-xs text-zinc-500">{formatEntityDate(milestone.created_at)}</p>
-                  </button>
-
-                  <Button asChild type="button" variant="outline" size="sm"><Link to={`/entities/${milestone.id}`}>Edit milestone</Link></Button>
-
-                  <Select
-                    value={getEntityStatus(milestone) ?? "todo"}
-                    onValueChange={(value) => void handleMilestoneStatusChange(milestone, value as TaskStatus)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Update milestone status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {taskStatusOptions.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Tasks</CardTitle>
-            <CardDescription>
-              {selectedMilestone
-                ? `Children of ${selectedMilestone.title ?? "this milestone"}. Move a task to done to capture a TIL, then generate a comprehension check for AI-assisted work.`
-                : "Select a milestone to manage tasks."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {isTasksLoading ? <p className="text-sm text-zinc-500">Loading tasks...</p> : null}
-            {!isTasksLoading && !selectedMilestone ? <p className="text-sm text-zinc-500">Choose a milestone to view tasks.</p> : null}
-            {!isTasksLoading && selectedMilestone && tasks.length === 0 ? <p className="text-sm text-zinc-500">No tasks under this milestone yet.</p> : null}
-
-            {!isTasksLoading && selectedMilestone
-              ? (["todo", "in_progress", "done"] as TaskStatus[]).map((statusKey) => (
-                  <div key={statusKey} className="space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">{statusKey}</h3>
-                      <Badge variant={getStatusVariant(statusKey)}>{taskGroups[statusKey].length}</Badge>
-                    </div>
-                    {taskGroups[statusKey].length === 0 ? (
-                      <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-950 px-4 py-4 text-sm text-zinc-500">No tasks in this group.</div>
-                    ) : (
-                      taskGroups[statusKey].map((task) => {
-                        const aiAssistLevel = getEntityAiAssistLevel(task)
-                        const requiresComprehension = aiAssistLevel !== null && aiAssistLevel !== "handwritten"
-                        return (
-                          <div key={task.id} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4">
-                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                              <div className="space-y-2">
-                                <p className="text-sm font-medium text-zinc-100">{task.title ?? "Untitled task"}</p>
-                                <p className="text-sm text-zinc-300">{task.content?.trim() || "No task notes yet."}</p>
-                                <div className="flex flex-wrap gap-2">
-                                  {task.tags.map((tag) => (
-                                    <Badge key={tag}>{tag}</Badge>
-                                  ))}
-                                  <Badge variant={getAiAssistVariant(aiAssistLevel)}>{aiAssistLevel ?? "handwritten"}</Badge>
-                                  {requiresComprehension ? <Badge variant="warning">comprehension debt when done</Badge> : null}
-                                </div>
-                                <p className="font-mono text-xs text-zinc-500">{formatEntityDate(task.created_at)}</p>
-                              </div>
-
-                              <div className="flex w-full gap-3 lg:w-[240px] lg:flex-col">
-                                <Select value={getEntityStatus(task) ?? "todo"} onValueChange={(value) => void handleTaskStatusChange(task, value as TaskStatus)}>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Update status" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {taskStatusOptions.map((option) => (
-                                      <SelectItem key={option} value={option}>
-                                        {option}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <Select value={aiAssistLevel ?? "handwritten"} onValueChange={(value) => void handleTaskAiAssistChange(task, value as AiAssistLevel)}>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="AI assist level" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {aiAssistLevelOptions.map((option) => (
-                                      <SelectItem key={option} value={option}>
-                                        {option}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <Button asChild variant="outline">
-                                  <Link to={`/entities/${task.id}`}>Open Entity</Link>
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })
-                    )}
-                  </div>
-                ))
-              : null}
-          </CardContent>
-        </Card>
+    {showCreate ? <Card className="border-blue-500/30"><CardHeader><CardTitle>Create project</CardTitle><CardDescription>Start with the outcome. Milestones and tasks can be added inside the workspace.</CardDescription></CardHeader><CardContent><form className="space-y-4" onSubmit={(event) => void createProject(event)}>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2"><Label htmlFor="project-title">Project name</Label><Input id="project-title" value={title} onChange={(event) => setTitle(event.target.value)} autoFocus /></div>
+        <div className="space-y-2"><Label>Priority</Label><Select value={priority} onValueChange={(value) => setPriority(value as WorkPriority)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{priorityOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div>
+        <div className="space-y-2 md:col-span-2"><Label htmlFor="project-objective">Objective</Label><Textarea id="project-objective" value={objective} onChange={(event) => setObjective(event.target.value)} placeholder="What outcome should this project create?" /></div>
+        <div className="space-y-2"><Label htmlFor="success-metric">Success metric</Label><Input id="success-metric" value={successMetric} onChange={(event) => setSuccessMetric(event.target.value)} placeholder="Example: usable by me every day" /></div>
+        <div className="space-y-2"><Label htmlFor="target-date">Target date</Label><Input id="target-date" type="date" value={targetAt} onChange={(event) => setTargetAt(event.target.value)} /></div>
+        <div className="space-y-2"><Label htmlFor="repo-url">Repository</Label><Input id="repo-url" value={repoUrl} onChange={(event) => setRepoUrl(event.target.value)} placeholder="owner/repo or GitHub URL" /></div>
+        <div className="space-y-2"><Label htmlFor="project-tags">Tags</Label><Input id="project-tags" value={tags} onChange={(event) => setTags(event.target.value)} placeholder="web, personal, ai" /></div>
       </div>
+      <div className="flex justify-end gap-3"><Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button><Button type="submit" disabled={creating || !title.trim()}>{creating ? "Creating..." : "Create workspace"}</Button></div>
+    </form></CardContent></Card> : null}
 
-      {pendingCompletionTask ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <Card className="w-full max-w-2xl">
-            <CardHeader>
-              <CardTitle>What did you learn?</CardTitle>
-              <CardDescription>
-                Marking <span className="text-zinc-100">{pendingCompletionTask.title ?? "this task"}</span> as done should create a TIL entity and a link back to the task.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="til-content">Learning note</Label>
-                <Textarea
-                  id="til-content"
-                  value={tilContent}
-                  onChange={(event) => setTilContent(event.target.value)}
-                  placeholder="Write the key learning from completing this task."
-                />
-              </div>
+    <Card><CardContent className="grid gap-3 p-4 lg:grid-cols-[1fr_180px_180px]">
+      <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-zinc-500" /><Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" placeholder="Search projects or tags" /></div>
+      <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem>{projectStatusOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select>
+      <Select value={healthFilter} onValueChange={setHealthFilter}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All health</SelectItem>{["on_track", "at_risk", "stalled", "paused", "completed"].map((item) => <SelectItem key={item} value={item}>{item.replace("_", " ")}</SelectItem>)}</SelectContent></Select>
+    </CardContent></Card>
 
-              {getEntityAiAssistLevel(pendingCompletionTask) !== "handwritten" ? (
-                <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-zinc-300">
-                  This task is marked as AI-assisted, so after the TIL is saved we will prompt you to generate a comprehension check.
-                </div>
-              ) : null}
+    {error ? <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-300">{error}</div> : null}
+    {loading ? <div className="rounded-lg border border-zinc-800 p-8 text-center text-sm text-zinc-500">Loading project health...</div> : null}
+    {!loading && !error && filtered.length === 0 ? <Card><CardContent className="flex flex-col items-center p-12 text-center"><FolderKanban className="h-9 w-9 text-zinc-600" /><p className="mt-4 font-medium text-zinc-200">No projects match this view</p><p className="mt-1 text-sm text-zinc-500">Create a project or adjust the filters.</p><Button className="mt-5" onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />Create project</Button></CardContent></Card> : null}
 
-              {tilError ? <p className="text-sm text-red-300">{tilError}</p> : null}
-
-              <div className="flex items-center justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setPendingCompletionTask(null)
-                    setTilContent("")
-                    setTilError(null)
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="button" onClick={() => void handleCompleteTask()} disabled={isSavingTil}>
-                  {isSavingTil ? "Saving..." : "Complete Task and Create TIL"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
-
-      {pendingComprehensionTask ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <Card className="w-full max-w-2xl">
-            <CardHeader>
-              <CardTitle>Generate Comprehension Check</CardTitle>
-              <CardDescription>
-                <span className="text-zinc-100">{pendingComprehensionTask.title ?? "This task"}</span> used AI assistance. Generate a follow-up question so you can confirm the reasoning behind the work.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="comprehension-context">Optional diff or summary</Label>
-                <Textarea
-                  id="comprehension-context"
-                  value={comprehensionContext}
-                  onChange={(event) => setComprehensionContext(event.target.value)}
-                  placeholder="Paste a diff summary or a short description if you want a more specific question."
-                  className="min-h-[160px]"
-                />
-              </div>
-
-              {generatedCheckId ? (
-                <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-sm text-zinc-300">
-                  Comprehension check created. Open the debt queue to answer it.
-                </div>
-              ) : null}
-
-              {comprehensionError ? <p className="text-sm text-red-300">{comprehensionError}</p> : null}
-
-              <div className="flex items-center justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setPendingComprehensionTask(null)
-                    setComprehensionContext("")
-                    setGeneratedCheckId(null)
-                    setComprehensionError(null)
-                  }}
-                >
-                  Close
-                </Button>
-                {generatedCheckId ? (
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      navigate("/comprehension-debt")
-                    }}
-                  >
-                    Open Comprehension Debt
-                  </Button>
-                ) : (
-                  <Button type="button" onClick={() => void handleGenerateComprehensionCheck()} disabled={isGeneratingCheck}>
-                    {isGeneratingCheck ? "Generating..." : "Generate Check"}
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
-    </>
-  )
+    <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+      {filtered.map((row) => <Link key={row.project.id} to={`/trackers/projects/${row.project.id}`} className="group rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><Card className="h-full transition-colors group-hover:border-zinc-700"><CardHeader>
+        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><CardTitle className="truncate">{row.project.title ?? "Untitled project"}</CardTitle><CardDescription className="mt-2 line-clamp-2">{metaString(row, "objective", row.project.content || "No objective yet.")}</CardDescription></div><Badge variant={healthVariant(row.health)}>{healthLabel(row.health)}</Badge></div>
+      </CardHeader><CardContent className="space-y-4">
+        <div><div className="mb-2 flex items-center justify-between text-xs"><span className="text-zinc-500">Progress</span><span className="font-mono text-zinc-300">{row.progress_percent}%</span></div><div className="h-2 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-blue-500" style={{ width: `${row.progress_percent}%` }} /></div></div>
+        <div className="grid grid-cols-3 gap-2 text-center"><div className="rounded-md bg-zinc-950 p-2"><p className="font-mono text-sm text-zinc-200">{row.open_task_count}</p><p className="text-[11px] text-zinc-600">open</p></div><div className="rounded-md bg-zinc-950 p-2"><p className="font-mono text-sm text-amber-300">{row.blocked_task_count}</p><p className="text-[11px] text-zinc-600">blocked</p></div><div className="rounded-md bg-zinc-950 p-2"><p className="font-mono text-sm text-emerald-300">{row.shipped_this_week}</p><p className="text-[11px] text-zinc-600">shipped</p></div></div>
+        <div className="space-y-2 border-t border-zinc-800 pt-3 text-xs text-zinc-500"><div className="flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5" /><span>{dateLabel(row.next_deadline)}</span></div><div className="flex items-center gap-2"><CircleDot className="h-3.5 w-3.5" /><span className="truncate">{row.current_milestone?.title ?? "No active milestone"}</span></div>{metaString(row, "status") === "archived" ? <div className="flex items-center gap-2"><Archive className="h-3.5 w-3.5" />Archived</div> : null}</div>
+      </CardContent></Card></Link>)}
+    </div>
+  </div>
 }

@@ -7,16 +7,54 @@
     color-scheme: dark;
   }
 
+  html {
+    min-height: 100%;
+    scroll-behavior: smooth;
+  }
+
   * {
     @apply border-border;
   }
 
   body {
+    min-height: 100dvh;
+    overflow-x: hidden;
     @apply bg-zinc-950 font-sans text-zinc-300 antialiased;
   }
 
   #root {
-    @apply min-h-screen;
+    min-height: 100dvh;
+  }
+}
+
+.landing-grid {
+  background-image:
+    linear-gradient(rgba(63, 63, 70, 0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(63, 63, 70, 0.18) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, black 15%, transparent 100%);
+}
+
+.landing-float {
+  animation: landing-float 7s ease-in-out infinite;
+}
+
+@keyframes landing-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .landing-float {
+    animation: none;
   }
 }
 

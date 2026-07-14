@@ -1,17 +1,18 @@
-import { useMemo, useState, type FormEvent } from "react"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
 
 import {
   aiAssistLevelOptions,
   createEntity,
   difficultyOptions,
   entityTypeOptions,
+  milestoneStatusOptions,
+  projectStatusOptions,
   taskStatusOptions,
   type AiAssistLevel,
   type ContentType,
   type DsaDifficulty,
   type Entity,
   type EntityType,
-  type TaskStatus,
 } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,7 +30,18 @@ type CaptureEntityFormProps = {
   initialType?: EntityType
   initialContentType?: ContentType
   initialParentId?: string
+  initialTags?: string
   initialAcademicKind?: AcademicKind
+  onDraftChange?: (draft: CaptureEntityDraft) => void
+}
+
+export type CaptureEntityDraft = {
+  title: string
+  content: string
+  type: EntityType | ""
+  contentType: ContentType | ""
+  parentId: string
+  tags: string
 }
 
 type FieldErrors = {
@@ -91,13 +103,15 @@ export function CaptureEntityForm({
   initialType,
   initialContentType,
   initialParentId = "",
+  initialTags = "",
   initialAcademicKind = "assignment",
+  onDraftChange,
 }: CaptureEntityFormProps) {
   const [title, setTitle] = useState(initialTitle)
   const [type, setType] = useState<EntityType | "">(initialType ?? "")
   const [parentId, setParentId] = useState(initialParentId)
   const [content, setContent] = useState(initialContent)
-  const [tags, setTags] = useState("")
+  const [tags, setTags] = useState(initialTags)
   const [contentType, setContentType] = useState<ContentType | "">(initialContentType ?? "")
   const [difficulty, setDifficulty] = useState<DsaDifficulty | "">("")
   const [solutionCode, setSolutionCode] = useState("")
@@ -114,7 +128,7 @@ export function CaptureEntityForm({
   const [location, setLocation] = useState("")
   const [subjectColor, setSubjectColor] = useState("#6366f1")
   const [credits, setCredits] = useState("")
-  const [status, setStatus] = useState<TaskStatus | "">("")
+  const [status, setStatus] = useState("")
   const [examDate, setExamDate] = useState("")
   const [repoUrl, setRepoUrl] = useState("")
   const [aiAssistLevel, setAiAssistLevel] = useState<AiAssistLevel>("handwritten")
@@ -129,12 +143,16 @@ export function CaptureEntityForm({
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
 
+  useEffect(() => {
+    onDraftChange?.({ title, content, type, contentType, parentId, tags })
+  }, [content, contentType, onDraftChange, parentId, tags, title, type])
+
   const parentOptions = useMemo(() => {
     if (type === "milestone") {
       return availableEntities.filter((entity) => entity.type === "project")
     }
     if (type === "task") {
-      return availableEntities.filter((entity) => entity.type === "milestone" || entity.type === "subject_topic")
+      return availableEntities.filter((entity) => entity.type === "project" || entity.type === "milestone" || entity.type === "subject_topic")
     }
     if (type === "subject_topic") {
       return availableEntities.filter((entity) => entity.type === "subject_topic" && !entity.parent_id)
@@ -283,7 +301,7 @@ export function CaptureEntityForm({
     }
 
     if (type === "project" || type === "milestone" || type === "task") {
-      metadata.status = status || "todo"
+      metadata.status = status || (type === "project" ? "active" : type === "milestone" ? "planned" : "backlog")
     }
 
     if (type === "task") {
@@ -541,12 +559,12 @@ export function CaptureEntityForm({
             <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select value={status || "todo"} onValueChange={(value) => setStatus(value as TaskStatus)}>
+                <Select value={status || (type === "project" ? "active" : type === "milestone" ? "planned" : "backlog")} onValueChange={setStatus}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    {taskStatusOptions.map((option) => (
+                    {(type === "project" ? projectStatusOptions : type === "milestone" ? milestoneStatusOptions : taskStatusOptions).map((option) => (
                       <SelectItem key={option} value={option}>
                         {option}
                       </SelectItem>

@@ -38,6 +38,16 @@ class GithubCredentialUpdate(BaseModel):
     value: str = Field(min_length=1, max_length=1000)
 
 
+class WebSearchSettingUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool
+
+
+class WebSearchCredentialUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    api_key: str = Field(min_length=1, max_length=1000)
+
+
 class AiProviderStatusRead(BaseModel):
     configured: bool
     fast_model: str

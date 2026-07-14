@@ -72,3 +72,16 @@ class IdeaApproveResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     entity: EntityRead
+
+
+class IdeaProjectDraftRequest(IdeaApproveRequest):
+    """Explicitly approved conversion of a validation result into a project hierarchy."""
+
+
+class IdeaProjectDraftResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    idea: EntityRead
+    project: EntityRead
+    milestones: list[EntityRead] = Field(default_factory=list)
+    tasks: list[EntityRead] = Field(default_factory=list)

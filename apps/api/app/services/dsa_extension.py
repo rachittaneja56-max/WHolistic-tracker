@@ -24,7 +24,7 @@ def _now() -> datetime:
 
 
 def hash_secret(secret: str) -> str:
-    pepper = settings.app_session_secret or "authentication-not-configured"
+    pepper = settings.app_encryption_secret or "authentication-not-configured"
     return hashlib.sha256(f"{pepper}:{secret}".encode()).hexdigest()
 
 
@@ -110,6 +110,7 @@ def require_extension_token(request: Request, db: Session = Depends(get_db)) -> 
     now = _now()
     if client is None or (client.expires_at is not None and client.expires_at <= now):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Extension token is invalid or revoked")
+    db.info["user_id"] = client.user_id
     client.last_used_at = now
     db.flush()
     return client

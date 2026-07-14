@@ -11,6 +11,7 @@ from app.agents.utils.exceptions import AgentDisabledError, AgentProviderError, 
 from app.api.routes.entities import serialize_entity
 from app.db.session import get_db
 from app.schemas.recall import RecallDueEntityRead, RecallGradeRequest, RecallGradeResponse
+from app.services.auth import require_owner_mutation
 
 router = APIRouter(prefix="/recall", tags=["recall"])
 
@@ -18,9 +19,10 @@ router = APIRouter(prefix="/recall", tags=["recall"])
 @router.get("/due", response_model=list[RecallDueEntityRead])
 def get_due_recall_entities(
     limit: int = Query(default=20, ge=1, le=100),
+    tag: str | None = Query(default=None, min_length=1, max_length=100),
     db: Session = Depends(get_db),
 ) -> list[RecallDueEntityRead]:
-    due_items = get_due_recall_items(db, limit=limit)
+    due_items = get_due_recall_items(db, limit=limit, tag=tag)
     return [
         RecallDueEntityRead(
             entity=serialize_entity(item.entity),
@@ -38,6 +40,7 @@ def grade_recall_entity(
     entity_id: uuid.UUID,
     payload: RecallGradeRequest,
     db: Session = Depends(get_db),
+    _owner: str = Depends(require_owner_mutation),
 ) -> RecallGradeResponse:
     try:
         provider = get_ai_provider(db)

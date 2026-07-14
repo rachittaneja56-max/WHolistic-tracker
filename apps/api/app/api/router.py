@@ -3,10 +3,10 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.routes import (
+    admin,
     dsa_integrations,
     dsa_extension,
     dsa_tracker,
-    auth,
     agents,
     assistant,
     analytics,
@@ -21,6 +21,7 @@ from app.api.routes import (
     ideas,
     jobs,
     links,
+    projects,
     recall,
     settings,
     sessions,
@@ -30,7 +31,7 @@ from app.api.routes import (
 )
 
 api_router = APIRouter()
-api_router.include_router(auth.router)
+api_router.include_router(admin.router)
 api_router.include_router(health.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(digest.router)
@@ -40,6 +41,7 @@ api_router.include_router(chat.router)
 api_router.include_router(graph.router)
 api_router.include_router(entities.router)
 api_router.include_router(links.router)
+api_router.include_router(projects.router)
 api_router.include_router(recall.router)
 api_router.include_router(settings.router)
 api_router.include_router(sessions.router)

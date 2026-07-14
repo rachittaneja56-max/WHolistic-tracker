@@ -1,9 +1,9 @@
 from fastapi.testclient import TestClient
-from pwdlib import PasswordHash
+from uuid import uuid4
 
-from app.core.config import settings
 from app.core.redaction import REDACTED, redact_text, redact_value
 from app.main import app
+from app.services.auth import AuthPrincipal
 
 
 def test_recursive_redaction() -> None:
@@ -15,36 +15,15 @@ def test_recursive_redaction() -> None:
     assert "abc" not in redact_text("Bearer abc")
 
 
-def test_auth_login_session_logout(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "app_admin_password_hash", PasswordHash.recommended().hash("correct horse"))
-    monkeypatch.setattr(settings, "app_session_secret", "test-session-secret-with-enough-entropy")
-    monkeypatch.setattr(settings, "frontend_origin", "http://localhost:5173")
+def test_private_api_requires_bearer_token() -> None:
     client = TestClient(app)
-
-    anonymous = client.get("/auth/session")
-    assert anonymous.status_code == 200
-    assert anonymous.headers["cache-control"] == "no-store"
-    assert anonymous.json()["authenticated"] is False
-
-    denied = client.post("/auth/login", json={"password": "wrong"}, headers={"Origin": "http://localhost:5173"})
-    assert denied.status_code == 401
-
-    logged_in = client.post("/auth/login", json={"password": "correct horse"}, headers={"Origin": "http://localhost:5173"})
-    assert logged_in.status_code == 200
-    assert logged_in.json()["authenticated"] is True
-    assert "httponly" in logged_in.headers["set-cookie"].lower()
-
-    session = client.get("/auth/session")
-    assert session.json()["authenticated"] is True
-
-    logged_out = client.post("/auth/logout", headers={"Origin": "http://localhost:5173"})
-    assert logged_out.status_code == 200
-    assert logged_out.json()["authenticated"] is False
+    assert client.get("/entities").status_code == 401
+    assert client.get("/health").status_code == 200
 
 
-def test_auth_rejects_untrusted_origin(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "app_admin_password_hash", PasswordHash.recommended().hash("owner-password"))
-    monkeypatch.setattr(settings, "app_session_secret", "test-session-secret")
+def test_normal_user_cannot_reach_admin_api(monkeypatch) -> None:
+    principal = AuthPrincipal(user_id=uuid4(), session_id=uuid4(), email="user@example.com", role="user")
+    monkeypatch.setattr("app.services.auth.authenticate_bearer", lambda _authorization: principal)
     client = TestClient(app)
-    response = client.post("/auth/login", json={"password": "owner-password"}, headers={"Origin": "https://evil.example"})
+    response = client.get("/admin/overview", headers={"Authorization": "Bearer test-token"})
     assert response.status_code == 403

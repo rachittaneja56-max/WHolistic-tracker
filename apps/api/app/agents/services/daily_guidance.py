@@ -11,7 +11,11 @@ from app.agents.services.recall import get_due_recall_items, parse_exam_date
 from app.agents.utils.prompts import build_system_prompt
 from app.models.entity import Entity
 from app.models.link import Link
+from app.api.routes.dashboard import task_priority_key
+from app.api.routes.projects import get_project_tracker
 from app.schemas.guidance import DailyGuidanceActionRead, DailyGuidanceResponse
+
+TERMINAL_TASK_STATUSES = {"done", "completed", "submitted", "cancelled", "archived"}
 
 DAILY_GUIDANCE_SCHEMA = {
     "title": "daily_guidance_result",
@@ -52,8 +56,12 @@ def build_daily_guidance_context(db: Session, *, current_date: date, now: dateti
     open_tasks = [
         entity
         for entity in task_entities
-        if (entity.entity_metadata or {}).get("status", "todo") != "done"
-    ][:6]
+        if (entity.entity_metadata or {}).get("status", "todo") not in TERMINAL_TASK_STATUSES
+    ]
+    open_tasks.sort(key=task_priority_key)
+    open_tasks = open_tasks[:6]
+
+    project_attention = [row for row in get_project_tracker(db) if row.health in {"stalled", "at_risk"}][:4]
 
     upcoming_subjects: list[tuple[date, Entity]] = []
     for entity in db.scalars(select(Entity).where(Entity.type == "subject_topic")).all():
@@ -113,6 +121,17 @@ def build_daily_guidance_context(db: Session, *, current_date: date, now: dateti
             }
             for entity in open_tasks
         ],
+        "project_attention": [
+            {
+                "entity_id": str(row.project.id),
+                "title": row.project.title,
+                "health": row.health,
+                "reason": row.health_reasons[0] if row.health_reasons else "Project health needs review.",
+                "blocked_task_count": row.blocked_task_count,
+                "overdue_task_count": row.overdue_task_count,
+            }
+            for row in project_attention
+        ],
         "suggested_links": [
             {
                 "link_id": str(link.id),
@@ -160,6 +179,17 @@ def build_fallback_guidance(context: dict[str, object], *, current_date: date) -
             )
         )
 
+    if context["project_attention"]:
+        project_item = context["project_attention"][0]
+        actions.append(
+            DailyGuidanceActionRead(
+                label=f"Unblock project: {project_item.get('title') or 'Untitled project'}",
+                reason=str(project_item.get("reason") or "Project health needs review."),
+                entity_id=project_item.get("entity_id"),
+                priority="high",
+            )
+        )
+
     if context["open_tasks"]:
         task_item = context["open_tasks"][0]
         actions.append(
@@ -192,6 +222,7 @@ def build_fallback_guidance(context: dict[str, object], *, current_date: date) -
     exam_count = len(context["upcoming_exams"])
     task_count = len(context["open_tasks"])
     suggested_count = len(context["suggested_links"])
+    project_count = len(context["project_attention"])
 
     if due_count:
         summary_parts.append(f"{due_count} recall item{'s' if due_count != 1 else ''} need attention")
@@ -199,6 +230,8 @@ def build_fallback_guidance(context: dict[str, object], *, current_date: date) -
         summary_parts.append(f"{exam_count} upcoming exam deadline{'s' if exam_count != 1 else ''}")
     if task_count:
         summary_parts.append(f"{task_count} open task{'s' if task_count != 1 else ''}")
+    if project_count:
+        summary_parts.append(f"{project_count} project{'s' if project_count != 1 else ''} need attention")
     if suggested_count:
         summary_parts.append(f"{suggested_count} suggested link{'s' if suggested_count != 1 else ''} waiting for review")
 
@@ -225,7 +258,7 @@ def get_daily_guidance(
 
     valid_entity_ids = {
         item["entity_id"]
-        for key in ("due_items", "low_confidence_entities", "upcoming_exams", "open_tasks")
+        for key in ("due_items", "low_confidence_entities", "upcoming_exams", "open_tasks", "project_attention")
         for item in context[key]
         if item.get("entity_id")
     }
@@ -263,7 +296,10 @@ def get_daily_guidance(
             )
         )
 
-    if not actions and any(context[key] for key in ("due_items", "upcoming_exams", "open_tasks", "suggested_links")):
+    if not actions and any(
+        context[key]
+        for key in ("due_items", "upcoming_exams", "open_tasks", "project_attention", "suggested_links")
+    ):
         return build_fallback_guidance(context, current_date=current_date)
 
     return DailyGuidanceResponse(

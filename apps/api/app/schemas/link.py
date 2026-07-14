@@ -6,7 +6,16 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-RelationType = Literal["structural_analogy", "prerequisite", "used_in", "reminds_me_of"]
+RelationType = Literal[
+    "structural_analogy",
+    "prerequisite",
+    "used_in",
+    "reminds_me_of",
+    "depends_on",
+    "blocks",
+    "implements",
+    "evidence_for",
+]
 LinkStatus = Literal["agent_suggested", "confirmed", "rejected"]
 
 

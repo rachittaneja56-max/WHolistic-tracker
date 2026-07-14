@@ -10,11 +10,10 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.api.activity import record_session
-from app.core.config import settings
 from app.models.app_setting import AppSetting
 from app.models.entity import Entity
 from app.schemas.dsa_integrations import DsaConnection, Platform
@@ -139,7 +138,7 @@ class LeetCodeAdapter:
         return payload.get("data") or {}
 
     def _fetch_authenticated(self, connection: DsaConnection) -> list[ImportedProblem]:
-        cookies = f"LEETCODE_SESSION={settings.leetcode_session_cookie}; csrftoken={settings.leetcode_csrf_token or ''}"
+        raise RuntimeError("Private LeetCode synchronization must use a user-bound browser extension token")
         grouped: dict[str, ImportedProblem] = {}
         with _client() as client:
             skip, page_size, total = 0, 100, None
@@ -173,8 +172,8 @@ class LeetCodeAdapter:
             raise RuntimeError("LeetCode returned no solved problems for the authenticated account")
         return list(grouped.values())
 
-    def fetch(self, connection: DsaConnection) -> list[ImportedProblem]:
-        if settings.leetcode_session_cookie:
+    def fetch(self, connection: DsaConnection, *, allow_private: bool = False) -> list[ImportedProblem]:
+        if allow_private:
             return self._fetch_authenticated(connection)
         with _client() as client:
             accepted_response = _request_with_retry(client, "GET", f"{self.compatibility_api}/{connection.username}/acSubmission", params={"limit": 20})
@@ -245,9 +244,12 @@ ADAPTERS: dict[Platform, PlatformAdapter] = {"leetcode": LeetCodeAdapter(), "cod
 
 
 def _setting(db: Session) -> AppSetting:
-    row = db.get(AppSetting, SETTING_KEY)
+    user_id = db.info.get("user_id")
+    if user_id is None:
+        raise ValueError("User context is required for DSA integrations")
+    row = db.get(AppSetting, (user_id, SETTING_KEY))
     if row is None:
-        row = AppSetting(key=SETTING_KEY, value={"connections": []})
+        row = AppSetting(user_id=user_id, key=SETTING_KEY, value={"connections": []})
         db.add(row)
         db.commit()
         db.refresh(row)
@@ -282,7 +284,10 @@ def sync_connections(db: Session) -> list[dict[str, Any]]:
         try:
             connection = DsaConnection.model_validate({key: raw.get(key) for key in ("platform", "username", "profile_url", "enabled") if key in raw})
             _validate_profile_url(connection)
-            imported = ADAPTERS[platform].fetch(connection)
+            if platform == "leetcode":
+                imported = ADAPTERS[platform].fetch(connection, allow_private=False)  # type: ignore[call-arg]
+            else:
+                imported = ADAPTERS[platform].fetch(connection)
             existing = db.scalars(select(Entity).where(Entity.type == "dsa_problem")).all()
             by_key = {((entity.entity_metadata or {}).get("integration") or {}).get("external_key"): entity for entity in existing}
             created = updated = 0
@@ -314,7 +319,7 @@ def sync_connections(db: Session) -> list[dict[str, Any]]:
             record_session(db, entity_id=None, action="dsa_platform_sync", meta={"platform": platform, "imported": created, "updated": updated})
             raw["last_synced_at"], raw["last_error"] = now, None
             sync_message = None
-            if platform == "leetcode" and not settings.leetcode_session_cookie:
+            if platform == "leetcode":
                 sync_message = "Public LeetCode sync is limited to recent submissions. Configure private sync for all problems, code, and notes."
             results.append({"platform": platform, "status": "synced", "imported_count": created, "updated_count": updated, "message": sync_message})
         except Exception as exc:

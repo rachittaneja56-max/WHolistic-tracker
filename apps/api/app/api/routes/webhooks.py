@@ -2,21 +2,33 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from app.db.session import get_db
+from app.models.app_setting import AppSetting
 from app.schemas.github import GithubWebhookResponse
 from app.services.github import ensure_github_integration_enabled, parse_github_payload, record_github_event, verify_github_signature
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
-@router.post("/github", response_model=GithubWebhookResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post("/github/{webhook_id}", response_model=GithubWebhookResponse, status_code=status.HTTP_202_ACCEPTED)
 async def github_webhook(
+    webhook_id: str,
     request: Request,
     db: Session = Depends(get_db),
     github_event: str | None = Header(default=None, alias="X-GitHub-Event"),
     github_signature: str | None = Header(default=None, alias="X-Hub-Signature-256"),
 ) -> GithubWebhookResponse:
+    owner_setting = db.scalar(
+        select(AppSetting).where(
+            AppSetting.key == "github",
+            AppSetting.value["webhook_id"].astext == webhook_id,
+        )
+    )
+    if owner_setting is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook endpoint not found")
+    db.info["user_id"] = owner_setting.user_id
     ensure_github_integration_enabled(db)
     payload_bytes = await request.body()
     if not verify_github_signature(db, payload_bytes, github_signature):

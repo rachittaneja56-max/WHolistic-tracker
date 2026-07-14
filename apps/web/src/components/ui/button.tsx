@@ -15,9 +15,9 @@ const buttonVariants = cva(
         destructive: "border-red-700 bg-red-800 text-red-100 hover:bg-red-700",
       },
       size: {
-        default: "h-10",
-        sm: "h-8 px-3 text-xs",
-        lg: "h-11 px-6",
+        default: "h-11 md:h-10",
+        sm: "h-11 px-3 text-sm md:h-8 md:text-xs",
+        lg: "h-12 px-6 md:h-11",
       },
     },
     defaultVariants: {

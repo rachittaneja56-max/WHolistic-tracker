@@ -1,46 +1,67 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 
-import { getAuthSession, login as loginRequest, logout as logoutRequest, type AuthSession } from "@/lib/system-api"
+import { authClient, clearAccessToken } from "@/lib/auth-client"
+
+export type AuthUser = {
+  id: string
+  name: string
+  email: string
+  role: string
+  image?: string | null
+}
 
 type AuthContextValue = {
-  session: AuthSession | null
+  user: AuthUser | null
   loading: boolean
   error: string | null
-  login: (password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<void>
+  loginWithGithub: (callbackURL?: string) => Promise<void>
   logout: () => Promise<void>
+  refresh: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<AuthSession | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
-    try {
-      setSession(await getAuthSession())
-      setError(null)
-    } catch (value) {
-      setError(value instanceof Error ? value.message : "Unable to check session.")
-    } finally {
-      setLoading(false)
-    }
+    const { data, error: sessionError } = await authClient.getSession()
+    if (sessionError) setError(sessionError.message ?? "Unable to validate the session")
+    else setError(null)
+    setUser(data?.user ? ({ ...data.user, role: (data.user as typeof data.user & { role?: string }).role ?? "user" } as AuthUser) : null)
+    setLoading(false)
   }, [])
 
-  useEffect(() => { void refresh() }, [refresh])
+  useEffect(() => {
+    void refresh()
+    const expired = () => { clearAccessToken(); void refresh() }
+    window.addEventListener("pdkg:auth-expired", expired)
+    return () => window.removeEventListener("pdkg:auth-expired", expired)
+  }, [refresh])
 
-  const login = useCallback(async (password: string) => {
-    setSession(await loginRequest(password))
-    setError(null)
+  const login = useCallback(async (email: string, password: string) => {
+    const { error: signInError } = await authClient.signIn.email({ email, password, rememberMe: true })
+    if (signInError) throw new Error(signInError.message)
+    clearAccessToken()
+    await refresh()
+  }, [refresh])
+
+  const loginWithGithub = useCallback(async (callbackURL?: string) => {
+    const { error: signInError } = await authClient.signIn.social({ provider: "github", callbackURL: callbackURL ?? `${window.location.origin}/app` })
+    if (signInError) throw new Error(signInError.message)
   }, [])
 
   const logout = useCallback(async () => {
-    setSession(await logoutRequest())
+    await authClient.signOut()
+    clearAccessToken()
+    setUser(null)
   }, [])
 
-  const value = useMemo(() => ({ session, loading, error, login, logout }), [session, loading, error, login, logout])
+  const value = useMemo(() => ({ user, loading, error, login, loginWithGithub, logout, refresh }), [user, loading, error, login, loginWithGithub, logout, refresh])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

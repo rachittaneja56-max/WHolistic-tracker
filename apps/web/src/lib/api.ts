@@ -12,9 +12,12 @@ export const entityTypeOptions = [
 ] as const
 
 export const contentTypeOptions = ["markdown", "blocks", "canvas_json", "code"] as const
-export const taskStatusOptions = ["todo", "in_progress", "done"] as const
+export const taskStatusOptions = ["backlog", "ready", "todo", "in_progress", "blocked", "in_review", "done"] as const
+export const projectStatusOptions = ["planned", "active", "paused", "completed", "archived"] as const
+export const milestoneStatusOptions = ["planned", "active", "paused", "completed"] as const
+export const priorityOptions = ["low", "medium", "high", "urgent"] as const
 export const difficultyOptions = ["easy", "medium", "hard"] as const
-export const relationTypeOptions = ["structural_analogy", "prerequisite", "used_in", "reminds_me_of"] as const
+export const relationTypeOptions = ["structural_analogy", "prerequisite", "used_in", "reminds_me_of", "depends_on", "blocks", "implements", "evidence_for"] as const
 export const duplicateMatchTypeOptions = ["duplicate", "same_pattern", "related_but_different", "no_match"] as const
 export const aiAssistLevelOptions = ["handwritten", "ai-scaffolded", "ai-generated", "ai-paired"] as const
 export const comprehensionGradeOptions = ["passed", "flagged"] as const
@@ -22,6 +25,9 @@ export const comprehensionGradeOptions = ["passed", "flagged"] as const
 export type EntityType = (typeof entityTypeOptions)[number]
 export type ContentType = (typeof contentTypeOptions)[number]
 export type TaskStatus = (typeof taskStatusOptions)[number]
+export type ProjectStatus = (typeof projectStatusOptions)[number]
+export type MilestoneStatus = (typeof milestoneStatusOptions)[number]
+export type WorkPriority = (typeof priorityOptions)[number]
 export type DsaDifficulty = (typeof difficultyOptions)[number]
 export type RelationType = (typeof relationTypeOptions)[number]
 export type DuplicateMatchType = (typeof duplicateMatchTypeOptions)[number]
@@ -130,7 +136,7 @@ export type SessionRecord = {
   meta: EntityMetadata
 }
 
-export type SessionAction = "created" | "revisited" | "linked" | "pr_opened" | "pr_merged" | "push" | "study_planned" | "study_completed"
+export type SessionAction = "created" | "revisited" | "linked" | "pr_opened" | "pr_merged" | "push" | "study_planned" | "study_completed" | "work_started" | "work_logged" | "deployed" | "milestone_completed" | "project_shipped"
 
 export type CreateSessionPayload = {
   entity_id?: string | null
@@ -212,6 +218,39 @@ export type DashboardToday = {
   recent_sessions: SessionRecord[]
   open_tasks: Entity[]
   upcoming_subject_topics: Entity[]
+  project_attention: ProjectTrackerItem[]
+}
+
+export type ProjectHealth = "on_track" | "at_risk" | "stalled" | "paused" | "completed"
+
+export type ProjectTrackerItem = {
+  project: Entity
+  milestone_count: number
+  completed_milestone_count: number
+  task_count: number
+  open_task_count: number
+  completed_task_count: number
+  blocked_task_count: number
+  overdue_task_count: number
+  progress_percent: number
+  health: ProjectHealth
+  health_reasons: string[]
+  next_deadline: string | null
+  current_milestone: Entity | null
+  last_activity_at: string | null
+  shipped_this_week: number
+  til_coverage_percent: number
+  comprehension_debt_count: number
+}
+
+export type ProjectWorkspace = {
+  summary: ProjectTrackerItem
+  milestones: Entity[]
+  tasks: Entity[]
+  relationships: Link[]
+  activity: SessionRecord[]
+  knowledge: Entity[]
+  comprehension_checks: ComprehensionCheck[]
 }
 
 export type WeeklyDigestRange = {
@@ -528,6 +567,13 @@ export type IdeaApproveResult = {
   entity: Entity
 }
 
+export type IdeaProjectDraftResult = {
+  idea: Entity
+  project: Entity
+  milestones: Entity[]
+  tasks: Entity[]
+}
+
 export type ComprehensionCheck = {
   id: string
   entity_id: string | null
@@ -606,9 +652,8 @@ function buildQueryString(params?: Record<string, string | number | undefined>) 
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await authenticatedFetch(`${apiBaseUrl}${path}`, {
     ...init,
-    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
@@ -638,6 +683,14 @@ export function revisitEntity(entityId: string) {
   return request<Entity>(`/entities/${entityId}/revisit`, {
     method: "POST",
   })
+}
+
+export function getProjectTracker() {
+  return request<ProjectTrackerItem[]>("/projects/tracker")
+}
+
+export function getProjectWorkspace(projectId: string) {
+  return request<ProjectWorkspace>(`/projects/${projectId}/tracker`)
 }
 
 export function createSession(payload: CreateSessionPayload) {
@@ -703,6 +756,12 @@ export function createLink(payload: CreateLinkPayload) {
   return request<Link>("/links", {
     method: "POST",
     body: JSON.stringify(payload),
+  })
+}
+
+export function deleteLink(linkId: string) {
+  return request<void>(`/links/${linkId}`, {
+    method: "DELETE",
   })
 }
 
@@ -781,6 +840,13 @@ export function approveIdea(payload: IdeaApprovePayload) {
   })
 }
 
+export function createIdeaProjectDraft(payload: IdeaApprovePayload) {
+  return request<IdeaProjectDraftResult>("/ideas/project-draft", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
 export function getDailyGuidance() {
   return request<DailyGuidance>("/agents/daily-guidance")
 }
@@ -789,8 +855,8 @@ export function getWeeklyAnalyst(startDate?: string, endDate?: string) {
   return request<AnalystWeekly>(`/agents/analyst/weekly${buildQueryString({ start_date: startDate, end_date: endDate })}`)
 }
 
-export function getRecallDue(limit = 20) {
-  return request<RecallDueItem[]>(`/recall/due${buildQueryString({ limit })}`)
+export function getRecallDue(limit = 20, tag?: string) {
+  return request<RecallDueItem[]>(`/recall/due${buildQueryString({ limit, tag })}`)
 }
 
 export function gradeRecall(entityId: string, payload: RecallGradePayload) {
@@ -921,3 +987,4 @@ export function cancelAssistantProposal(proposalId: string) { return request<voi
 export function gradeAssistantRecall(payload: { entity_id: string; answer: string; self_score?: number; thread_id?: string; source_message_id?: string }) {
   return request<AssistantRecallResponse>("/assistant/recall/grade", { method: "POST", body: JSON.stringify(payload) })
 }
+import { authenticatedFetch } from "@/lib/auth-client"

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.settings import AiCredentialUpdate, AiProviderName, AiSettingUpdate, GithubCredentialName, GithubCredentialUpdate, GithubSettingUpdate, SettingsStatusRead
+from app.schemas.settings import AiCredentialUpdate, AiProviderName, AiSettingUpdate, GithubCredentialName, GithubCredentialUpdate, GithubSettingUpdate, SettingsStatusRead, WebSearchCredentialUpdate, WebSearchSettingUpdate
 from app.services.auth import require_owner_mutation
 from app.services.runtime_settings import (
     get_settings_status,
@@ -14,6 +14,9 @@ from app.services.runtime_settings import (
     set_github_credential,
     update_ai_settings,
     update_github_enabled,
+    update_web_search_enabled,
+    set_web_search_credential,
+    remove_web_search_credential,
 )
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -69,5 +72,27 @@ def save_github_credential(credential: GithubCredentialName, payload: GithubCred
 @router.delete("/github/credentials/{credential}", response_model=SettingsStatusRead)
 def delete_github_credential(credential: GithubCredentialName, response: Response, db: Session = Depends(get_db), _owner: str = Depends(require_owner_mutation)) -> SettingsStatusRead:
     remove_github_credential(db, credential)
+    response.headers["Cache-Control"] = "no-store"
+    return get_settings_status(db)
+
+
+@router.patch("/web-search", response_model=SettingsStatusRead)
+def update_web_search(payload: WebSearchSettingUpdate, response: Response, db: Session = Depends(get_db), _owner: str = Depends(require_owner_mutation)) -> SettingsStatusRead:
+    update_web_search_enabled(db, payload.enabled)
+    response.headers["Cache-Control"] = "no-store"
+    return get_settings_status(db)
+
+
+@router.put("/web-search/credential", response_model=SettingsStatusRead)
+def save_web_search_key(payload: WebSearchCredentialUpdate, response: Response, db: Session = Depends(get_db), _owner: str = Depends(require_owner_mutation)) -> SettingsStatusRead:
+    try: set_web_search_credential(db, payload.api_key)
+    except ValueError as exc: raise HTTPException(status_code=503, detail=str(exc)) from exc
+    response.headers["Cache-Control"] = "no-store"
+    return get_settings_status(db)
+
+
+@router.delete("/web-search/credential", response_model=SettingsStatusRead)
+def delete_web_search_key(response: Response, db: Session = Depends(get_db), _owner: str = Depends(require_owner_mutation)) -> SettingsStatusRead:
+    remove_web_search_credential(db)
     response.headers["Cache-Control"] = "no-store"
     return get_settings_status(db)

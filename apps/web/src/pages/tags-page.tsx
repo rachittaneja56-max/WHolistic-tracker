@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { formatEntityDate } from "@/features/entities/metadata"
 import { getTagEntities, getTagTaxonomy, type Entity, type TagTaxonomyItem } from "@/lib/api"
 
@@ -28,6 +29,8 @@ function matchesCoverageFilters(tag: TagTaxonomyItem, filters: Filters) {
   return true
 }
 
+type TagSort = "coverage" | "name" | "weakest" | "due"
+
 type Filters = {
   lowConfidenceOnly: boolean
   openTasksOnly: boolean
@@ -46,6 +49,8 @@ export function TagsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedTag = searchParams.get("tag") ?? ""
   const [filters, setFilters] = useState<Filters>(defaultFilters)
+  const [query, setQuery] = useState("")
+  const [sortBy, setSortBy] = useState<TagSort>("coverage")
   const [taxonomy, setTaxonomy] = useState<TagTaxonomyItem[]>([])
   const [tagEntities, setTagEntities] = useState<Entity[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -112,7 +117,37 @@ export function TagsPage() {
     }
   }, [selectedTag])
 
-  const filteredTags = useMemo(() => taxonomy.filter((tag) => matchesCoverageFilters(tag, filters)), [filters, taxonomy])
+  const filteredTags = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    const matches = taxonomy.filter((tag) => {
+      return matchesCoverageFilters(tag, filters) && (!normalizedQuery || tag.tag.toLowerCase().includes(normalizedQuery))
+    })
+
+    return [...matches].sort((left, right) => {
+      if (sortBy === "name") {
+        return left.tag.localeCompare(right.tag)
+      }
+      if (sortBy === "weakest") {
+        return left.average_confidence_score - right.average_confidence_score || right.total_entity_count - left.total_entity_count
+      }
+      if (sortBy === "due") {
+        return right.review_due_count - left.review_due_count || right.total_entity_count - left.total_entity_count
+      }
+      return right.total_entity_count - left.total_entity_count || left.tag.localeCompare(right.tag)
+    })
+  }, [filters, query, sortBy, taxonomy])
+
+  const taxonomySummary = useMemo(() => ({
+    tagCount: taxonomy.length,
+    taggedReferences: taxonomy.reduce((total, tag) => total + tag.total_entity_count, 0),
+    weakTags: taxonomy.filter((tag) => tag.average_confidence_score < 0.7).length,
+    dueTags: taxonomy.filter((tag) => tag.review_due_count > 0).length,
+  }), [taxonomy])
+
+  const selectedTaxonomyItem = useMemo(
+    () => taxonomy.find((tag) => tag.tag === selectedTag) ?? null,
+    [selectedTag, taxonomy],
+  )
 
   const coverageGaps = useMemo(() => {
     return {
@@ -155,6 +190,38 @@ export function TagsPage() {
           <CardDescription>Tags are still derived directly from `entities.tags`. No tags table is introduced here.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              ["Tags", taxonomySummary.tagCount],
+              ["Tagged references", taxonomySummary.taggedReferences],
+              ["Weak tags", taxonomySummary.weakTags],
+              ["Tags with reviews due", taxonomySummary.dueTags],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">{label}</p>
+                <p className="mt-2 font-mono text-lg text-zinc-100">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+            <div>
+              <label htmlFor="tag-search" className="sr-only">Search tags</label>
+              <Input id="tag-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tags..." />
+            </div>
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as TagSort)}>
+              <SelectTrigger aria-label="Sort tags">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="coverage">Most used</SelectItem>
+                <SelectItem value="name">Name</SelectItem>
+                <SelectItem value="weakest">Lowest confidence</SelectItem>
+                <SelectItem value="due">Most reviews due</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant={filters.lowConfidenceOnly ? "default" : "outline"} onClick={() => setFilters((current) => ({ ...current, lowConfidenceOnly: !current.lowConfidenceOnly }))}>
               Low confidence tags
@@ -168,10 +235,21 @@ export function TagsPage() {
             <Button type="button" variant={filters.noRecentReviewOnly ? "default" : "outline"} onClick={() => setFilters((current) => ({ ...current, noRecentReviewOnly: !current.noRecentReviewOnly }))}>
               No recent review
             </Button>
-            <Button type="button" variant="outline" onClick={() => setFilters(defaultFilters)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setFilters(defaultFilters)
+                setQuery("")
+              }}
+            >
               Clear filters
             </Button>
           </div>
+
+          <p className="text-xs text-zinc-500">
+            Showing {filteredTags.length} of {taxonomy.length} tags.
+          </p>
 
           {error ? <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-300">{error}</p> : null}
           {isLoading ? <p className="text-sm text-zinc-500">Loading tag taxonomy...</p> : null}
@@ -184,7 +262,7 @@ export function TagsPage() {
                     key={tag.tag}
                     type="button"
                     onClick={() => selectTag(tag.tag)}
-                    className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4 text-left transition-colors hover:border-blue-500/40"
+                    className={`rounded-lg border bg-zinc-900 px-4 py-4 text-left transition-colors hover:border-blue-500/40 ${selectedTag === tag.tag ? "border-blue-500/70 ring-1 ring-blue-500/30" : "border-zinc-800"}`}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-mono text-sm text-zinc-100">#{tag.tag}</span>
@@ -280,9 +358,18 @@ export function TagsPage() {
               <CardDescription>{selectedTag ? `Entities carrying #${selectedTag}.` : "Choose a tag to inspect the entities behind it."}</CardDescription>
             </div>
             {selectedTag ? (
-              <Button type="button" variant="outline" onClick={clearSelectedTag}>
-                Clear selected tag
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {selectedTaxonomyItem && selectedTaxonomyItem.review_due_count > 0 ? (
+                  <Button asChild>
+                    <Link to={`/knowledge/recall?tag=${encodeURIComponent(selectedTag)}`}>
+                      Review {selectedTaxonomyItem.review_due_count} due
+                    </Link>
+                  </Button>
+                ) : null}
+                <Button type="button" variant="outline" onClick={clearSelectedTag}>
+                  Clear selected tag
+                </Button>
+              </div>
             ) : null}
           </div>
         </CardHeader>
@@ -294,7 +381,7 @@ export function TagsPage() {
             tagEntities.length > 0 ? (
               <div className="space-y-3">
                 {tagEntities.map((entity) => (
-                  <Link key={entity.id} to={`/entities/${entity.id}`} className="block rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4 transition-colors hover:border-blue-500/40">
+                  <Link key={entity.id} to={`/knowledge/entities/${entity.id}`} className="block rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4 transition-colors hover:border-blue-500/40">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm text-zinc-100">{entity.title ?? "Untitled entity"}</p>
                       <div className="flex items-center gap-2">

@@ -86,7 +86,7 @@ def validate_idea(idea: str, *, db: Session, provider: OpenAIProvider | None) ->
     related_projects = [item for item in graph_context if item["type"] == "project"]
     related_concepts = [item for item in graph_context if item["type"] in {"concept", "subject_topic", "til", "note"}]
 
-    web_provider, web_note = get_web_search_provider()
+    web_provider, web_note = get_web_search_provider(db)
     similar_products = []
     if web_provider is not None:
         try:

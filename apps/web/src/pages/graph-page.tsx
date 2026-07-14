@@ -30,6 +30,7 @@ const NODE_MIN_SIZE = 92
 const NODE_MAX_SIZE = 140
 const NODE_LABEL_MAX_LINE_LENGTH = 12
 const NODE_LABEL_MAX_LINES = 4
+const DESKTOP_GRAPH_BREAKPOINT = 768
 
 type GraphFilters = {
   type: EntityType | "all"
@@ -41,6 +42,10 @@ type GraphSelection =
   | { kind: "node"; id: string }
   | { kind: "edge"; id: string }
   | null
+
+function isDesktopGraphViewport() {
+  return typeof window === "undefined" || window.innerWidth >= DESKTOP_GRAPH_BREAKPOINT
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
@@ -174,6 +179,9 @@ export function GraphPage() {
   const [isDecayRunning, setIsDecayRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [decayMessage, setDecayMessage] = useState<string | null>(null)
+  const [isDesktopViewport, setIsDesktopViewport] = useState(isDesktopGraphViewport)
+  const [isMobileGraphEnabled, setIsMobileGraphEnabled] = useState(false)
+  const isInteractiveGraphVisible = isDesktopViewport || isMobileGraphEnabled
 
   const selectedNode = useMemo(() => {
     if (!selection || selection.kind !== "node") {
@@ -190,6 +198,14 @@ export function GraphPage() {
   }, [graph.edges, selection])
 
   const nodeMap = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph.nodes])
+  const connectionCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    graph.edges.forEach((edge) => {
+      if (edge.from_id) counts.set(edge.from_id, (counts.get(edge.from_id) ?? 0) + 1)
+      if (edge.to_id) counts.set(edge.to_id, (counts.get(edge.to_id) ?? 0) + 1)
+    })
+    return counts
+  }, [graph.edges])
 
   const connectedLinks = useMemo(() => {
     if (!selectedNode) {
@@ -231,6 +247,13 @@ export function GraphPage() {
   }, [filters])
 
   useEffect(() => {
+    const updateViewport = () => setIsDesktopViewport(isDesktopGraphViewport())
+    updateViewport()
+    window.addEventListener("resize", updateViewport)
+    return () => window.removeEventListener("resize", updateViewport)
+  }, [])
+
+  useEffect(() => {
     if (!selection) {
       return
     }
@@ -246,7 +269,7 @@ export function GraphPage() {
   }, [graph.edges, graph.nodes, selection])
 
   useEffect(() => {
-    if (!containerRef.current) {
+    if (!isInteractiveGraphVisible || !containerRef.current) {
       return
     }
 
@@ -326,7 +349,7 @@ export function GraphPage() {
     return () => {
       cy.destroy()
     }
-  }, [graph])
+  }, [graph, isInteractiveGraphVisible])
 
   async function handleMarkRevisited() {
     if (!selectedNode) {
@@ -450,18 +473,66 @@ export function GraphPage() {
             {isLoading ? <p className="text-sm text-zinc-500">Loading graph...</p> : null}
             {error ? <p className="text-sm text-red-300">{error}</p> : null}
 
-
-            <div className="relative rounded-xl border border-zinc-800 bg-zinc-950">
-              <div ref={containerRef} className="h-[70vh] min-h-[560px] w-full" />
-              {isEmpty ? (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center">
-                  <div className="max-w-md space-y-2 rounded-lg border border-zinc-800 bg-zinc-950/95 px-5 py-4">
-                    <p className="text-sm font-medium text-zinc-100">No graph data yet</p>
-                    <p className="text-sm text-zinc-500">Create an entity and confirm a link to populate the graph. Hierarchy stays out of this view on purpose.</p>
+            {!isInteractiveGraphVisible ? (
+              <section className="space-y-3 md:hidden" aria-labelledby="mobile-graph-list-title">
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <h2 id="mobile-graph-list-title" className="text-sm font-semibold text-zinc-100">Filtered entities</h2>
+                    <p className="mt-1 text-xs text-zinc-500">Tap an entity to inspect its connections.</p>
                   </div>
+                  <span className="font-mono text-xs text-zinc-500">{graph.nodes.length}</span>
                 </div>
-              ) : null}
-            </div>
+                <Button type="button" variant="outline" className="min-h-11 w-full" onClick={() => setIsMobileGraphEnabled(true)} disabled={isLoading || graph.nodes.length === 0}>
+                  Open interactive graph
+                </Button>
+                {graph.nodes.length ? <ul className="divide-y divide-zinc-800 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
+                  {graph.nodes.map((node) => {
+                    const connectionCount = connectionCounts.get(node.id) ?? 0
+                    const isSelected = selection?.kind === "node" && selection.id === node.id
+                    return <li key={node.id}>
+                      <button
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={() => setSelection({ kind: "node", id: node.id })}
+                        className={`min-h-11 w-full px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 ${isSelected ? "bg-blue-500/10" : "hover:bg-zinc-900"}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="min-w-0 text-sm font-medium text-zinc-100">{node.title ?? "Untitled entity"}</span>
+                          <span className="shrink-0 font-mono text-xs text-zinc-500">{Math.round(node.confidence_score * 100)}%</span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          <Badge variant="blue" className="capitalize">{node.type ?? "unknown"}</Badge>
+                          {node.tags.slice(0, 3).map((tag) => <Badge key={tag}>{tag}</Badge>)}
+                          {node.tags.length > 3 ? <Badge>+{node.tags.length - 3}</Badge> : null}
+                          <span className="ml-auto text-[11px] text-zinc-600">{connectionCount} {connectionCount === 1 ? "connection" : "connections"}</span>
+                        </div>
+                      </button>
+                    </li>
+                  })}
+                </ul> : null}
+                {isEmpty ? <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-5 py-6 text-center"><p className="text-sm font-medium text-zinc-100">No graph data yet</p><p className="mt-2 text-sm text-zinc-500">Create an entity and confirm a link to populate this list.</p></div> : null}
+              </section>
+            ) : null}
+
+            {isInteractiveGraphVisible ? <>
+              <Button type="button" variant="outline" className="min-h-11 w-full md:hidden" onClick={() => {
+                setIsMobileGraphEnabled(false)
+                if (selection?.kind === "edge") setSelection(null)
+              }}>
+                Show entity list
+              </Button>
+              <div className="relative rounded-xl border border-zinc-800 bg-zinc-950">
+                <div ref={containerRef} className="h-[65dvh] min-h-[420px] w-full md:h-[70vh] md:min-h-[560px]" />
+                {isEmpty ? (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center">
+                    <div className="max-w-md space-y-2 rounded-lg border border-zinc-800 bg-zinc-950/95 px-5 py-4">
+                      <p className="text-sm font-medium text-zinc-100">No graph data yet</p>
+                      <p className="text-sm text-zinc-500">Create an entity and confirm a link to populate the graph. Hierarchy stays out of this view on purpose.</p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </> : null}
 
             <div className="flex flex-wrap gap-3 text-xs text-zinc-500">
               <span className="font-mono">Nodes: {graph.nodes.length}</span>
@@ -475,10 +546,10 @@ export function GraphPage() {
       <Card className="h-fit xl:sticky xl:top-6">
         <CardHeader>
           <CardTitle>Inspector</CardTitle>
-          <CardDescription>Click a node or edge to inspect confidence, relation details, and connected links.</CardDescription>
+          <CardDescription>Select an entity, node, or edge to inspect confidence, relation details, and connected links.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!selection ? <p className="text-sm text-zinc-500">Select a node or edge in the graph to inspect it.</p> : null}
+          {!selection ? <p className="text-sm text-zinc-500">Select an entity from the list or interactive graph to inspect it.</p> : null}
 
           {selectedNode ? (
             <div className="space-y-4">

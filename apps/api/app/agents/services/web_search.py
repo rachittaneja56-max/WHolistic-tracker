@@ -72,14 +72,16 @@ class DisabledWebSearchProvider:
 
 
 
-def get_web_search_provider():
-    if not settings.web_search_enabled:
+def get_web_search_provider(db):
+    from app.services.runtime_settings import get_settings_status, get_web_search_credential
+    status = get_settings_status(db).web_search
+    if not status.enabled:
         return None, "Web search not configured. Graph-based validation still works."
 
     if settings.web_search_provider == "tavily":
-        api_key = (settings.tavily_api_key or "").strip()
+        api_key = get_web_search_credential(db)
         if not api_key:
-            return None, "WEB_SEARCH_ENABLED is true but TAVILY_API_KEY is missing. Graph-based validation still works."
+            return None, "Web search is enabled but this user has not configured an API key. Graph-based validation still works."
         return TavilyWebSearchProvider(api_key), None
 
     return None, "Web search provider is not supported in this environment."

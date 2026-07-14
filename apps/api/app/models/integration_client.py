@@ -8,9 +8,10 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.models.tenant import TenantOwned
 
 
-class IntegrationClient(Base):
+class IntegrationClient(TenantOwned, Base):
     __tablename__ = "integration_clients"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)

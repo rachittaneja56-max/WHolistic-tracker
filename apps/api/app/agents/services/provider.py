@@ -121,6 +121,10 @@ def get_ai_provider(db: Session) -> AIProvider:
     status = get_settings_status(db).ai
     if not status.enabled: raise AgentDisabledError("AI is disabled in website settings.")
     if not status.providers[status.provider].configured: raise MissingAPIKeyError(f"{status.provider.title()} is not configured.")
+    if isinstance(db, Session):
+        from app.services.runtime_settings import consume_ai_request
+        try: consume_ai_request(db)
+        except ValueError as exc: raise AgentDisabledError(str(exc)) from exc
     fast_model = status.fast_model
     smart_model = status.smart_model
     if status.model_mode == "fast":

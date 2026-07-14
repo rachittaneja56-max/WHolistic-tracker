@@ -31,6 +31,10 @@ AI_ASSIST_LEVEL_VALUES: tuple[AiAssistLevel, ...] = (
     "ai-generated",
     "ai-paired",
 )
+PROJECT_STATUS_VALUES = {"planned", "active", "paused", "completed", "archived", "todo", "in_progress", "done"}
+MILESTONE_STATUS_VALUES = {"planned", "active", "paused", "completed", "todo", "in_progress", "done"}
+TASK_STATUS_VALUES = {"backlog", "ready", "todo", "in_progress", "blocked", "in_review", "done", "cancelled", "submitted", "completed"}
+PRIORITY_VALUES = {"low", "medium", "high", "urgent"}
 ACADEMIC_KIND_VALUES = {"assignment", "exam", "revision", "reading", "project"}
 SUBJECT_TEXT_FIELDS = ("course_code", "term", "instructor", "location")
 HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -93,6 +97,55 @@ def _normalize_optional_text(metadata: dict[str, Any], key: str) -> None:
     metadata[key] = value.strip()
 
 
+def _normalize_optional_iso_datetime(metadata: dict[str, Any], key: str) -> None:
+    value = metadata.get(key)
+    if value in (None, ""):
+        return
+    if not isinstance(value, str):
+        raise ValueError(f"metadata.{key} must be an ISO date or datetime")
+    normalized = value.strip()
+    try:
+        datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"metadata.{key} must be an ISO date or datetime") from exc
+    metadata[key] = normalized
+
+
+def _validate_choice(metadata: dict[str, Any], key: str, allowed: set[str], default: str | None = None) -> None:
+    value = metadata.get(key, default)
+    if value is None:
+        return
+    if not isinstance(value, str) or value not in allowed:
+        raise ValueError(f"metadata.{key} must be one of {', '.join(sorted(allowed))}")
+    metadata[key] = value
+
+
+def normalize_project_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    normalized = dict(metadata or {})
+    _validate_choice(normalized, "status", PROJECT_STATUS_VALUES, "active")
+    _validate_choice(normalized, "priority", PRIORITY_VALUES, "medium")
+    for key in ("start_at", "target_at", "archived_at"):
+        _normalize_optional_iso_datetime(normalized, key)
+    for key in ("objective", "success_metric", "repo_url", "production_url", "health_override"):
+        _normalize_optional_text(normalized, key)
+    if normalized.get("health_override") not in (None, "", "on_track", "at_risk", "stalled", "paused", "completed"):
+        raise ValueError("metadata.health_override must be on_track, at_risk, stalled, paused, or completed")
+    return normalized
+
+
+def normalize_milestone_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    normalized = dict(metadata or {})
+    _validate_choice(normalized, "status", MILESTONE_STATUS_VALUES, "planned")
+    _validate_choice(normalized, "priority", PRIORITY_VALUES, "medium")
+    for key in ("start_at", "target_at", "completed_at"):
+        _normalize_optional_iso_datetime(normalized, key)
+    _normalize_optional_text(normalized, "outcome")
+    weight = _optional_number(normalized, "progress_weight", minimum=0)
+    if weight is not None:
+        normalized["progress_weight"] = weight
+    return normalized
+
+
 def normalize_subject_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     normalized = dict(metadata or {})
     status_value = normalized.get("status", "active")
@@ -141,27 +194,28 @@ def normalize_subject_metadata(metadata: dict[str, Any] | None) -> dict[str, Any
 
 def normalize_task_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     normalized = dict(metadata or {})
+    _validate_choice(normalized, "status", TASK_STATUS_VALUES, "backlog")
+    _validate_choice(normalized, "priority", PRIORITY_VALUES, "medium")
     academic_kind = normalized.get('academic_kind')
     if academic_kind is not None and academic_kind not in ACADEMIC_KIND_VALUES:
         raise ValueError(
             'metadata.academic_kind must be assignment, exam, revision, reading, or project'
         )
 
-    due_at = normalized.get('due_at')
-    if due_at not in (None, ''):
-        if not isinstance(due_at, str):
-            raise ValueError('metadata.due_at must be an ISO date or datetime')
-        due_at = due_at.strip()
-        try:
-            datetime.fromisoformat(due_at.replace('Z', '+00:00'))
-        except ValueError as exc:
-            raise ValueError('metadata.due_at must be an ISO date or datetime') from exc
-        normalized['due_at'] = due_at
+    for key in ("start_at", "due_at", "completed_at"):
+        _normalize_optional_iso_datetime(normalized, key)
 
     estimated_minutes = normalized.get('estimated_minutes')
     if estimated_minutes is not None:
         if isinstance(estimated_minutes, bool) or not isinstance(estimated_minutes, int) or estimated_minutes < 0:
             raise ValueError('metadata.estimated_minutes must be a non-negative integer')
+    actual_minutes = normalized.get("actual_minutes")
+    if actual_minutes is not None:
+        if isinstance(actual_minutes, bool) or not isinstance(actual_minutes, int) or actual_minutes < 0:
+            raise ValueError("metadata.actual_minutes must be a non-negative integer")
+
+    for key in ("blocked_reason", "acceptance_criteria", "pr_url", "branch_name"):
+        _normalize_optional_text(normalized, key)
 
     _normalize_optional_text(normalized, 'recurrence')
     for key in ('points_earned', 'points_possible'):
@@ -177,6 +231,10 @@ def normalize_task_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
 def normalize_entity_metadata(entity_type: EntityType | None, metadata: dict[str, Any] | None) -> dict[str, Any]:
     if entity_type == "subject_topic":
         normalized = normalize_subject_metadata(metadata)
+    elif entity_type == "project":
+        normalized = normalize_project_metadata(metadata)
+    elif entity_type == "milestone":
+        normalized = normalize_milestone_metadata(metadata)
     elif entity_type == "task":
         normalized = normalize_task_metadata(metadata)
     else:

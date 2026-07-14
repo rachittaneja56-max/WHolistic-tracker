@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -83,10 +83,19 @@ def parse_exam_date(value: object) -> date | None:
     return None
 
 
-def get_due_recall_items(db: Session, *, limit: int = 20, now: datetime | None = None) -> list[RecallDueItem]:
+def get_due_recall_items(
+    db: Session,
+    *,
+    limit: int = 20,
+    tag: str | None = None,
+    now: datetime | None = None,
+) -> list[RecallDueItem]:
     current_time = now or datetime.now(timezone.utc)
     latest_reviews = build_latest_review_map(db)
-    entities = db.scalars(select(Entity).order_by(Entity.created_at.desc())).all()
+    entity_query = select(Entity).order_by(Entity.created_at.desc())
+    if tag:
+        entity_query = entity_query.where(Entity.tags.any(tag))
+    entities = db.scalars(entity_query).all()
     due_items: list[RecallDueItem] = []
 
     for entity in entities:

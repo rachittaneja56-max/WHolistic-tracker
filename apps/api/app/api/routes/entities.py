@@ -126,6 +126,24 @@ def merge_metadata(current_metadata: dict[str, Any] | None, incoming_metadata: d
     return {**(current_metadata or {}), **incoming_metadata}
 
 
+def validate_parent_relationship(db: Session, entity_type: str | None, parent_id: uuid.UUID | None) -> None:
+    if entity_type == "project" and parent_id is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Projects must be top-level entities")
+    if parent_id is None:
+        if entity_type in {"milestone", "task"}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"{entity_type.title()} requires a parent")
+        return
+    parent = db.get(Entity, parent_id)
+    if parent is None or is_entity_deleted(parent):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Parent entity does not exist")
+    if entity_type == "milestone" and parent.type != "project":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Milestones must belong to a project")
+    if entity_type == "task" and parent.type not in {"project", "milestone", "subject_topic"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tasks must belong to a project, milestone, subject, or topic")
+    if entity_type == "subject_topic" and parent.type != "subject_topic":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Topics must belong to a subject")
+
+
 
 def try_refresh_entity_embedding(entity_id: uuid.UUID) -> Entity | None:
     try:
@@ -197,8 +215,7 @@ def list_archived_entities(limit: int = Query(default=200, ge=1, le=500), db: Se
 
 @router.post("", response_model=EntityRead, status_code=status.HTTP_201_CREATED)
 def create_entity(payload: EntityCreate, db: Session = Depends(get_db)) -> EntityRead:
-    if payload.parent_id is not None and (db.get(Entity, payload.parent_id) is None or is_entity_deleted(db.get(Entity, payload.parent_id))):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Parent entity does not exist")
+    validate_parent_relationship(db, payload.type, payload.parent_id)
 
     try:
         normalized_metadata = normalize_entity_metadata(payload.type, payload.metadata)
@@ -410,6 +427,9 @@ def update_entity(entity_id: uuid.UUID, payload: EntityUpdate, db: Session = Dep
 
     previous_status = (entity.entity_metadata or {}).get("status")
     next_entity_type = updates.get("type", entity.type)
+    next_parent_id = updates.get("parent_id", entity.parent_id)
+    if "parent_id" in updates or "type" in updates:
+        validate_parent_relationship(db, next_entity_type, next_parent_id)
 
     if "metadata" in updates:
         merged_metadata = merge_metadata(entity.entity_metadata, updates.pop("metadata"))

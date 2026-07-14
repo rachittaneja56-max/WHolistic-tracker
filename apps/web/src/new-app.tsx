@@ -1,8 +1,9 @@
-import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom"
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom"
 
 import { ToastProvider } from "@/components/toast-provider"
 import { AuthProvider, useAuth } from "@/features/auth/auth-context"
 import { RootLayout } from "@/layouts/root-layout"
+import { buildLoginUrl, getSafeReturnTo } from "@/lib/auth-routing"
 import { AllEntitiesPage } from "@/pages/all-entities-page"
 import { AnalystPage } from "@/pages/analyst-page"
 import { AssistantPage } from "@/pages/assistant-page"
@@ -11,8 +12,13 @@ import { ComprehensionChecksPage } from "@/pages/comprehension-checks-page"
 import { DsaPage } from "@/pages/dsa-page"
 import { EntityDetailPage } from "@/pages/entity-detail-page"
 import { GraphPage } from "@/pages/graph-page"
+import { LandingPage } from "@/pages/landing-page"
 import { LoginPage } from "@/pages/login-page"
+import { InvitePage } from "@/pages/invite-page"
+import { AdminPage } from "@/pages/admin-page"
+import { ResetPasswordPage } from "@/pages/reset-password-page"
 import { ProjectsPage } from "@/pages/projects-page"
+import { ProjectWorkspacePage } from "@/pages/project-workspace-page"
 import { RecallPage } from "@/pages/recall-page"
 import { SettingsPage } from "@/pages/settings-page"
 import { SubjectDetailPage } from "@/pages/subject-detail-page"
@@ -26,17 +32,53 @@ function LegacyEntityRedirect() {
   return <Navigate replace to={`/knowledge/entities/${entityId ?? ""}`} />
 }
 
-function AuthGate() {
-  const { session, loading, error } = useAuth()
-  if (loading) return <div className="flex min-h-screen items-center justify-center bg-zinc-950 font-mono text-sm text-zinc-500">Checking owner session...</div>
-  if (error) return <div className="flex min-h-screen items-center justify-center bg-zinc-950 p-6 text-sm text-red-300">{error}</div>
-  if (!session?.authenticated) return <LoginPage />
+function SessionLoading() {
+  return <div className="flex min-h-screen items-center justify-center bg-zinc-950 font-mono text-sm text-zinc-500">Checking session...</div>
+}
+
+function SessionError({ message }: { message: string }) {
+  return <div className="flex min-h-screen items-center justify-center bg-zinc-950 p-6 text-sm text-red-300">{message}</div>
+}
+
+function PublicHome() {
+  const { user } = useAuth()
+  return user ? <Navigate replace to="/app" /> : <LandingPage />
+}
+
+function PublicLogin() {
+  const { user, loading, error } = useAuth()
+  const [params] = useSearchParams()
+  if (loading) return <SessionLoading />
+  if (error) return <SessionError message={error} />
+  if (user) return <Navigate replace to={getSafeReturnTo(params.get("returnTo"))} />
+  return <LoginPage />
+}
+
+function RequireAuth() {
+  const { user, loading, error } = useAuth()
+  const location = useLocation()
+  if (loading) return <SessionLoading />
+  if (error) return <SessionError message={error} />
+  if (!user) {
+    return <Navigate replace to={buildLoginUrl(location.pathname, location.search, location.hash)} />
+  }
+  return <Outlet />
+}
+
+function AppRoutes() {
+  const { user } = useAuth()
   return <Routes>
-    <Route element={<RootLayout />}>
-      <Route index element={<TodayPage />} />
+    <Route path="/" element={<PublicHome />} />
+    <Route path="/login" element={<PublicLogin />} />
+    <Route path="/invite" element={<InvitePage />} />
+    <Route path="/reset-password" element={<ResetPasswordPage />} />
+    <Route element={<RequireAuth />}>
+      <Route element={<RootLayout />}>
+      <Route path="app" element={<TodayPage />} />
       <Route path="capture" element={<CapturePage />} />
       <Route path="trackers/dsa" element={<DsaPage />} />
       <Route path="trackers/projects" element={<ProjectsPage />} />
+      <Route path="trackers/projects/:projectId" element={<ProjectWorkspacePage />} />
       <Route path="trackers/subjects" element={<UpgradedSubjectsPage />} />
       <Route path="trackers/subjects/:subjectId" element={<SubjectDetailPage />} />
       <Route path="knowledge/entities" element={<AllEntitiesPage />} />
@@ -51,6 +93,7 @@ function AuthGate() {
       <Route path="agents/ideas" element={<Navigate replace to="/agents/assistant?view=ideas" />} />
       <Route path="agents/analyst" element={<AnalystPage />} />
       <Route path="settings" element={<SettingsPage />} />
+      <Route path="admin" element={user?.role === "admin" || user?.role === "root_admin" ? <AdminPage /> : <Navigate replace to="/app" />} />
       <Route path="insights/weekly" element={<WeeklyDigestPage />} />
       <Route path="dsa" element={<Navigate replace to="/trackers/dsa" />} />
       <Route path="projects" element={<Navigate replace to="/trackers/projects" />} />
@@ -67,12 +110,13 @@ function AuthGate() {
       <Route path="analyst" element={<Navigate replace to="/agents/analyst" />} />
       <Route path="weekly" element={<Navigate replace to="/insights/weekly" />} />
       <Route path="comprehension-debt" element={<Navigate replace to="/knowledge/recall/comprehension" />} />
-      <Route path="*" element={<Navigate replace to="/" />} />
+      </Route>
     </Route>
+    <Route path="*" element={<Navigate replace to={user ? "/app" : "/"} />} />
   </Routes>
 }
 
 export default function NewApp() {
-  return <BrowserRouter><AuthProvider><ToastProvider><AuthGate /></ToastProvider></AuthProvider></BrowserRouter>
+  return <BrowserRouter><AuthProvider><ToastProvider><AppRoutes /></ToastProvider></AuthProvider></BrowserRouter>
 }
 

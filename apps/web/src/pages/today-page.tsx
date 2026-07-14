@@ -32,10 +32,10 @@ function getErrorMessage(error: unknown) {
 }
 
 function getStatusVariant(status: string | null): "default" | "success" | "warning" {
-  if (status === "done") {
+  if (status === "done" || status === "completed") {
     return "success"
   }
-  if (status === "in_progress") {
+  if (status === "in_progress" || status === "blocked" || status === "in_review") {
     return "warning"
   }
   return "default"
@@ -272,6 +272,27 @@ export function TodayPage() {
 
     return [
       {
+        title: "Projects Needing Attention",
+        description: "Explainable health signals from overdue, blocked, or stale project work.",
+        content:
+          summary.project_attention.length > 0 ? (
+            <div className="space-y-3">
+              {summary.project_attention.map((row) => (
+                <Link key={row.project.id} to={`/trackers/projects/${row.project.id}`} className="block rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 transition-colors hover:border-blue-500/40">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm text-zinc-100">{row.project.title ?? "Untitled project"}</p>
+                    <Badge variant="warning">{row.health.replace(/_/g, " ")}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-zinc-400">{row.health_reasons[0] ?? "Project health needs review."}</p>
+                  <p className="mt-2 font-mono text-xs text-zinc-500">{row.progress_percent}% complete · {row.blocked_task_count} blocked · {row.overdue_task_count} overdue</p>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-500">No projects need attention right now.</p>
+          ),
+      },
+      {
         title: "Recent Activity",
         description: "Recent session records created by entity creation, status changes, links, recall events, and webhook activity.",
         content:
@@ -281,7 +302,7 @@ export function TodayPage() {
                 <div key={session.id} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3">
                   <p className="text-sm text-zinc-100">{String(session.meta.entity_title ?? session.meta.repo_full_name ?? "Untitled activity")}</p>
                   <p className="mt-1 font-mono text-xs uppercase tracking-[0.18em] text-zinc-500">
-                    {session.action ?? "activity"} � {formatEntityDate(session.date)}
+                    {session.action ?? "activity"} · {formatEntityDate(session.date)}
                   </p>
                 </div>
               ))}
@@ -292,14 +313,14 @@ export function TodayPage() {
       },
       {
         title: "Open Tasks",
-        description: "Tasks still marked as todo or in progress.",
+        description: "Open work ranked by overdue state, blockers, priority, and deadline.",
         content:
           summary.open_tasks.length > 0 ? (
             <div className="space-y-3">
               {summary.open_tasks.map((task) => {
                 const status = getEntityStatus(task)
                 return (
-                  <Link key={task.id} to="/projects" className="block rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 transition-colors hover:border-blue-500/40">
+                  <Link key={task.id} to={`/knowledge/entities/${task.id}`} className="block rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 transition-colors hover:border-blue-500/40">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm text-zinc-100">{task.title ?? "Untitled task"}</p>
                       <Badge variant={getStatusVariant(status)}>{status ?? "todo"}</Badge>
@@ -536,7 +557,7 @@ export function TodayPage() {
                         <div className="space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <Badge variant={getGithubActionVariant(item.action)}>{getGithubActionLabel(item.action)}</Badge>
-                            <span className="font-mono text-xs text-zinc-500">{buildGithubSubtitle(item)} � {formatEntityDate(item.date)}</span>
+                            <span className="font-mono text-xs text-zinc-500">{buildGithubSubtitle(item)} · {formatEntityDate(item.date)}</span>
                           </div>
                           <p className="text-sm font-medium text-zinc-100">{item.title ?? item.repo_full_name ?? "GitHub activity"}</p>
                           <p className="text-sm text-zinc-300">{item.message ?? "No summary available."}</p>

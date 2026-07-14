@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import secrets
 from datetime import datetime, timezone
 from typing import Literal
 
 from cryptography.fernet import Fernet, InvalidToken
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -24,6 +26,7 @@ from app.schemas.settings import (
 
 AI_SETTING_KEY = "ai"
 GITHUB_SETTING_KEY = "github"
+WEB_SEARCH_SETTING_KEY = "web_search"
 PROVIDERS = ("openai", "gemini", "mistral")
 GITHUB_WEBHOOK_EVENTS = ["Pull requests", "Pushes", "Workflow runs", "Check runs"]
 
@@ -39,13 +42,20 @@ def _ai_defaults() -> dict:
 
 
 def _github_defaults() -> dict:
-    return {"enabled": bool(settings.github_integration_enabled), "keys": {}}
+    return {"enabled": bool(settings.github_integration_enabled), "webhook_id": secrets.token_urlsafe(18), "keys": {}}
+
+
+def _web_search_defaults() -> dict:
+    return {"enabled": False, "provider": "tavily", "keys": {}}
 
 
 def _row(db: Session, key: str, defaults: dict) -> AppSetting:
-    row = db.get(AppSetting, key)
+    user_id = db.info.get("user_id")
+    if user_id is None:
+        raise ValueError("User context is required for private settings.")
+    row = db.get(AppSetting, (user_id, key))
     if row is None:
-        row = AppSetting(key=key, value=defaults)
+        row = AppSetting(user_id=user_id, key=key, value=defaults)
         db.add(row)
         db.commit()
         db.refresh(row)
@@ -58,6 +68,8 @@ def _merged_value(db: Session, key: str, defaults: dict) -> dict:
     for field in ("enabled", "provider", "model_mode"):
         if field in saved:
             value[field] = saved[field]
+    if "webhook_id" in defaults and saved.get("webhook_id"):
+        value["webhook_id"] = saved["webhook_id"]
     if "models" in defaults:
         value["models"].update(saved.get("models") or {})
     value["keys"].update(saved.get("keys") or {})
@@ -65,28 +77,29 @@ def _merged_value(db: Session, key: str, defaults: dict) -> dict:
 
 
 def _save(db: Session, key: str, value: dict) -> None:
-    row = _row(db, key, _ai_defaults() if key == AI_SETTING_KEY else _github_defaults())
+    defaults = {AI_SETTING_KEY: _ai_defaults, GITHUB_SETTING_KEY: _github_defaults, WEB_SEARCH_SETTING_KEY: _web_search_defaults}[key]()
+    row = _row(db, key, defaults)
     row.value = value
     row.updated_at = datetime.now(timezone.utc)
     db.commit()
 
 
 def _fernet() -> Fernet:
-    secret = (settings.app_session_secret or "").strip()
+    secret = (settings.app_encryption_secret or "").strip()
     if not secret:
-        raise ValueError("APP_SESSION_SECRET is required to store credentials.")
+        raise ValueError("APP_ENCRYPTION_SECRET is required to store credentials.")
     key = base64.urlsafe_b64encode(hashlib.sha256(("personal-dev-kg:settings:" + secret).encode()).digest())
     return Fernet(key)
 
 
-def _get_credential(value: dict, name: str, environment_value: str | None) -> str:
+def _get_credential(value: dict, name: str) -> str:
     encrypted = value["keys"].get(name)
     if encrypted:
         try:
             return _fernet().decrypt(encrypted.encode()).decode()
         except (InvalidToken, ValueError):
             return ""
-    return (environment_value or "").strip()
+    return ""
 
 
 def _set_credential(db: Session, key: str, value: dict, name: str, secret: str) -> None:
@@ -107,8 +120,12 @@ def _github_value(db: Session) -> dict:
     return _merged_value(db, GITHUB_SETTING_KEY, _github_defaults())
 
 
+def _web_search_value(db: Session) -> dict:
+    return _merged_value(db, WEB_SEARCH_SETTING_KEY, _web_search_defaults())
+
+
 def get_ai_api_key(db: Session, provider: AiProviderName) -> str:
-    return _get_credential(_ai_value(db), provider, getattr(settings, f"{provider}_api_key"))
+    return _get_credential(_ai_value(db), provider)
 
 
 def update_ai_settings(db: Session, payload: AiSettingUpdate) -> None:
@@ -138,8 +155,37 @@ def get_github_enabled(db: Session) -> bool:
 
 
 def get_github_credential(db: Session, name: GithubCredentialName) -> str:
-    environment = settings.github_access_token if name == "access_token" else settings.github_webhook_secret
-    return _get_credential(_github_value(db), name, environment)
+    return _get_credential(_github_value(db), name)
+
+
+def get_web_search_credential(db: Session) -> str:
+    return _get_credential(_web_search_value(db), "api_key")
+
+
+def update_web_search_enabled(db: Session, enabled: bool) -> None:
+    value = _web_search_value(db)
+    value["enabled"] = enabled
+    _save(db, WEB_SEARCH_SETTING_KEY, value)
+
+
+def set_web_search_credential(db: Session, api_key: str) -> None:
+    _set_credential(db, WEB_SEARCH_SETTING_KEY, _web_search_value(db), "api_key", api_key)
+
+
+def remove_web_search_credential(db: Session) -> None:
+    _remove_credential(db, WEB_SEARCH_SETTING_KEY, _web_search_value(db), "api_key")
+
+
+def consume_ai_request(db: Session) -> None:
+    user_id = db.info.get("user_id")
+    if user_id is None:
+        raise ValueError("User context is required for AI requests")
+    used = db.execute(text("SELECT COALESCE((SELECT ai_requests FROM usage_daily WHERE user_id = :user_id AND date = current_date), 0)"), {"user_id": user_id}).scalar_one()
+    limit = db.execute(text("SELECT COALESCE((SELECT max_ai_requests_per_day FROM user_quotas WHERE user_id = :user_id), 200)"), {"user_id": user_id}).scalar_one()
+    if used >= limit:
+        raise ValueError("Daily AI request quota exceeded")
+    db.execute(text("INSERT INTO usage_daily (id, user_id, date, ai_requests) VALUES (gen_random_uuid(), :user_id, current_date, 1) ON CONFLICT (user_id, date) DO UPDATE SET ai_requests = usage_daily.ai_requests + 1"), {"user_id": user_id})
+    db.commit()
 
 
 def update_github_enabled(db: Session, enabled: bool) -> None:
@@ -156,9 +202,9 @@ def remove_github_credential(db: Session, name: GithubCredentialName) -> None:
     _remove_credential(db, GITHUB_SETTING_KEY, _github_value(db), name)
 
 
-def get_github_webhook_url() -> str:
+def get_github_webhook_url(db: Session) -> str:
     origin = (settings.api_public_origin or f"http://localhost:{settings.api_port}").rstrip("/")
-    return f"{origin}/webhooks/github"
+    return f"{origin}/webhooks/github/{_github_value(db)['webhook_id']}"
 
 
 def get_settings_status(db: Session) -> SettingsStatusRead:
@@ -179,8 +225,8 @@ def get_settings_status(db: Session) -> SettingsStatusRead:
 
     return SettingsStatusRead(
         ai=AiStatusRead(enabled=enabled, provider=active, model_mode=ai["model_mode"], openai_configured=providers["openai"].configured, providers=providers, provider_ready=ready, fast_model=selected.fast_model, smart_model=selected.smart_model, disabled_reason=reason),
-        github=GithubStatusRead(enabled=github_enabled, webhook_secret_configured=webhook_configured, access_token_configured=token_configured, ready=github_ready, disabled_reason=github_reason, webhook_url=get_github_webhook_url(), webhook_events=GITHUB_WEBHOOK_EVENTS),
-        web_search=WebSearchStatusRead(enabled=settings.web_search_enabled, provider=settings.web_search_provider if settings.web_search_enabled else None, api_key_configured=bool((settings.tavily_api_key or "").strip())),
+        github=GithubStatusRead(enabled=github_enabled, webhook_secret_configured=webhook_configured, access_token_configured=token_configured, ready=github_ready, disabled_reason=github_reason, webhook_url=get_github_webhook_url(db), webhook_events=GITHUB_WEBHOOK_EVENTS),
+        web_search=WebSearchStatusRead(enabled=bool(_web_search_value(db)["enabled"]), provider="tavily", api_key_configured=bool(get_web_search_credential(db))),
     )
 
 

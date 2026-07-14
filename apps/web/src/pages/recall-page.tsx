@@ -1,9 +1,10 @@
-﻿import { useEffect, useMemo, useState } from "react"
-import { Link, useOutletContext } from "react-router-dom"
+import { useEffect, useMemo, useState } from "react"
+import { Link, useOutletContext, useSearchParams } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -24,6 +25,12 @@ function getConfidenceVariant(score: number): "success" | "warning" | "danger" {
   return "danger"
 }
 
+type RecallQueueFilter = "all" | "urgent" | "exam"
+
+function getRecallDraftKey(entityId: string) {
+  return `personal-dev-kg:recall-draft:${entityId}`
+}
+
 function getRecallScoreVariant(score: number): "success" | "warning" | "danger" {
   if (score >= 4) {
     return "success"
@@ -36,6 +43,8 @@ function getRecallScoreVariant(score: number): "success" | "warning" | "danger" 
 
 export function RecallPage() {
   const { refreshEntities } = useOutletContext<EntitiesLayoutContext>()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedTagFilter = searchParams.get("tag") ?? ""
   const [dueItems, setDueItems] = useState<RecallDueItem[]>([])
   const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null)
   const [selectedItem, setSelectedItem] = useState<RecallDueItem | null>(null)
@@ -43,18 +52,21 @@ export function RecallPage() {
   const [selfScore, setSelfScore] = useState("")
   const [result, setResult] = useState<RecallGradeResult | null>(null)
   const [showOriginalContent, setShowOriginalContent] = useState(false)
+  const [queueQuery, setQueueQuery] = useState("")
+  const [queueFilter, setQueueFilter] = useState<RecallQueueFilter>("all")
+  const [completedCount, setCompletedCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const fallbackMode = agentStatus?.provider_ready === false
+  const fallbackMode = agentStatus?.provider_ready !== true
 
   async function loadRecallState() {
     setIsLoading(true)
     setError(null)
 
-    const [dueResult, agentResult] = await Promise.allSettled([getRecallDue(), getAgentStatus()])
+    const [dueResult, agentResult] = await Promise.allSettled([getRecallDue(100, selectedTagFilter || undefined), getAgentStatus()])
 
     if (dueResult.status === "fulfilled") {
       setDueItems(dueResult.value)
@@ -74,7 +86,27 @@ export function RecallPage() {
 
   useEffect(() => {
     void loadRecallState()
-  }, [])
+  }, [selectedTagFilter])
+
+  const filteredDueItems = useMemo(() => {
+    const normalizedQuery = queueQuery.trim().toLowerCase()
+    return dueItems.filter((item) => {
+      if (selectedTagFilter && !item.entity.tags.includes(selectedTagFilter)) {
+        return false
+      }
+      if (queueFilter === "urgent" && item.due_score < 3) {
+        return false
+      }
+      if (queueFilter === "exam" && (item.days_until_exam === null || item.days_until_exam > 7)) {
+        return false
+      }
+      if (!normalizedQuery) {
+        return true
+      }
+      const searchable = [item.entity.title, item.entity.type, ...item.entity.tags].filter(Boolean).join(" ").toLowerCase()
+      return searchable.includes(normalizedQuery)
+    })
+  }, [dueItems, queueFilter, queueQuery, selectedTagFilter])
 
   const queueSummary = useMemo(() => {
     const dueNow = dueItems.filter((item) => item.days_until_exam !== null && item.days_until_exam <= 7).length
@@ -82,8 +114,26 @@ export function RecallPage() {
       total: dueItems.length,
       urgent: dueItems.filter((item) => item.due_score >= 3).length,
       examSoon: dueNow,
+      visible: filteredDueItems.length,
     }
-  }, [dueItems])
+  }, [dueItems, filteredDueItems.length])
+
+  const nextItem = useMemo(
+    () => filteredDueItems.find((item) => item.entity.id !== selectedItem?.entity.id) ?? null,
+    [filteredDueItems, selectedItem?.entity.id],
+  )
+
+  useEffect(() => {
+    if (!selectedItem || result) {
+      return
+    }
+    const key = getRecallDraftKey(selectedItem.entity.id)
+    if (answer.trim()) {
+      window.localStorage.setItem(key, answer)
+    } else {
+      window.localStorage.removeItem(key)
+    }
+  }, [answer, result, selectedItem])
 
   async function handleSubmitReview() {
     if (!selectedItem) {
@@ -106,7 +156,9 @@ export function RecallPage() {
         answer: answer.trim(),
         self_score: fallbackMode ? Number(selfScore) : undefined,
       })
+      window.localStorage.removeItem(getRecallDraftKey(selectedItem.entity.id))
       setResult(gradeResult)
+      setCompletedCount((current) => current + 1)
       setShowOriginalContent(false)
       await Promise.all([loadRecallState(), refreshEntities()])
     } catch (gradeError) {
@@ -118,11 +170,17 @@ export function RecallPage() {
 
   function resetReviewState(nextItem: RecallDueItem | null = null) {
     setSelectedItem(nextItem)
-    setAnswer("")
+    setAnswer(nextItem ? window.localStorage.getItem(getRecallDraftKey(nextItem.entity.id)) ?? "" : "")
     setSelfScore("")
     setResult(null)
     setShowOriginalContent(false)
     setSubmitError(null)
+  }
+
+  function clearTagFilter() {
+    const next = new URLSearchParams(searchParams)
+    next.delete("tag")
+    setSearchParams(next)
   }
 
   if (isLoading) {
@@ -158,7 +216,10 @@ export function RecallPage() {
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Recall Queue</CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>Recall Queue</CardTitle>
+              {completedCount > 0 ? <Badge variant="success">{completedCount} reviewed</Badge> : null}
+            </div>
             <CardDescription>Content stays hidden until after grading. Due items lean amber because this is about fading knowledge, not finished work.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -179,27 +240,54 @@ export function RecallPage() {
 
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-500">
               {fallbackMode
-                ? "AI grading is unavailable, so this screen uses self-grading while still storing reviews and updating confidence."
+                ? "AI grading is unavailable or its status is unknown, so this screen uses self-grading while still storing reviews and updating confidence."
                 : "AI grading is available. The grader uses only the hidden entity context and your answer."}
+            </div>
+
+            {selectedTagFilter ? (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-500/20 bg-blue-500/5 px-4 py-3">
+                <p className="text-sm text-blue-200">Filtered to #{selectedTagFilter}</p>
+                <Button type="button" size="sm" variant="ghost" onClick={clearTagFilter}>Clear</Button>
+              </div>
+            ) : null}
+
+            <div className="grid gap-3">
+              <Input value={queueQuery} onChange={(event) => setQueueQuery(event.target.value)} placeholder="Search review queue..." aria-label="Search review queue" />
+              <Select value={queueFilter} onValueChange={(value) => setQueueFilter(value as RecallQueueFilter)}>
+                <SelectTrigger aria-label="Filter recall queue"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All due items</SelectItem>
+                  <SelectItem value="urgent">Urgent only</SelectItem>
+                  <SelectItem value="exam">Exam within 7 days</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-zinc-500">Showing {queueSummary.visible} of {queueSummary.total} due items.</p>
             </div>
 
             {dueItems.length === 0 ? (
               <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-950 px-4 py-6 text-sm text-zinc-500">
                 No review items are due right now.
               </div>
+            ) : filteredDueItems.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-950 px-4 py-6 text-sm text-zinc-500">
+                No due items match the current queue filters.
+              </div>
             ) : null}
 
             <div className="space-y-3">
-              {dueItems.map((item) => (
+              {filteredDueItems.map((item) => (
                 <button
                   key={item.entity.id}
                   type="button"
                   onClick={() => resetReviewState(item)}
-                  className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4 text-left transition-colors hover:border-amber-500/40"
+                  className={`w-full rounded-lg border bg-zinc-950 px-4 py-4 text-left transition-colors hover:border-amber-500/40 ${selectedItem?.entity.id === item.entity.id ? "border-amber-500/70 ring-1 ring-amber-500/30" : "border-zinc-800"}`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-medium text-zinc-100">{item.entity.title ?? "Untitled entity"}</p>
-                    <Badge variant={getConfidenceVariant(item.entity.confidence_score)}>{item.entity.confidence_score.toFixed(2)}</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="warning">due {item.due_score.toFixed(1)}</Badge>
+                      <Badge variant={getConfidenceVariant(item.entity.confidence_score)}>{item.entity.confidence_score.toFixed(2)}</Badge>
+                    </div>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Badge>{item.entity.type ?? "unknown"}</Badge>
@@ -229,7 +317,12 @@ export function RecallPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {!selectedItem ? <p className="text-sm text-zinc-500">Choose an entity from the recall queue to begin.</p> : null}
+          {!selectedItem ? (
+            <div className="space-y-4">
+              <p className="text-sm text-zinc-500">Choose an entity from the recall queue to begin.</p>
+              {filteredDueItems[0] ? <Button type="button" onClick={() => resetReviewState(filteredDueItems[0])}>Start highest-priority review</Button> : null}
+            </div>
+          ) : null}
 
           {selectedItem ? (
             <>
@@ -259,7 +352,9 @@ export function RecallPage() {
                       onChange={(event) => setAnswer(event.target.value)}
                       placeholder="Write the idea in your own words without opening the original content."
                       className="min-h-[220px]"
+                      maxLength={12000}
                     />
+                    <p className="text-right font-mono text-xs text-zinc-500">{answer.trim() ? answer.trim().split(/\s+/).length : 0} words · {answer.length}/12000</p>
                   </div>
 
                   {fallbackMode ? (
@@ -330,11 +425,11 @@ export function RecallPage() {
                     <Button type="button" variant="outline" onClick={() => setShowOriginalContent((current) => !current)}>
                       {showOriginalContent ? "Hide original content" : "Reveal original content"}
                     </Button>
-                    <Button type="button" onClick={() => resetReviewState(dueItems[0] ?? null)}>
-                      Review next item
+                    <Button type="button" onClick={() => resetReviewState(nextItem)}>
+                      {nextItem ? "Review next item" : "Finish session"}
                     </Button>
                     <Button asChild type="button" variant="ghost">
-                      <Link to={`/entities/${selectedItem.entity.id}`}>Open entity detail</Link>
+                      <Link to={`/knowledge/entities/${selectedItem.entity.id}`}>Open entity detail</Link>
                     </Button>
                   </div>
 

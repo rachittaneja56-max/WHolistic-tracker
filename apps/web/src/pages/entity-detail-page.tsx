@@ -4,6 +4,7 @@ import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -14,6 +15,7 @@ import { EntityPropertiesEditor } from "@/features/entities/components/entity-pr
 import type { EntitiesLayoutContext } from "@/features/entities/layout-context"
 import {
   createLink,
+  deleteLink,
   getEntity,
   getEntityConnections,
   getLinkCandidates,
@@ -32,6 +34,39 @@ function getLoadErrorMessage(error: unknown) {
 
 function formatScore(value: number) {
   return value.toFixed(4)
+}
+
+const relationLabels: Record<RelationType, string> = {
+  structural_analogy: "is structurally analogous to",
+  prerequisite: "is a prerequisite for",
+  used_in: "is used in",
+  reminds_me_of: "reminds me of",
+  depends_on: "depends on",
+  blocks: "blocks",
+  implements: "implements",
+  evidence_for: "is evidence for",
+}
+
+function entityToLinkTarget(entity: Entity): LinkCandidate {
+  const content = (entity.content ?? "").trim().split(/\s+/).join(" ")
+  return {
+    id: entity.id,
+    title: entity.title,
+    type: entity.type,
+    tags: entity.tags,
+    preview: content ? content.slice(0, 180) : "No content preview.",
+    distance: 1,
+    similarity: 0,
+  }
+}
+
+function connectionStatement(currentTitle: string | null, connection: EntityConnection) {
+  const current = currentTitle ?? "This entity"
+  const counterpart = connection.entity_title ?? "Untitled entity"
+  const relation = connection.relation_type ? relationLabels[connection.relation_type] : "is connected to"
+  return connection.direction === "outgoing"
+    ? `${current} ${relation} ${counterpart}`
+    : `${counterpart} ${relation} ${current}`
 }
 
 function formatConnectionDate(value: string | null) {
@@ -79,14 +114,16 @@ export function EntityDetailPage() {
   const params = useParams()
   const navigate = useNavigate()
   const entityId = params.entityId
-  const { upsertEntityInList, refreshEntities } = useOutletContext<EntitiesLayoutContext>()
+  const { entities, isEntitiesLoading, upsertEntityInList, refreshEntities } = useOutletContext<EntitiesLayoutContext>()
   const [entity, setEntity] = useState<Entity | null>(null)
   const [draftContent, setDraftContent] = useState("")
   const [linkCandidates, setLinkCandidates] = useState<LinkCandidate[]>([])
   const [connections, setConnections] = useState<EntityConnection[]>([])
-  const [selectedCandidate, setSelectedCandidate] = useState<LinkCandidate | null>(null)
+  const [selectedTarget, setSelectedTarget] = useState<LinkCandidate | null>(null)
   const [relationType, setRelationType] = useState<RelationType | "">("")
   const [linkExplanation, setLinkExplanation] = useState("")
+  const [targetQuery, setTargetQuery] = useState("")
+  const [deletingLinkId, setDeletingLinkId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isCandidatesLoading, setIsCandidatesLoading] = useState(false)
   const [isConnectionsLoading, setIsConnectionsLoading] = useState(false)
@@ -255,6 +292,22 @@ export function EntityDetailPage() {
     return draftContent !== (entity.content ?? "")
   }, [draftContent, entity])
 
+  const manualTargets = useMemo(() => {
+    const query = targetQuery.trim().toLowerCase()
+    if (!entity || !query) {
+      return []
+    }
+
+    const connectedIds = new Set(connections.map((connection) => connection.entity_id))
+    return entities
+      .filter((candidate) => candidate.id !== entity.id && !connectedIds.has(candidate.id))
+      .filter((candidate) => {
+        const searchable = [candidate.title, candidate.type, ...(candidate.tags ?? [])].filter(Boolean).join(" ").toLowerCase()
+        return searchable.includes(query)
+      })
+      .slice(0, 8)
+  }, [connections, entities, entity, targetQuery])
+
   async function handleRefreshEmbedding() {
     if (!entityId) {
       return
@@ -296,7 +349,7 @@ export function EntityDetailPage() {
   }
 
   async function handleCreateLink() {
-    if (!entity || !selectedCandidate) {
+    if (!entity || !selectedTarget) {
       return
     }
 
@@ -315,7 +368,7 @@ export function EntityDetailPage() {
     try {
       await createLink({
         from_id: entity.id,
-        to_id: selectedCandidate.id,
+        to_id: selectedTarget.id,
         relation_type: relationType,
         explanation: linkExplanation.trim(),
         status: "confirmed",
@@ -323,10 +376,11 @@ export function EntityDetailPage() {
 
       const refreshedConnections = await getEntityConnections(entity.id)
       setConnections(refreshedConnections)
-      setLinkCandidates((currentCandidates) => currentCandidates.filter((candidate) => candidate.id !== selectedCandidate.id))
-      setSelectedCandidate(null)
+      setLinkCandidates((currentCandidates) => currentCandidates.filter((candidate) => candidate.id !== selectedTarget.id))
+      setSelectedTarget(null)
       setRelationType("")
       setLinkExplanation("")
+      setTargetQuery("")
     } catch (createError) {
       setLinkActionError(getLoadErrorMessage(createError))
     } finally {
@@ -334,8 +388,29 @@ export function EntityDetailPage() {
     }
   }
 
+  async function handleDeleteLink(connection: EntityConnection) {
+    const counterpart = connection.entity_title ?? "this entity"
+    if (!window.confirm(`Remove the connection to "${counterpart}"? This cannot be undone.`)) {
+      return
+    }
+
+    setDeletingLinkId(connection.link_id)
+    setConnectionsError(null)
+    try {
+      await deleteLink(connection.link_id)
+      setConnections((current) => current.filter((item) => item.link_id !== connection.link_id))
+      if (entity?.has_embedding) {
+        setLinkCandidates(await getLinkCandidates(entity.id))
+      }
+    } catch (deleteError) {
+      setConnectionsError(getLoadErrorMessage(deleteError))
+    } finally {
+      setDeletingLinkId(null)
+    }
+  }
+
   function closeLinkModal() {
-    setSelectedCandidate(null)
+    setSelectedTarget(null)
     setRelationType("")
     setLinkExplanation("")
     setLinkActionError(null)
@@ -421,6 +496,38 @@ export function EntityDetailPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle className="text-zinc-100">Create a connection</CardTitle>
+            <CardDescription>Search all saved entities by title, type, or tag. Semantic suggestions remain available below when embeddings exist.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Label htmlFor="connection-target">Connect this entity to</Label>
+            <Input
+              id="connection-target"
+              value={targetQuery}
+              onChange={(event) => setTargetQuery(event.target.value)}
+              placeholder="Search entities, types, or tags"
+            />
+            {isEntitiesLoading ? <p className="text-sm text-zinc-500">Loading entities...</p> : null}
+            {!isEntitiesLoading && targetQuery.trim() && manualTargets.length === 0 ? (
+              <p className="text-sm text-zinc-500">No unconnected entities match this search.</p>
+            ) : null}
+            {!targetQuery.trim() ? <p className="text-sm text-zinc-500">Start typing to choose any entity; an embedding is not required.</p> : null}
+            {manualTargets.map((target) => (
+              <div key={target.id} className="flex flex-col gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-zinc-100">{target.title ?? "Untitled entity"}</p>
+                  <p className="mt-1 text-xs text-zinc-500">{target.type ?? "unknown"}{target.tags.length ? ` · ${target.tags.join(", ")}` : ""}</p>
+                </div>
+                <Button type="button" size="sm" onClick={() => setSelectedTarget(entityToLinkTarget(target))}>
+                  Connect
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle className="text-zinc-100">Suggested connections</CardTitle>
             <CardDescription>
               Similar entities. These are embedding-based candidates. You decide whether a real connection exists.
@@ -455,9 +562,9 @@ export function EntityDetailPage() {
                         </div>
                         <div className="flex gap-2 lg:justify-end">
                           <Button asChild size="sm" variant="outline">
-                            <Link to={`/entities/${candidate.id}`}>Open</Link>
+                            <Link to={`/knowledge/entities/${candidate.id}`}>Open</Link>
                           </Button>
-                          <Button size="sm" onClick={() => setSelectedCandidate(candidate)}>
+                          <Button size="sm" onClick={() => setSelectedTarget(candidate)}>
                             Create link
                           </Button>
                         </div>
@@ -484,10 +591,16 @@ export function EntityDetailPage() {
             {!isConnectionsLoading && !connectionsError
               ? connections.map((connection) => (
                   <div key={connection.link_id} className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4">
-                    <p className="text-sm leading-7 text-zinc-300">{connection.explanation ?? "No explanation provided."}</p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <p className="text-sm font-medium text-zinc-100">{connectionStatement(entity.title, connection)}</p>
+                      <Button type="button" size="sm" variant="destructive" onClick={() => void handleDeleteLink(connection)} disabled={deletingLinkId === connection.link_id}>
+                        {deletingLinkId === connection.link_id ? "Removing..." : "Remove"}
+                      </Button>
+                    </div>
+                    <p className="mt-2 text-sm leading-7 text-zinc-300">{connection.explanation ?? "No explanation provided."}</p>
                     <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-2">
-                        <Link to={`/entities/${connection.entity_id}`} className="text-sm font-medium text-zinc-100 hover:text-blue-400">
+                        <Link to={`/knowledge/entities/${connection.entity_id}`} className="text-sm font-medium text-zinc-100 hover:text-blue-400">
                           {connection.entity_title ?? "Untitled entity"}
                         </Link>
                         <div className="flex flex-wrap gap-2">
@@ -513,14 +626,14 @@ export function EntityDetailPage() {
         </Card>
       </div>
 
-      {selectedCandidate ? (
+      {selectedTarget ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
           <Card className="w-full max-w-2xl">
             <CardHeader>
               <CardTitle>Create confirmed link</CardTitle>
               <CardDescription>
                 You are confirming a real relationship between <span className="text-zinc-100">{entity.title ?? "this entity"}</span> and{" "}
-                <span className="text-zinc-100">{selectedCandidate.title ?? "this candidate"}</span>.
+                <span className="text-zinc-100">{selectedTarget.title ?? "this candidate"}</span>.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -533,11 +646,16 @@ export function EntityDetailPage() {
                   <SelectContent>
                     {relationTypeOptions.map((option) => (
                       <SelectItem key={option} value={option}>
-                        {option}
+                        {relationLabels[option]}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {relationType ? (
+                  <p className="text-sm text-zinc-400">
+                    {entity.title ?? "This entity"} {relationLabels[relationType]} {selectedTarget.title ?? "the selected entity"}.
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-2">

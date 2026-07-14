@@ -299,7 +299,7 @@ export function AssistantWorkspace({ sectionControl }: { sectionControl?: ReactN
       })}
     </div>
 
-    <div className="grid min-h-[calc(100vh-9.5rem)] overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 xl:h-[calc(100vh-7.5rem)] xl:min-h-[640px] xl:grid-cols-[250px_minmax(0,1fr)_300px]">
+    <div className="grid min-h-[calc(100dvh-9.5rem)] overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 xl:h-[calc(100dvh-7.5rem)] xl:min-h-[640px] xl:grid-cols-[250px_minmax(0,1fr)_300px]">
       <aside className={cn("min-h-0 flex-col border-zinc-800 bg-zinc-900/60 xl:flex xl:border-r", tab === "history" ? "flex" : "hidden")}>
         <header className="flex items-center justify-between border-b border-zinc-800 p-3"><div><h2 className="text-sm font-medium text-zinc-100">Conversations</h2><p className="mt-0.5 text-xs text-zinc-500">Your assistant history</p></div><Button size="sm" variant="ghost" onClick={() => void newChat()} aria-label="New conversation"><Plus className="h-4 w-4" /></Button></header>
         <div className="min-h-0 flex-1 overflow-y-auto p-2">

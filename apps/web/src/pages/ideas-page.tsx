@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import type { EntitiesLayoutContext } from "@/features/entities/layout-context"
-import { approveIdea, validateIdea, type IdeaValidationResult } from "@/lib/api"
+import { approveIdea, createIdeaProjectDraft, validateIdea, type IdeaValidationResult } from "@/lib/api"
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to validate idea."
@@ -22,6 +22,7 @@ export function IdeasPage({ sectionControl }: { sectionControl?: import("react")
   const [result, setResult] = useState<IdeaValidationResult | null>(null)
   const [isValidating, setIsValidating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isCreatingProject, setIsCreatingProject] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -71,6 +72,27 @@ export function IdeasPage({ sectionControl }: { sectionControl?: import("react")
       setSaveError(getErrorMessage(approvalError))
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  async function handleCreateProject() {
+    if (!result) return
+    setIsCreatingProject(true)
+    setSaveError(null)
+    try {
+      const created = await createIdeaProjectDraft({
+        idea: idea.trim(),
+        validation: result,
+        title: saveTitle.trim() || result.idea_summary,
+        tags: saveTags.split(",").map((tag) => tag.trim()).filter(Boolean),
+      })
+      const createdEntities = [created.idea, created.project, ...created.milestones, ...created.tasks]
+      createdEntities.forEach(addEntityToList)
+      navigate(`/trackers/projects/${created.project.id}`)
+    } catch (creationError) {
+      setSaveError(getErrorMessage(creationError))
+    } finally {
+      setIsCreatingProject(false)
     }
   }
 
@@ -229,8 +251,8 @@ export function IdeasPage({ sectionControl }: { sectionControl?: import("react")
 
           <Card>
             <CardHeader>
-              <CardTitle>Save as Idea</CardTitle>
-              <CardDescription>Approval is the only step that creates an `idea` entity.</CardDescription>
+              <CardTitle>Approve the next step</CardTitle>
+              <CardDescription>Save the research as an idea, or explicitly turn the suggested MVP into a reviewable project draft.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
@@ -244,9 +266,12 @@ export function IdeasPage({ sectionControl }: { sectionControl?: import("react")
                 </div>
               </div>
               {saveError ? <p className="text-sm text-red-300">{saveError}</p> : null}
-              <div className="flex justify-end">
-                <Button type="button" onClick={() => void handleSave()} disabled={isSaving}>
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button type="button" variant="outline" onClick={() => void handleSave()} disabled={isSaving || isCreatingProject}>
                   {isSaving ? "Saving..." : "Save as Idea"}
+                </Button>
+                <Button type="button" onClick={() => void handleCreateProject()} disabled={isSaving || isCreatingProject}>
+                  {isCreatingProject ? "Creating draft..." : "Create project draft"}
                 </Button>
               </div>
             </CardContent>

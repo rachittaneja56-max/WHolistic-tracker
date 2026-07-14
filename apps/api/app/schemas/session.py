@@ -15,6 +15,11 @@ SessionAction = Literal[
     "push",
     "study_planned",
     "study_completed",
+    "work_started",
+    "work_logged",
+    "deployed",
+    "milestone_completed",
+    "project_shipped",
 ]
 
 
