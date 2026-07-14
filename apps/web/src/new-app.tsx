@@ -17,6 +17,7 @@ import { LoginPage } from "@/pages/login-page"
 import { InvitePage } from "@/pages/invite-page"
 import { AdminPage } from "@/pages/admin-page"
 import { ResetPasswordPage } from "@/pages/reset-password-page"
+import { SignupPage } from "@/pages/signup-page"
 import { ProjectsPage } from "@/pages/projects-page"
 import { ProjectWorkspacePage } from "@/pages/project-workspace-page"
 import { RecallPage } from "@/pages/recall-page"
@@ -54,6 +55,15 @@ function PublicLogin() {
   return <LoginPage />
 }
 
+function PublicSignup() {
+  const { user, loading, error } = useAuth()
+  const [params] = useSearchParams()
+  if (loading) return <SessionLoading />
+  if (error) return <SessionError message={error} />
+  if (user) return <Navigate replace to={getSafeReturnTo(params.get("returnTo"))} />
+  return <SignupPage />
+}
+
 function RequireAuth() {
   const { user, loading, error } = useAuth()
   const location = useLocation()
@@ -70,6 +80,7 @@ function AppRoutes() {
   return <Routes>
     <Route path="/" element={<PublicHome />} />
     <Route path="/login" element={<PublicLogin />} />
+    <Route path="/signup" element={<PublicSignup />} />
     <Route path="/invite" element={<InvitePage />} />
     <Route path="/reset-password" element={<ResetPasswordPage />} />
     <Route element={<RequireAuth />}>

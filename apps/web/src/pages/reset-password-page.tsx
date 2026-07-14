@@ -67,14 +67,14 @@ export function ResetPasswordPage() {
             </div>
           ) : null}
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-3"><Label htmlFor="reset-password">New password</Label><span className="text-[11px] text-zinc-600">At least 12 characters</span></div>
+            <div className="flex items-center justify-between gap-3"><Label htmlFor="reset-password">New password</Label><span className="text-[11px] text-zinc-600">At least 8 characters</span></div>
             <div className="relative">
               <KeyRound className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-zinc-600" />
-              <Input id="reset-password" className="pl-10" type="password" minLength={12} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={submitting || !email} required />
+              <Input id="reset-password" className="pl-10" type="password" minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={submitting || !email} required />
             </div>
           </div>
           {error ? <p className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2.5 text-sm text-red-300" role="alert">{error}</p> : null}
-          <Button className="w-full" disabled={submitting || !email || password.length < 12}>{submitting ? "Updating password..." : "Reset password"}</Button>
+          <Button className="w-full" disabled={submitting || !email || password.length < 8}>{submitting ? "Updating password..." : "Reset password"}</Button>
         </form>
       )}
     </AuthShell>

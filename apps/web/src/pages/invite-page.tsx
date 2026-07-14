@@ -77,14 +77,14 @@ export function InvitePage() {
             </div>
           </div>
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-3"><Label htmlFor="invite-password">Create password</Label><span className="text-[11px] text-zinc-600">At least 12 characters</span></div>
+            <div className="flex items-center justify-between gap-3"><Label htmlFor="invite-password">Create password</Label><span className="text-[11px] text-zinc-600">At least 8 characters</span></div>
             <div className="relative">
               <KeyRound className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-zinc-600" />
-              <Input id="invite-password" className="pl-10" type="password" minLength={12} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={submitting || !invite} required />
+              <Input id="invite-password" className="pl-10" type="password" minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={submitting || !invite} required />
             </div>
           </div>
           {error ? <p className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2.5 text-sm text-red-300" role="alert">{error}</p> : null}
-          <Button className="w-full" disabled={!invite || submitting || !name.trim() || password.length < 12}>{submitting ? "Creating account..." : "Create account"}</Button>
+          <Button className="w-full" disabled={!invite || submitting || !name.trim() || password.length < 8}>{submitting ? "Creating account..." : "Create account"}</Button>
         </form>
       )}
     </AuthShell>

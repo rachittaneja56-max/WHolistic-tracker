@@ -28,8 +28,8 @@ app.get("/api/invitations/:token", async (request, response) => {
 })
 app.post("/api/invitations/accept", express.json(), async (request, response) => {
   const { token, name, password } = request.body as { token?: string; name?: string; password?: string }
-  if (!token || !name?.trim() || !password || password.length < 12) {
-    return response.status(400).json({ detail: "Token, name, and a 12-character password are required" })
+  if (!token || !name?.trim() || !password || password.length < 8) {
+    return response.status(400).json({ detail: "Token, name, and an 8-character password are required" })
   }
   const tokenHash = createHash("sha256").update(token).digest("hex")
   const client = await pool.connect()
@@ -70,7 +70,7 @@ app.get("/api/password-resets/:token", async (request, response) => {
 })
 app.post("/api/password-resets/accept", express.json(), async (request, response) => {
   const { token, password } = request.body as { token?: string; password?: string }
-  if (!token || !password || password.length < 12) return response.status(400).json({ detail: "Token and a 12-character password are required" })
+  if (!token || !password || password.length < 8) return response.status(400).json({ detail: "Token and an 8-character password are required" })
   const tokenHash = createHash("sha256").update(token).digest("hex")
   const client = await pool.connect()
   try {

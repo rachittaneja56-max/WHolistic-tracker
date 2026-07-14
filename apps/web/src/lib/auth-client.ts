@@ -73,6 +73,12 @@ export async function getAuthConfig(): Promise<{ githubEnabled: boolean }> {
   return response.json() as Promise<{ githubEnabled: boolean }>
 }
 
+export async function signUpWithEmail(payload: { email: string; name: string; password: string; callbackURL?: string }) {
+  const { data, error } = await authClient.signUp.email(payload)
+  if (error) throw new Error(error.message)
+  return data
+}
+
 export async function getInvitation(token: string): Promise<{ email: string; role: string; expires_at: string }> {
   const response = await fetch(`${authBaseUrl}/api/invitations/${encodeURIComponent(token)}`)
   const payload = (await response.json().catch(() => null)) as { detail?: string; email?: string; role?: string; expires_at?: string } | null

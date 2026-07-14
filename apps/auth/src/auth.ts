@@ -27,8 +27,8 @@ export const auth = betterAuth({
   database: pool,
   emailAndPassword: {
     enabled: true,
-    disableSignUp: true,
-    minPasswordLength: 12,
+    disableSignUp: false,
+    minPasswordLength: 8,
     revokeSessionsOnPasswordReset: true,
   },
   socialProviders: githubConfigured
@@ -36,7 +36,6 @@ export const auth = betterAuth({
         github: {
           clientId: process.env.GITHUB_OAUTH_CLIENT_ID!,
           clientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET!,
-          disableSignUp: true,
         },
       }
     : {},

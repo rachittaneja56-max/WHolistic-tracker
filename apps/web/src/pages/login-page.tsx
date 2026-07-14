@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { Github, LockKeyhole, Mail } from "lucide-react"
 
 import { AuthShell } from "@/components/auth-shell"
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/features/auth/auth-context"
 import { getAuthConfig } from "@/lib/auth-client"
-import { getSafeReturnTo } from "@/lib/auth-routing"
+import { buildSignupUrl, getSafeReturnTo } from "@/lib/auth-routing"
 
 export function LoginPage() {
   const { login, loginWithGithub } = useAuth()
@@ -56,7 +56,7 @@ export function LoginPage() {
     <AuthShell
       eyebrow="Welcome back"
       title="Sign in to your workspace"
-      description="Continue where you left off. New accounts are created through a private administrator invitation."
+      description="Continue where you left off. New accounts can be created from the public sign-up page."
     >
       <form className="space-y-5" onSubmit={submit}>
         <div className="space-y-2">
@@ -80,7 +80,7 @@ export function LoginPage() {
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="password">Password</Label>
-            <span className="text-[11px] text-zinc-600">12+ characters</span>
+            <span className="text-[11px] text-zinc-600">8+ characters</span>
           </div>
           <div className="relative">
             <LockKeyhole className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-zinc-600" />
@@ -116,7 +116,9 @@ export function LoginPage() {
       ) : null}
 
       <div className="mt-6 border-t border-zinc-800 pt-5 text-center">
-        <p className="text-xs leading-5 text-zinc-500">Need access or a password reset? Ask your workspace administrator for a one-time link.</p>
+        <p className="text-xs leading-5 text-zinc-500">
+          Need an account? <Link to={buildSignupUrl(returnTo)} className="text-zinc-200 underline decoration-zinc-600 underline-offset-4 transition hover:text-white">Create one here</Link>. Password reset links still come from your workspace administrator.
+        </p>
       </div>
     </AuthShell>
   )

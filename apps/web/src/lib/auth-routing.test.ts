@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { buildLoginUrl, getSafeReturnTo } from "@/lib/auth-routing"
+import { buildLoginUrl, buildSignupUrl, getSafeReturnTo } from "@/lib/auth-routing"
 
 describe("capture login return flow", () => {
   it("preserves every capture query parameter through login", () => {
@@ -14,5 +14,14 @@ describe("capture login return flow", () => {
 
   it("still rejects external return destinations", () => {
     expect(getSafeReturnTo("//example.com/capture")).toBe("/app")
+  })
+
+  it("keeps public auth pages out of protected return destinations", () => {
+    const loginUrl = buildLoginUrl("/capture")
+    const signupUrl = buildSignupUrl("/capture")
+
+    expect(getSafeReturnTo(new URL(loginUrl, "http://personal-dev-kg.local").searchParams.get("returnTo"))).toBe("/capture")
+    expect(getSafeReturnTo(new URL(signupUrl, "http://personal-dev-kg.local").searchParams.get("returnTo"))).toBe("/capture")
+    expect(getSafeReturnTo("/signup?returnTo=%2Fcapture")).toBe("/app")
   })
 })

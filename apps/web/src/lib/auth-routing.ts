@@ -1,8 +1,12 @@
-const PUBLIC_AUTH_PATHS = new Set(["/", "/login", "/invite", "/reset-password"])
+const PUBLIC_AUTH_PATHS = new Set(["/", "/login", "/signup", "/invite", "/reset-password"])
 const LOCAL_ORIGIN = "http://personal-dev-kg.local"
 
 export function buildLoginUrl(pathname: string, search = "", hash = "") {
   return `/login?returnTo=${encodeURIComponent(`${pathname}${search}${hash}`)}`
+}
+
+export function buildSignupUrl(pathname: string, search = "", hash = "") {
+  return `/signup?returnTo=${encodeURIComponent(`${pathname}${search}${hash}`)}`
 }
 
 export function getSafeReturnTo(value: string | null | undefined, fallback = "/app") {

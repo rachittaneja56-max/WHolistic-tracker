@@ -15,6 +15,7 @@ type AuthContextValue = {
   loading: boolean
   error: string | null
   login: (email: string, password: string) => Promise<void>
+  signup: (email: string, name: string, password: string, callbackURL?: string) => Promise<void>
   loginWithGithub: (callbackURL?: string) => Promise<void>
   logout: () => Promise<void>
   refresh: () => Promise<void>
@@ -50,6 +51,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await refresh()
   }, [refresh])
 
+  const signup = useCallback(async (email: string, name: string, password: string, callbackURL?: string) => {
+    const { error: signUpError } = await authClient.signUp.email({ email, name, password, callbackURL })
+    if (signUpError) throw new Error(signUpError.message)
+    clearAccessToken()
+    await refresh()
+  }, [refresh])
+
   const loginWithGithub = useCallback(async (callbackURL?: string) => {
     const { error: signInError } = await authClient.signIn.social({ provider: "github", callbackURL: callbackURL ?? `${window.location.origin}/app` })
     if (signInError) throw new Error(signInError.message)
@@ -61,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }, [])
 
-  const value = useMemo(() => ({ user, loading, error, login, loginWithGithub, logout, refresh }), [user, loading, error, login, loginWithGithub, logout, refresh])
+  const value = useMemo(() => ({ user, loading, error, login, signup, loginWithGithub, logout, refresh }), [user, loading, error, login, signup, loginWithGithub, logout, refresh])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

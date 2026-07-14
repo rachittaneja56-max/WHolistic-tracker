@@ -109,7 +109,10 @@ export function LandingPage() {
             <a href="#workflow" className="text-sm text-zinc-400 transition-colors hover:text-zinc-100">Workflow</a>
             <a href="#security" className="text-sm text-zinc-400 transition-colors hover:text-zinc-100">Security</a>
           </div>
-          <Button asChild size="sm"><Link to="/login">Sign in <ArrowRight className="ml-2 h-3.5 w-3.5" /></Link></Button>
+          <div className="flex items-center gap-2">
+            <Button asChild size="sm" variant="outline"><Link to="/signup">Create account</Link></Button>
+            <Button asChild size="sm"><Link to="/login">Sign in <ArrowRight className="ml-2 h-3.5 w-3.5" /></Link></Button>
+          </div>
         </nav>
       </header>
 
@@ -125,11 +128,12 @@ export function LandingPage() {
             Personal Dev KG connects code practice, project delivery, notes, recall, and grounded AI in one private graph—so every hard-won lesson compounds.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Button asChild size="lg"><Link to="/login">Open your workspace <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+            <Button asChild size="lg"><Link to="/signup">Create account</Link></Button>
+            <Button asChild size="lg" variant="outline"><Link to="/login">Open your workspace <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
             <Button asChild size="lg" variant="outline"><a href="#workflow">See how it works</a></Button>
           </div>
           <p className="mt-5 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.15em] text-zinc-600">
-            <LockKeyhole className="h-3.5 w-3.5 text-zinc-500" /> Private by design · Invite-only accounts
+            <LockKeyhole className="h-3.5 w-3.5 text-zinc-500" /> Private by design · Public sign-up with admin protections
           </p>
         </div>
         <GraphPreview />
@@ -283,7 +287,10 @@ export function LandingPage() {
             <p className="font-mono text-xs uppercase tracking-[0.2em] text-blue-300">Your workspace is waiting</p>
             <h2 className="mx-auto mt-4 max-w-2xl text-3xl font-semibold tracking-[-0.035em] text-zinc-50 sm:text-4xl">Build a second brain that understands the first.</h2>
             <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-zinc-400">Sign in to continue capturing, connecting, and recalling the work that matters.</p>
-            <Button asChild size="lg" className="mt-8"><Link to="/login">Sign in to your workspace <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <Button asChild size="lg"><Link to="/signup">Create account</Link></Button>
+              <Button asChild size="lg" variant="outline"><Link to="/login">Sign in to your workspace <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+            </div>
           </div>
         </div>
       </section>
@@ -292,7 +299,10 @@ export function LandingPage() {
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <div className="flex items-center gap-3 text-sm text-zinc-300"><Brain className="h-4 w-4 text-blue-300" /> Personal Dev KG</div>
           <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-zinc-600">Capture · Connect · Recall · Ship</p>
-          <Link to="/login" className="text-sm text-zinc-500 transition-colors hover:text-zinc-100">Sign in</Link>
+          <div className="flex items-center gap-4 text-sm">
+            <Link to="/signup" className="text-zinc-500 transition-colors hover:text-zinc-100">Create account</Link>
+            <Link to="/login" className="text-zinc-500 transition-colors hover:text-zinc-100">Sign in</Link>
+          </div>
         </div>
       </footer>
     </main>
