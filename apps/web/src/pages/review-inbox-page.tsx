@@ -113,15 +113,15 @@ export function ReviewInboxPage({ sectionControl }: { sectionControl?: import("r
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {isLoading ? <p className="text-sm text-zinc-500">Loading suggested links...</p> : null}
-        {!isLoading && error ? <p className="text-sm text-amber-300">{error}</p> : null}
-        {actionError ? <p className="text-sm text-amber-300">{actionError}</p> : null}
-        {runMessage ? <p className="text-sm text-zinc-500">{runMessage}</p> : null}
-        {!isLoading && !error && items.length === 0 ? <p className="text-sm text-zinc-500">No agent-suggested links are waiting for review.</p> : null}
+        {isLoading ? <p className="text-sm text-muted-foreground">Loading suggested links...</p> : null}
+        {!isLoading && error ? <p className="text-sm text-warning">{error}</p> : null}
+        {actionError ? <p className="text-sm text-warning">{actionError}</p> : null}
+        {runMessage ? <p className="text-sm text-muted-foreground">{runMessage}</p> : null}
+        {!isLoading && !error && items.length === 0 ? <p className="text-sm text-muted-foreground">No agent-suggested links are waiting for review.</p> : null}
 
         {!isLoading && !error
           ? items.map((item) => (
-              <div key={item.id} className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4">
+              <div key={item.id} className="rounded-lg border border-border bg-surface px-4 py-4">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="space-y-3">
                     <div className="flex flex-wrap gap-2">
@@ -130,22 +130,22 @@ export function ReviewInboxPage({ sectionControl }: { sectionControl?: import("r
                       <Badge>{item.to_type ?? "unknown"}</Badge>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-sm text-zinc-500">From</p>
-                      <Link to={`/entities/${item.from_id}`} className="text-sm font-medium text-zinc-100 hover:text-blue-400">
+                      <p className="text-sm text-muted-foreground">From</p>
+                      <Link to={`/entities/${item.from_id}`} className="text-sm font-medium text-foreground hover:text-primary">
                         {item.from_title ?? "Untitled entity"}
                       </Link>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-sm text-zinc-500">To</p>
-                      <Link to={`/entities/${item.to_id}`} className="text-sm font-medium text-zinc-100 hover:text-blue-400">
+                      <p className="text-sm text-muted-foreground">To</p>
+                      <Link to={`/entities/${item.to_id}`} className="text-sm font-medium text-foreground hover:text-primary">
                         {item.to_title ?? "Untitled entity"}
                       </Link>
                     </div>
-                    <p className="text-sm leading-7 text-zinc-300">{item.explanation ?? "No explanation provided."}</p>
+                    <p className="text-sm leading-7 text-secondary">{item.explanation ?? "No explanation provided."}</p>
                   </div>
 
                   <div className="flex min-w-[240px] flex-col gap-3">
-                    <div className="space-y-1 rounded-lg border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs text-zinc-500">
+                    <div className="space-y-1 rounded-lg border border-border bg-background p-3 font-mono text-xs text-muted-foreground">
                       <p>confidence {formatConfidence(item.confidence)}</p>
                       <p>{item.status ?? "unknown_status"}</p>
                       <p>{formatDate(item.created_at)}</p>

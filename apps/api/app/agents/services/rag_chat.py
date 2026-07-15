@@ -1,7 +1,6 @@
 ﻿from __future__ import annotations
 
 from dataclasses import dataclass
-import json
 import re
 from typing import Iterable
 from uuid import UUID
@@ -10,6 +9,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.agents.services.provider import OpenAIProvider
+from app.agents.utils.context import is_ai_excluded, serialize_entity_context, serialize_untrusted_context
 from app.agents.utils.prompts import build_system_prompt
 from app.models.entity import Entity
 from app.models.link import Link
@@ -31,8 +31,9 @@ GRAPH_CHAT_SCHEMA = {
                     "entity_id": {"type": "string", "minLength": 1, "maxLength": 80},
                     "title": {"type": "string", "minLength": 1, "maxLength": 200},
                     "reason_used": {"type": "string", "minLength": 1, "maxLength": 240},
+                    "evidence_excerpt": {"type": "string", "minLength": 1, "maxLength": 400},
                 },
-                "required": ["entity_id", "title", "reason_used"],
+                "required": ["entity_id", "title", "reason_used", "evidence_excerpt"],
             },
         },
         "missing": {"type": "boolean"},
@@ -75,6 +76,13 @@ def get_primary_entities(question: str, db: Session) -> list[RetrievedGraphEntit
     distance = Entity.embedding.cosine_distance(question_embedding).label("distance")
     rows = db.execute(
         select(Entity, distance)
+        .where(
+            or_(
+                Entity.entity_metadata.is_(None),
+                Entity.entity_metadata["ai_exclude"].astext.is_(None),
+                Entity.entity_metadata["ai_exclude"].astext != "true",
+            )
+        )
         .where(Entity.embedding.is_not(None))
         .order_by(distance)
         .limit(PRIMARY_LIMIT)
@@ -142,7 +150,7 @@ def dedupe_retrieved_entities(groups: Iterable[list[RetrievedGraphEntity]]) -> l
 
     for group in groups:
         for item in group:
-            if item.entity.id in seen_ids or item.entity.id is None:
+            if item.entity.id in seen_ids or item.entity.id is None or is_ai_excluded(item.entity):
                 continue
             seen_ids.add(item.entity.id)
             results.append(item)
@@ -153,23 +161,24 @@ def dedupe_retrieved_entities(groups: Iterable[list[RetrievedGraphEntity]]) -> l
 
 
 def build_context_block(item: RetrievedGraphEntity) -> str:
-    entity = item.entity
-    metadata = json.dumps(entity.entity_metadata or {}, ensure_ascii=True, sort_keys=True)
-    content = (entity.content or "").strip()
-    content = content[:900] if content else "[no content]"
-    return (
-        f"Entity ID: {entity.id}\n"
-        f"Title: {entity.title or 'Untitled entity'}\n"
-        f"Type: {entity.type or 'unknown'}\n"
-        f"Tags: {', '.join(entity.tags or []) or 'none'}\n"
-        f"Reason used: {item.reason}\n"
-        f"Metadata: {metadata}\n"
-        f"Content:\n{content}"
+    return serialize_entity_context(
+        "rag",
+        item.entity,
+        provenance="retrieved_personal_graph_entity",
+        content_chars=900,
+        extra={"retrieval_reason": item.reason},
     )
 
 
 def build_chat_context(question: str, retrieved_entities: list[RetrievedGraphEntity]) -> str:
-    blocks: list[str] = [f"Question: {question.strip()}"]
+    blocks: list[str] = [
+        serialize_untrusted_context(
+            "rag",
+            provenance="user_question",
+            data={"question": question},
+            max_chars=4_500,
+        )
+    ]
     total_chars = len(blocks[0])
 
     for item in retrieved_entities:
@@ -180,6 +189,24 @@ def build_chat_context(question: str, retrieved_entities: list[RetrievedGraphEnt
         total_chars += len(block) + 2
 
     return "\n\n".join(blocks)
+
+
+def canonical_evidence_excerpt(entity: Entity, requested_excerpt: object) -> str | None:
+    requested = str(requested_excerpt or "").strip()
+    if not requested:
+        return None
+    sources = [entity.content or "", entity.title or "", " ".join(entity.tags or [])]
+    for source in sources:
+        exact_index = source.casefold().find(requested.casefold())
+        if exact_index >= 0:
+            return source[exact_index : exact_index + len(requested)].strip()[:400]
+        tokens = [re.escape(token) for token in re.split(r"\s+", requested) if token]
+        if not tokens:
+            continue
+        match = re.search(r"\s+".join(tokens), source, flags=re.IGNORECASE)
+        if match:
+            return match.group(0).strip()[:400]
+    return None
 
 
 def run_graph_chat(question: str, *, db: Session, provider: OpenAIProvider) -> GraphChatResponse:
@@ -230,13 +257,17 @@ def run_graph_chat(question: str, *, db: Session, provider: OpenAIProvider) -> G
         entity_id = str(citation.get("entity_id", "")).strip()
         if not entity_id or entity_id not in retrieved_map or entity_id in seen_ids:
             continue
-        seen_ids.add(entity_id)
         entity = retrieved_map[entity_id]
+        evidence_excerpt = canonical_evidence_excerpt(entity, citation.get("evidence_excerpt"))
+        if evidence_excerpt is None:
+            continue
+        seen_ids.add(entity_id)
         citations.append(
             GraphChatCitationRead(
                 entity_id=entity_id,
                 title=str(citation.get("title") or entity.title or "Untitled entity")[:200],
                 reason_used=str(citation.get("reason_used") or "Used as supporting context.").strip()[:240],
+                evidence_excerpt=evidence_excerpt,
             )
         )
 

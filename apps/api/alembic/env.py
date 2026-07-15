@@ -14,6 +14,7 @@ from app.models.link import Link
 from app.models.review import Review
 from app.models.session import ActivitySession
 from app.models.assistant import AssistantMessage, AssistantProposal, AssistantThread
+from app.models.product_event import ProductEvent
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

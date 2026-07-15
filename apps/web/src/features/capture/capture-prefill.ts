@@ -4,6 +4,9 @@ import { getDefaultContentTypeForEntityType } from "@/features/entities/content"
 export const quickCaptureTypes = ["note", "idea", "til", "task"] as const satisfies readonly EntityType[]
 export type QuickCaptureType = (typeof quickCaptureTypes)[number]
 
+export const academicKindOptions = ["assignment", "exam", "revision", "reading", "project"] as const
+export type AcademicKind = (typeof academicKindOptions)[number]
+
 export type CapturePrefill = {
   mode: "quick" | "advanced"
   title: string
@@ -12,7 +15,7 @@ export type CapturePrefill = {
   contentType: ContentType
   parentId: string
   tags: string
-  academicKind: string | null
+  academicKind: AcademicKind | null
 }
 
 export function isQuickCaptureType(value: EntityType): value is QuickCaptureType {
@@ -25,6 +28,10 @@ function validEntityType(value: string | null): EntityType | null {
 
 function validContentType(value: string | null): ContentType | null {
   return value && (contentTypeOptions as readonly string[]).includes(value) ? value as ContentType : null
+}
+
+function validAcademicKind(value: string | null): AcademicKind | null {
+  return value && (academicKindOptions as readonly string[]).includes(value) ? value as AcademicKind : null
 }
 
 export function combineSharedContent(text: string, url: string) {
@@ -72,6 +79,6 @@ export function normalizeCapturePrefill(params: URLSearchParams): CapturePrefill
     contentType,
     parentId: params.get("parent_id") ?? "",
     tags: params.get("tags") ?? "",
-    academicKind: params.get("academic_kind"),
+    academicKind: validAcademicKind(params.get("academic_kind")),
   }
 }

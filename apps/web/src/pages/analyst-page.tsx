@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CaptureEntityForm } from "@/features/entities/components/capture-entity-form"
 import type { EntitiesLayoutContext } from "@/features/entities/layout-context"
+import { useModalFocus } from "@/hooks/use-modal-focus"
 import { getWeeklyAnalyst, type AnalystGap, type AnalystTrend, type EntityType, type WeeklyDigestRange, type AnalystWeekly } from "@/lib/api"
 
 type PrefillState = {
@@ -63,6 +64,10 @@ export function AnalystPage() {
   const [error, setError] = useState<string | null>(null)
   const [capturePrefill, setCapturePrefill] = useState<PrefillState | null>(null)
   const [captureKind, setCaptureKind] = useState<"task" | "note" | null>(null)
+  const { dialogRef, onDialogKeyDown } = useModalFocus(Boolean(capturePrefill && captureKind), () => {
+    setCapturePrefill(null)
+    setCaptureKind(null)
+  })
 
   async function loadBrief() {
     setIsLoading(true)
@@ -115,7 +120,7 @@ export function AnalystPage() {
           <CardDescription>Unable to load the weekly analyst brief.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-red-300">{error}</p>
+          <p className="text-sm text-danger">{error}</p>
           <Button type="button" variant="outline" onClick={() => void loadBrief()}>
             Retry
           </Button>
@@ -132,7 +137,7 @@ export function AnalystPage() {
           <CardDescription>No analyst data is available yet.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-zinc-500">Capture some DSA work, reviews, tasks, or GitHub activity and the analyst brief will start to become useful.</p>
+          <p className="text-sm text-muted-foreground">Capture some DSA work, reviews, tasks, or GitHub activity and the analyst brief will start to become useful.</p>
         </CardContent>
       </Card>
     )
@@ -147,12 +152,12 @@ export function AnalystPage() {
             <CardDescription>Suggestion-only weekly analysis from your own entities, links, sessions, reviews, comprehension checks, and GitHub activity.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4">
+            <div className="rounded-lg border border-border bg-background px-4 py-4">
               <div className="flex flex-wrap items-center gap-3">
                 <Badge variant="blue">Weekly analyst</Badge>
-                <span className="font-mono text-xs text-zinc-500">{formatRange(range)}</span>
+                <span className="font-mono text-xs text-muted-foreground">{formatRange(range)}</span>
               </div>
-              <p className="mt-3 text-sm leading-7 text-zinc-300">{brief.headline}</p>
+              <p className="mt-3 text-sm leading-7 text-secondary">{brief.headline}</p>
             </div>
           </CardContent>
         </Card>
@@ -165,14 +170,14 @@ export function AnalystPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {brief.trends.length > 0 ? brief.trends.map((trend) => (
-                <div key={`${trend.label}-${trend.evidence}`} className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4">
+                <div key={`${trend.label}-${trend.evidence}`} className="rounded-lg border border-border bg-surface px-4 py-4">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium text-zinc-100">{trend.label}</p>
+                    <p className="text-sm font-medium text-foreground">{trend.label}</p>
                     <Badge variant={getSeverityVariant(trend.severity)}>{trend.severity}</Badge>
                   </div>
-                  <p className="mt-2 text-sm text-zinc-300">{trend.evidence}</p>
+                  <p className="mt-2 text-sm text-secondary">{trend.evidence}</p>
                 </div>
-              )) : <p className="text-sm text-zinc-500">No weekly trends were detected.</p>}
+              )) : <p className="text-sm text-muted-foreground">No weekly trends were detected.</p>}
             </CardContent>
           </Card>
 
@@ -182,19 +187,19 @@ export function AnalystPage() {
               <CardDescription>DSA difficulty distribution captured this week.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-zinc-300">{brief.solve_rate.summary}</p>
+              <p className="text-sm text-secondary">{brief.solve_rate.summary}</p>
               <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-                  <p className="font-mono text-xs text-zinc-500">easy</p>
-                  <p className="mt-2 font-mono text-sm text-zinc-100">{brief.solve_rate.easy}</p>
+                <div className="rounded-lg border border-border bg-surface p-4">
+                  <p className="font-mono text-xs text-muted-foreground">easy</p>
+                  <p className="mt-2 font-mono text-sm text-foreground">{brief.solve_rate.easy}</p>
                 </div>
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-                  <p className="font-mono text-xs text-zinc-500">medium</p>
-                  <p className="mt-2 font-mono text-sm text-zinc-100">{brief.solve_rate.medium}</p>
+                <div className="rounded-lg border border-border bg-surface p-4">
+                  <p className="font-mono text-xs text-muted-foreground">medium</p>
+                  <p className="mt-2 font-mono text-sm text-foreground">{brief.solve_rate.medium}</p>
                 </div>
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-                  <p className="font-mono text-xs text-zinc-500">hard</p>
-                  <p className="mt-2 font-mono text-sm text-zinc-100">{brief.solve_rate.hard}</p>
+                <div className="rounded-lg border border-border bg-surface p-4">
+                  <p className="font-mono text-xs text-muted-foreground">hard</p>
+                  <p className="mt-2 font-mono text-sm text-foreground">{brief.solve_rate.hard}</p>
                 </div>
               </div>
             </CardContent>
@@ -207,10 +212,10 @@ export function AnalystPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {brief.gaps.length > 0 ? brief.gaps.map((gap) => (
-                <div key={`${gap.gap}-${gap.suggested_action}`} className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4">
-                  <p className="text-sm font-medium text-zinc-100">{gap.gap}</p>
-                  <p className="mt-2 text-sm text-zinc-300">{gap.evidence}</p>
-                  <p className="mt-2 text-sm text-zinc-500">{gap.suggested_action}</p>
+                <div key={`${gap.gap}-${gap.suggested_action}`} className="rounded-lg border border-border bg-surface px-4 py-4">
+                  <p className="text-sm font-medium text-foreground">{gap.gap}</p>
+                  <p className="mt-2 text-sm text-secondary">{gap.evidence}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">{gap.suggested_action}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Button type="button" size="sm" onClick={() => { setCapturePrefill(buildTaskPrefillFromGap(gap)); setCaptureKind("task") }}>
                       Create task from suggestion
@@ -227,7 +232,7 @@ export function AnalystPage() {
                     ))}
                   </div>
                 </div>
-              )) : <p className="text-sm text-zinc-500">No major graph gaps were detected.</p>}
+              )) : <p className="text-sm text-muted-foreground">No major graph gaps were detected.</p>}
             </CardContent>
           </Card>
 
@@ -238,12 +243,12 @@ export function AnalystPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {brief.learning_debt.length > 0 ? brief.learning_debt.map((item) => (
-                <div key={`${item.label}-${item.reason}`} className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4">
-                  <p className="text-sm font-medium text-zinc-100">{item.label}</p>
-                  <p className="mt-2 text-sm text-zinc-300">{item.reason}</p>
-                  <p className="mt-2 text-sm text-zinc-500">{item.suggested_action}</p>
+                <div key={`${item.label}-${item.reason}`} className="rounded-lg border border-border bg-surface px-4 py-4">
+                  <p className="text-sm font-medium text-foreground">{item.label}</p>
+                  <p className="mt-2 text-sm text-secondary">{item.reason}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">{item.suggested_action}</p>
                 </div>
-              )) : <p className="text-sm text-zinc-500">No learning debt surfaced this week.</p>}
+              )) : <p className="text-sm text-muted-foreground">No learning debt surfaced this week.</p>}
             </CardContent>
           </Card>
         </div>
@@ -257,26 +262,26 @@ export function AnalystPage() {
             {brief.next_week_focus.length > 0 ? (
               <div className="space-y-3">
                 {brief.next_week_focus.map((item) => (
-                  <div key={item} className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-300">
+                  <div key={item} className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-secondary">
                     {item}
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-zinc-500">No focus items were generated.</p>
+              <p className="text-sm text-muted-foreground">No focus items were generated.</p>
             )}
           </CardContent>
         </Card>
       </div>
 
       {capturePrefill && captureKind ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
-          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setCapturePrefill(null); setCaptureKind(null) } }}>
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="analyst-capture-title" tabIndex={-1} onKeyDown={onDialogKeyDown} className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-border bg-surface p-6 outline-none">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <p className="font-mono text-xs uppercase tracking-[0.18em] text-zinc-500">Prefilled capture</p>
-                <h2 className="mt-2 text-xl font-semibold text-zinc-100">Review before saving</h2>
-                <p className="mt-2 text-sm text-zinc-300">This is a suggestion starter only. Nothing is saved until you submit the capture form.</p>
+                <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">Prefilled capture</p>
+                <h2 id="analyst-capture-title" className="mt-2 text-xl font-semibold text-foreground">Review before saving</h2>
+                <p className="mt-2 text-sm text-secondary">This is a suggestion starter only. Nothing is saved until you submit the capture form.</p>
               </div>
               <Button type="button" variant="outline" onClick={() => { setCapturePrefill(null); setCaptureKind(null) }}>
                 Cancel

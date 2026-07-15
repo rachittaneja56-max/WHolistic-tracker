@@ -292,64 +292,64 @@ export function AssistantWorkspace({ sectionControl }: { sectionControl?: ReactN
   ]
 
   return <div className="space-y-3">
-    <div className="grid grid-cols-3 gap-1 rounded-lg border border-zinc-800 bg-zinc-900 p-1 xl:hidden" role="tablist" aria-label="Assistant workspace panels">
+    <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-surface p-1 xl:hidden" role="tablist" aria-label="Assistant workspace panels">
       {mobileTabs.map((item) => {
         const Icon = item.icon
-        return <button key={item.id} type="button" role="tab" aria-selected={tab === item.id} onClick={() => setTab(item.id)} className={cn("flex min-w-0 items-center justify-center gap-2 rounded-md px-2 py-2 text-xs", tab === item.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-500 hover:text-zinc-300")}><Icon className="h-3.5 w-3.5" /><span className="truncate">{item.label}</span>{item.count ? <span className="font-mono text-[10px]">{item.count}</span> : null}</button>
+        return <button key={item.id} type="button" role="tab" aria-selected={tab === item.id} onClick={() => setTab(item.id)} className={cn("flex min-w-0 items-center justify-center gap-2 rounded-md px-2 py-2 text-xs", tab === item.id ? "bg-surface-subtle text-foreground" : "text-muted-foreground hover:text-secondary")}><Icon className="h-3.5 w-3.5" /><span className="truncate">{item.label}</span>{item.count ? <span className="font-mono text-[10px]">{item.count}</span> : null}</button>
       })}
     </div>
 
-    <div className="grid min-h-[calc(100dvh-9.5rem)] overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 xl:h-[calc(100dvh-7.5rem)] xl:min-h-[640px] xl:grid-cols-[250px_minmax(0,1fr)_300px]">
-      <aside className={cn("min-h-0 flex-col border-zinc-800 bg-zinc-900/60 xl:flex xl:border-r", tab === "history" ? "flex" : "hidden")}>
-        <header className="flex items-center justify-between border-b border-zinc-800 p-3"><div><h2 className="text-sm font-medium text-zinc-100">Conversations</h2><p className="mt-0.5 text-xs text-zinc-500">Your assistant history</p></div><Button size="sm" variant="ghost" onClick={() => void newChat()} aria-label="New conversation"><Plus className="h-4 w-4" /></Button></header>
+    <div className="grid min-h-[calc(100dvh-9.5rem)] overflow-hidden rounded-xl border border-border bg-background xl:h-[calc(100dvh-7.5rem)] xl:min-h-[640px] xl:grid-cols-[250px_minmax(0,1fr)_300px]">
+      <aside className={cn("min-h-0 flex-col border-border bg-surface/60 xl:flex xl:border-r", tab === "history" ? "flex" : "hidden")}>
+        <header className="flex items-center justify-between border-b border-border p-3"><div><h2 className="text-sm font-medium text-foreground">Conversations</h2><p className="mt-0.5 text-xs text-muted-foreground">Your assistant history</p></div><Button size="sm" variant="ghost" onClick={() => void newChat()} aria-label="New conversation"><Plus className="h-4 w-4" /></Button></header>
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
-          {historyLoading ? <div className="flex items-center gap-2 p-3 text-xs text-zinc-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading history...</div> : null}
-          {!historyLoading && !threads.length ? <div className="p-4 text-center"><Inbox className="mx-auto h-5 w-5 text-zinc-600" /><p className="mt-2 text-xs text-zinc-500">No conversations yet.</p></div> : null}
-          <div className="space-y-1">{threads.map((thread) => <div key={thread.id} className={cn("group flex items-center rounded-lg border", thread.id === threadId ? "border-blue-500/30 bg-blue-500/5" : "border-transparent hover:border-zinc-800 hover:bg-zinc-900")}>
-            <button type="button" onClick={() => void loadThread(thread.id)} className="min-w-0 flex-1 px-3 py-2.5 text-left"><p className={cn("truncate text-sm", thread.id === threadId ? "text-blue-100" : "text-zinc-300")}>{thread.title}</p><p className="mt-1 font-mono text-[10px] text-zinc-600">{threadDate(thread.updated_at)}</p></button>
-            <button type="button" onClick={() => void archiveThread(thread)} disabled={archivingId === thread.id} className="mr-1 rounded p-2 text-zinc-600 opacity-0 hover:bg-zinc-800 hover:text-zinc-300 focus:opacity-100 group-hover:opacity-100" aria-label={`Archive ${thread.title}`}>{archivingId === thread.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}</button>
+          {historyLoading ? <div className="flex items-center gap-2 p-3 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading history...</div> : null}
+          {!historyLoading && !threads.length ? <div className="p-4 text-center"><Inbox className="mx-auto h-5 w-5 text-muted-foreground" /><p className="mt-2 text-xs text-muted-foreground">No conversations yet.</p></div> : null}
+          <div className="space-y-1">{threads.map((thread) => <div key={thread.id} className={cn("group flex items-center rounded-lg border", thread.id === threadId ? "border-primary/30 bg-primary/5" : "border-transparent hover:border-border hover:bg-surface")}>
+            <button type="button" onClick={() => void loadThread(thread.id)} className="min-w-0 flex-1 px-3 py-2.5 text-left"><p className={cn("truncate text-sm", thread.id === threadId ? "text-primary-foreground" : "text-secondary")}>{thread.title}</p><p className="mt-1 font-mono text-[10px] text-muted-foreground">{threadDate(thread.updated_at)}</p></button>
+            <button type="button" onClick={() => void archiveThread(thread)} disabled={archivingId === thread.id} className="mr-1 rounded p-2 text-muted-foreground opacity-0 hover:bg-surface-subtle hover:text-secondary focus:opacity-100 group-hover:opacity-100" aria-label={`Archive ${thread.title}`}>{archivingId === thread.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}</button>
           </div>)}</div>
-          {historyError ? <p className="m-2 rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-xs text-red-300">{historyError}</p> : null}
+          {historyError ? <p className="m-2 rounded-lg border border-danger/20 bg-danger/5 p-3 text-xs text-danger">{historyError}</p> : null}
         </div>
       </aside>
 
-      <section className={cn("min-h-0 min-w-0 flex-col bg-zinc-950 xl:flex", tab === "conversation" ? "flex" : "hidden")}>
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3 md:px-5">
-          <div className="min-w-0"><div className="flex items-center gap-2"><Bot className="h-4 w-4 shrink-0 text-blue-400" /><h2 className="truncate text-sm font-medium text-zinc-100">{currentThread?.title || "AI Workspace"}</h2></div><p className="mt-1 text-xs text-zinc-500">{ready ? "Context-aware planning with confirmation before writes" : aiLoading ? "Checking AI availability..." : "AI is unavailable - configure it in Settings"}</p></div>
+      <section className={cn("min-h-0 min-w-0 flex-col bg-background xl:flex", tab === "conversation" ? "flex" : "hidden")}>
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 md:px-5">
+          <div className="min-w-0"><div className="flex items-center gap-2"><Bot className="h-4 w-4 shrink-0 text-primary" /><h2 className="truncate text-sm font-medium text-foreground">{currentThread?.title || "AI Workspace"}</h2></div><p className="mt-1 text-xs text-muted-foreground">{ready ? "Context-aware planning with confirmation before writes" : aiLoading ? "Checking AI availability..." : "AI is unavailable - configure it in Settings"}</p></div>
           <div className="flex flex-wrap items-center justify-end gap-2">{originRoute ? <Badge variant="blue">Context: {pageContext.entity_title || routeLabel(originRoute)}</Badge> : null}{sectionControl}<Button size="sm" variant="outline" onClick={() => void newChat()}><Plus className="mr-2 h-3.5 w-3.5" />New</Button></div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 md:px-6">
-          {threadLoading ? <div className="flex h-full min-h-48 items-center justify-center gap-2 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" />Loading conversation...</div> : null}
+          {threadLoading ? <div className="flex h-full min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading conversation...</div> : null}
           {!threadLoading && !messages.length ? <div className="mx-auto flex min-h-full max-w-xl flex-col justify-center py-10">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-blue-500/20 bg-blue-500/10"><Sparkles className="h-5 w-5 text-blue-300" /></div>
-            <h2 className="mt-4 text-center text-lg font-semibold text-zinc-100">How can I help?</h2>
-            <p className="mx-auto mt-2 max-w-md text-center text-sm leading-6 text-zinc-500">Capture work, plan changes, explore your knowledge, or run a recall session. You approve every write.</p>
-            <div className="mt-6 grid gap-2 sm:grid-cols-2">{starters.map((starter) => <button key={starter} type="button" onClick={() => void send(starter)} disabled={!ready || sending} className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-3 text-left text-sm text-zinc-300 hover:border-blue-500/30 hover:bg-blue-500/5 disabled:opacity-50">{starter}</button>)}</div>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-primary/20 bg-primary/10"><Sparkles className="h-5 w-5 text-primary" /></div>
+            <h2 className="mt-4 text-center text-lg font-semibold text-foreground">How can I help?</h2>
+            <p className="mx-auto mt-2 max-w-md text-center text-sm leading-6 text-muted-foreground">Capture work, plan changes, explore your knowledge, or run a recall session. You approve every write.</p>
+            <div className="mt-6 grid gap-2 sm:grid-cols-2">{starters.map((starter) => <button key={starter} type="button" onClick={() => void send(starter)} disabled={!ready || sending} className="rounded-lg border border-border bg-surface px-3 py-3 text-left text-sm text-secondary hover:border-primary/30 hover:bg-primary/5 disabled:opacity-50">{starter}</button>)}</div>
           </div> : null}
           {!threadLoading && messages.length ? <div className="mx-auto space-y-4">{messages.map((message) => <div id={`assistant-message-${message.id}`} key={message.id}><AssistantResponse message={message} onUseText={(text) => { setDraft(text); window.setTimeout(() => composerRef.current?.focus(), 0) }} onPersistedMessage={appendPersistedMessage} onRetry={messageKind(message) === "system_error" ? () => retryMessage(message) : undefined} /></div>)}
-            {sending ? <div className="flex max-w-sm items-center gap-2 rounded-2xl rounded-bl-md border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-400"><Loader2 className="h-4 w-4 animate-spin text-blue-400" />Assistant is responding...</div> : null}
+            {sending ? <div className="flex max-w-sm items-center gap-2 rounded-2xl rounded-bl-md border border-border bg-surface px-4 py-3 text-sm text-secondary"><Loader2 className="h-4 w-4 animate-spin text-primary" />Assistant is responding...</div> : null}
           </div> : null}
           <div ref={bottomRef} />
         </div>
 
-        <footer className="border-t border-zinc-800 bg-zinc-900/50 p-3 md:p-4">
-          <div className="mx-auto flex max-w-4xl items-end gap-2 rounded-xl border border-zinc-700 bg-zinc-950 p-2 focus-within:border-blue-500/50">
+        <footer className="border-t border-border bg-surface/50 p-3 md:p-4">
+          <div className="mx-auto flex max-w-4xl items-end gap-2 rounded-xl border border-border-strong bg-background p-2 focus-within:border-primary/50">
             <Textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send() } }} placeholder={ready ? "Ask, capture, plan, or start recall..." : aiLoading ? "Checking AI availability..." : "Enable and configure AI in Settings"} disabled={!ready || sending} className="max-h-40 min-h-11 flex-1 resize-none border-0 bg-transparent focus-visible:ring-0" />
             <Button className="h-10 w-10 shrink-0 p-0" onClick={() => void send()} disabled={!ready || sending || !draft.trim()} aria-label="Send message">{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</Button>
           </div>
-          <div className="mx-auto mt-2 flex max-w-4xl items-center justify-between gap-3 px-1 font-mono text-[10px] text-zinc-600"><span>Enter to send / Shift+Enter for a new line</span><button type="button" onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })} className="hover:text-zinc-300">Jump to latest</button></div>
+          <div className="mx-auto mt-2 flex max-w-4xl items-center justify-between gap-3 px-1 font-mono text-[10px] text-muted-foreground"><span>Enter to send / Shift+Enter for a new line</span><button type="button" onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })} className="hover:text-secondary">Jump to latest</button></div>
         </footer>
       </section>
 
-      <aside className={cn("min-h-0 flex-col border-zinc-800 bg-zinc-900/40 xl:flex xl:border-l", tab === "activity" ? "flex" : "hidden")}>
-        <header className="border-b border-zinc-800 p-4"><div className="flex items-center gap-2"><ListTodo className="h-4 w-4 text-blue-400" /><h2 className="text-sm font-medium text-zinc-100">Activity</h2></div><p className="mt-1 text-xs text-zinc-500">Tasks and results in this conversation</p></header>
+      <aside className={cn("min-h-0 flex-col border-border bg-surface/40 xl:flex xl:border-l", tab === "activity" ? "flex" : "hidden")}>
+        <header className="border-b border-border p-4"><div className="flex items-center gap-2"><ListTodo className="h-4 w-4 text-primary" /><h2 className="text-sm font-medium text-foreground">Activity</h2></div><p className="mt-1 text-xs text-muted-foreground">Tasks and results in this conversation</p></header>
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          {!activity.length ? <div className="py-12 text-center"><Clock3 className="mx-auto h-5 w-5 text-zinc-600" /><p className="mt-2 text-xs text-zinc-500">Proposals, recall, and results will appear here.</p></div> : <div className="space-y-2">{activity.map((message) => {
+          {!activity.length ? <div className="py-12 text-center"><Clock3 className="mx-auto h-5 w-5 text-muted-foreground" /><p className="mt-2 text-xs text-muted-foreground">Proposals, recall, and results will appear here.</p></div> : <div className="space-y-2">{activity.map((message) => {
             const kind = messageKind(message) || "activity"
-            return <button key={message.id} type="button" onClick={() => { setTab("conversation"); window.setTimeout(() => document.getElementById(`assistant-message-${message.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0) }} className="w-full rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-left hover:border-blue-500/30">
-              <div className="flex items-center justify-between gap-2"><Badge variant={kind === "system_error" ? "danger" : kind.includes("result") ? "success" : "blue"}>{kindLabel(kind)}</Badge><span className="font-mono text-[10px] text-zinc-600">{threadDate(message.created_at)}</span></div>
-              <p className="mt-2 line-clamp-3 text-xs leading-5 text-zinc-400">{message.content}</p>
+            return <button key={message.id} type="button" onClick={() => { setTab("conversation"); window.setTimeout(() => document.getElementById(`assistant-message-${message.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0) }} className="w-full rounded-lg border border-border bg-background p-3 text-left hover:border-primary/30">
+              <div className="flex items-center justify-between gap-2"><Badge variant={kind === "system_error" ? "danger" : kind.includes("result") ? "success" : "blue"}>{kindLabel(kind)}</Badge><span className="font-mono text-[10px] text-muted-foreground">{threadDate(message.created_at)}</span></div>
+              <p className="mt-2 line-clamp-3 text-xs leading-5 text-secondary">{message.content}</p>
             </button>
           })}</div>}
         </div>

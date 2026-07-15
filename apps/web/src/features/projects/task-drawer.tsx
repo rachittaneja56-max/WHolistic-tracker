@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { boardColumns, metaNumber, metaString, taskBoardStatus, type BoardStatus } from "@/features/projects/project-utils"
+import { useModalFocus } from "@/hooks/use-modal-focus"
 import {
   aiAssistLevelOptions,
   createLink,
@@ -32,6 +33,7 @@ type Props = {
 }
 
 export function TaskDrawer({ task, milestones, tasks, relationships, onClose, onSave, onStatus, onRefresh }: Props) {
+  const { dialogRef, onDialogKeyDown } = useModalFocus(true, onClose)
   const [title, setTitle] = useState(task.title ?? "")
   const [content, setContent] = useState(task.content ?? "")
   const [milestoneId, setMilestoneId] = useState(task.parent_id ?? "")
@@ -107,8 +109,8 @@ export function TaskDrawer({ task, milestones, tasks, relationships, onClose, on
 
   return <div className="fixed inset-0 z-40">
     <button className="absolute inset-0 bg-black/60" aria-label="Close task details" onClick={onClose} />
-    <aside className="absolute inset-y-0 right-0 w-full max-w-xl overflow-y-auto border-l border-zinc-800 bg-zinc-900 p-5 shadow-2xl">
-      <div className="flex items-start justify-between gap-3"><div><p className="font-mono text-xs uppercase tracking-[0.18em] text-blue-400">Task details</p><h2 className="mt-2 text-xl font-semibold text-zinc-100">{task.title}</h2></div><Button variant="ghost" size="sm" onClick={onClose} aria-label="Close"><X className="h-4 w-4" /></Button></div>
+    <aside ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="task-drawer-title" tabIndex={-1} onKeyDown={onDialogKeyDown} className="absolute inset-y-0 right-0 w-full max-w-xl overflow-y-auto border-l border-border bg-surface p-5 shadow-2xl outline-none">
+      <div className="flex items-start justify-between gap-3"><div><p className="font-mono text-xs uppercase tracking-[0.18em] text-primary">Task details</p><h2 id="task-drawer-title" className="mt-2 text-xl font-semibold text-foreground">{task.title}</h2></div><Button variant="ghost" size="sm" onClick={onClose} aria-label="Close"><X className="h-4 w-4" /></Button></div>
       <div className="mt-6 space-y-5">
         <div className="space-y-2"><Label>Title</Label><Input value={title} onChange={(event) => setTitle(event.target.value)} /></div>
         <div className="space-y-2"><Label>Description</Label><Textarea value={content} onChange={(event) => setContent(event.target.value)} className="min-h-28" /></div>
@@ -123,13 +125,13 @@ export function TaskDrawer({ task, milestones, tasks, relationships, onClose, on
         {status === "blocked" ? <div className="space-y-2"><Label>Blocked reason</Label><Textarea value={blockedReason} onChange={(event) => setBlockedReason(event.target.value)} placeholder="What needs to change before work can continue?" /></div> : null}
         <div className="space-y-2"><Label>Acceptance criteria</Label><Textarea value={acceptance} onChange={(event) => setAcceptance(event.target.value)} placeholder="How will you know this task is correctly finished?" /></div>
         <div className="space-y-2"><Label>AI assist level</Label><Select value={aiAssist} onValueChange={(value) => setAiAssist(value as AiAssistLevel)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{aiAssistLevelOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div>
-        <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-          <div><p className="text-sm font-medium text-zinc-200">Dependencies</p><p className="text-xs text-zinc-600">Use graph links for cross-task ordering.</p></div>
-          {dependencies.map((link) => { const otherId = link.from_id === task.id ? link.to_id : link.from_id; return <div key={link.id} className="flex items-center gap-2 text-sm text-zinc-400"><Network className="h-4 w-4 text-zinc-600" />{tasks.find((item) => item.id === otherId)?.title ?? "Linked task"}</div> })}
+        <div className="space-y-3 rounded-lg border border-border bg-background p-4">
+          <div><p className="text-sm font-medium text-foreground">Dependencies</p><p className="text-xs text-muted-foreground">Use graph links for cross-task ordering.</p></div>
+          {dependencies.map((link) => { const otherId = link.from_id === task.id ? link.to_id : link.from_id; return <div key={link.id} className="flex items-center gap-2 text-sm text-secondary"><Network className="h-4 w-4 text-muted-foreground" />{tasks.find((item) => item.id === otherId)?.title ?? "Linked task"}</div> })}
           <div className="flex gap-2"><Select value={dependencyId} onValueChange={setDependencyId}><SelectTrigger><SelectValue placeholder="Select dependency" /></SelectTrigger><SelectContent>{tasks.filter((item) => item.id !== task.id).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select><Button type="button" variant="outline" onClick={() => void addDependency()} disabled={!dependencyId}>Link</Button></div>
         </div>
         <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => void logWork("work_started")}><Timer className="mr-2 h-4 w-4" />Start work</Button><Button variant="outline" onClick={() => void logWork("work_logged")}><Clock3 className="mr-2 h-4 w-4" />Log 30m</Button><Button variant="ghost" onClick={() => onStatus(status)}>Move now</Button></div>
-        <div className="flex justify-between border-t border-zinc-800 pt-5"><Button asChild variant="outline"><Link to={`/knowledge/entities/${task.id}`}>Open full entity<ChevronRight className="ml-2 h-4 w-4" /></Link></Button><Button onClick={() => void save()} disabled={saving || !title.trim()}>{saving ? "Saving..." : "Save task"}</Button></div>
+        <div className="flex justify-between border-t border-border pt-5"><Button asChild variant="outline"><Link to={`/knowledge/entities/${task.id}`}>Open full entity<ChevronRight className="ml-2 h-4 w-4" /></Link></Button><Button onClick={() => void save()} disabled={saving || !title.trim()}>{saving ? "Saving..." : "Save task"}</Button></div>
       </div>
     </aside>
   </div>

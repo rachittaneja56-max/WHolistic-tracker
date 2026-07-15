@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 from sqlalchemy.orm import Session
 
 from app.agents.services.provider import OpenAIProvider
+from app.agents.utils.context import serialize_untrusted_context
 from app.agents.utils.prompts import build_system_prompt
 from app.models.session import ActivitySession
 from app.services.github import fetch_pull_request_diff_summary, sanitize_tags
@@ -47,7 +47,7 @@ def draft_til_from_pr_session(session_row: ActivitySession, *, db: Session, prov
                 "content": (
                     "Create a careful starter TIL draft using only this merged pull request context. "
                     "If the context is thin, keep the draft generic and explicitly mark unknowns as needing user confirmation.\n\n"
-                    f"Context:\n{json.dumps(context, ensure_ascii=True, sort_keys=True)}"
+                    f"{serialize_untrusted_context('pr_to_til', provenance='github_pull_request', data=context)}"
                 ),
             },
         ],

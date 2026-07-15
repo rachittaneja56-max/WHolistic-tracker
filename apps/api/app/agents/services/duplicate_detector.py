@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from uuid import UUID
 
 from sqlalchemy import select
@@ -8,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.schemas.common import DuplicateDetectorResponseRead
 from app.agents.services.provider import AgentMessage, OpenAIProvider, get_ai_provider
+from app.agents.utils.context import serialize_untrusted_context
 from app.agents.utils.prompts import build_system_prompt
 from app.models.entity import Entity
 
@@ -109,13 +109,13 @@ def build_duplicate_detector_messages(target: Entity, candidates: list[Entity]) 
         {"role": "system", "content": build_system_prompt("duplicate_detector.md")},
         {
             "role": "user",
-            "content": json.dumps(
-                {
+            "content": serialize_untrusted_context(
+                "duplicate_detector",
+                provenance="personal_graph_candidates",
+                data={
                     "target": serialize_entity_for_prompt(target),
                     "candidates": [serialize_entity_for_prompt(candidate) for candidate in candidates],
                 },
-                ensure_ascii=True,
-                sort_keys=True,
             ),
         },
     ]

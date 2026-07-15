@@ -20,6 +20,10 @@ from app.schemas.dsa_integrations import DsaConnection, Platform
 from app.services.embeddings import update_entity_embedding
 
 SETTING_KEY = "dsa_integrations"
+PUBLIC_LEETCODE_DEPRECATION_MESSAGE = (
+    "Public-profile LeetCode sync is deprecated because the third-party feed is unreliable. "
+    "Use the Personal Dev KG browser extension for LeetCode imports."
+)
 logger = logging.getLogger(__name__)
 
 
@@ -54,19 +58,6 @@ def _client() -> httpx.Client:
     return httpx.Client(timeout=20.0, follow_redirects=True, headers={"User-Agent": "PersonalDevKG/1.0"})
 
 
-
-def _request_with_retry(client: httpx.Client, method: str, url: str, **kwargs: Any) -> httpx.Response:
-    for attempt in range(4):
-        response = client.get(url, **kwargs) if method == "GET" else client.post(url, **kwargs)
-        if getattr(response, "status_code", 200) != 429 or attempt == 3:
-            return response
-        retry_after = response.headers.get("Retry-After", "2")
-        try:
-            delay = min(15.0, max(1.0, float(retry_after)))
-        except ValueError:
-            delay = 2.0 * (attempt + 1)
-        time.sleep(delay)
-    return response
 
 class CodeforcesAdapter:
     platform: Platform = "codeforces"
@@ -108,97 +99,14 @@ class CodeforcesAdapter:
 
 
 class LeetCodeAdapter:
+    """Compatibility marker for the retired public-profile import path."""
+
     platform: Platform = "leetcode"
-    compatibility_api = "https://alfa-leetcode-api.onrender.com"
-    graphql_url = "https://leetcode.com/graphql"
-    question_detail_query = "query question($titleSlug: String!) { question(titleSlug: $titleSlug) { title difficulty topicTags { name } } }"
-    questions_query = """
-    query problemsetQuestionList($categorySlug: String, $limit: Int, $skip: Int, $filters: QuestionListFilterInput) {
-      problemsetQuestionList: questionList(categorySlug: $categorySlug, limit: $limit, skip: $skip, filters: $filters) {
-        total: totalNum questions: data { title titleSlug difficulty status topicTags { name } }
-      }
-    }
-    """
-    submissions_query = """
-    query submissions($offset: Int!, $limit: Int!, $lastKey: String, $questionSlug: String!) {
-      submissionList(offset: $offset, limit: $limit, lastKey: $lastKey, questionSlug: $questionSlug) {
-        lastKey hasNext submissions { id statusDisplay lang timestamp }
-      }
-    }
-    """
-    submission_detail_query = "query submissionDetails($submissionId: Int!) { submissionDetails(submissionId: $submissionId) { code lang } }"
-    note_query = "query questionNote($titleSlug: String!) { questionNote(titleSlug: $titleSlug) { note } }"
 
-    def _graphql(self, client: httpx.Client, query: str, variables: dict[str, Any], cookies: str = "") -> dict[str, Any]:
-        response = _request_with_retry(client, "POST", self.graphql_url, json={"query": query, "variables": variables}, headers={"Cookie": cookies, "Referer": "https://leetcode.com/"})
-        response.raise_for_status()
-        payload = response.json()
-        if payload.get("errors"):
-            raise RuntimeError(str(payload["errors"][0].get("message") or "LeetCode GraphQL request failed"))
-        return payload.get("data") or {}
+    def fetch(self, connection: DsaConnection) -> list[ImportedProblem]:
+        _ = connection
+        raise RuntimeError(PUBLIC_LEETCODE_DEPRECATION_MESSAGE)
 
-    def _fetch_authenticated(self, connection: DsaConnection) -> list[ImportedProblem]:
-        raise RuntimeError("Private LeetCode synchronization must use a user-bound browser extension token")
-        grouped: dict[str, ImportedProblem] = {}
-        with _client() as client:
-            skip, page_size, total = 0, 100, None
-            while total is None or skip < total:
-                listing = self._graphql(client, self.questions_query, {"categorySlug": "", "limit": page_size, "skip": skip, "filters": {"status": "AC"}}, cookies).get("problemsetQuestionList") or {}
-                questions = listing.get("questions") or []
-                total = int(listing.get("total") or 0)
-                for question in questions:
-                    slug = str(question.get("titleSlug") or "").strip()
-                    if slug:
-                        grouped[slug] = ImportedProblem(slug, str(question.get("title") or slug), f"https://leetcode.com/problems/{slug}/", str(question.get("difficulty")).lower() if question.get("difficulty") else None, [str(tag.get("name")) for tag in question.get("topicTags") or [] if tag.get("name")], True, 1)
-                if not questions or len(questions) < page_size:
-                    break
-                skip += len(questions)
-            for problem in grouped.values():
-                try:
-                    submissions = (self._graphql(client, self.submissions_query, {"offset": 0, "limit": 20, "lastKey": None, "questionSlug": problem.external_id}, cookies).get("submissionList") or {}).get("submissions") or []
-                    accepted = [item for item in submissions if item.get("statusDisplay") == "Accepted"]
-                    if accepted:
-                        latest = accepted[0]
-                        problem.language = latest.get("lang")
-                        problem.last_submitted_at = _iso_timestamp(latest.get("timestamp"))
-                        problem.first_solved_at = problem.last_submitted_at
-                        details = self._graphql(client, self.submission_detail_query, {"submissionId": int(latest["id"])}, cookies).get("submissionDetails") or {}
-                        problem.solution_code = details.get("code")
-                    note = self._graphql(client, self.note_query, {"titleSlug": problem.external_id}, cookies).get("questionNote") or {}
-                    problem.notes = note.get("note") if isinstance(note, dict) else None
-                except Exception:
-                    logger.exception("Unable to fetch private LeetCode content for %s", problem.external_id)
-        if not grouped:
-            raise RuntimeError("LeetCode returned no solved problems for the authenticated account")
-        return list(grouped.values())
-
-    def fetch(self, connection: DsaConnection, *, allow_private: bool = False) -> list[ImportedProblem]:
-        if allow_private:
-            return self._fetch_authenticated(connection)
-        with _client() as client:
-            accepted_response = _request_with_retry(client, "GET", f"{self.compatibility_api}/{connection.username}/acSubmission", params={"limit": 20})
-            accepted_response.raise_for_status()
-            accepted_payload = accepted_response.json()
-            accepted_items = accepted_payload.get("submission") if isinstance(accepted_payload, dict) else accepted_payload
-            if not isinstance(accepted_items, list):
-                raise RuntimeError("LeetCode returned an invalid accepted-submission list")
-            grouped: dict[str, ImportedProblem] = {}
-            for submission in accepted_items:
-                slug = str(submission.get("titleSlug") or submission.get("questionTitleSlug") or "").strip()
-                if not slug:
-                    continue
-                details: dict[str, Any] = {}
-                try:
-                    details = self._graphql(client, self.question_detail_query, {"titleSlug": slug}).get("question") or {}
-                except Exception:
-                    logger.exception("Unable to enrich public LeetCode problem %s", slug)
-                timestamp = _iso_timestamp(submission.get("timestamp"))
-                tags = [str(tag.get("name")) for tag in details.get("topicTags") or [] if tag.get("name")]
-                current = grouped.setdefault(slug, ImportedProblem(slug, str(details.get("title") or submission.get("title") or slug), f"https://leetcode.com/problems/{slug}/", str(details.get("difficulty")).lower() if details.get("difficulty") else None, tags, True, 0, timestamp, timestamp))
-                current.submission_count += 1
-            if not grouped:
-                raise RuntimeError("LeetCode returned no accepted submissions")
-            return list(grouped.values())
 
 class _CodeChefProblemParser(HTMLParser):
     def __init__(self) -> None:
@@ -281,13 +189,19 @@ def sync_connections(db: Session) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for platform, raw in configured.items():
         now = datetime.now(timezone.utc).isoformat()
+        if platform == "leetcode":
+            raw["last_error"] = None
+            results.append({
+                "platform": "leetcode",
+                "status": "skipped",
+                "skipped_count": 0,
+                "message": PUBLIC_LEETCODE_DEPRECATION_MESSAGE,
+            })
+            continue
         try:
             connection = DsaConnection.model_validate({key: raw.get(key) for key in ("platform", "username", "profile_url", "enabled") if key in raw})
             _validate_profile_url(connection)
-            if platform == "leetcode":
-                imported = ADAPTERS[platform].fetch(connection, allow_private=False)  # type: ignore[call-arg]
-            else:
-                imported = ADAPTERS[platform].fetch(connection)
+            imported = ADAPTERS[platform].fetch(connection)
             existing = db.scalars(select(Entity).where(Entity.type == "dsa_problem")).all()
             by_key = {((entity.entity_metadata or {}).get("integration") or {}).get("external_key"): entity for entity in existing}
             created = updated = 0
@@ -318,10 +232,7 @@ def sync_connections(db: Session) -> list[dict[str, Any]]:
                     pass
             record_session(db, entity_id=None, action="dsa_platform_sync", meta={"platform": platform, "imported": created, "updated": updated})
             raw["last_synced_at"], raw["last_error"] = now, None
-            sync_message = None
-            if platform == "leetcode":
-                sync_message = "Public LeetCode sync is limited to recent submissions. Configure private sync for all problems, code, and notes."
-            results.append({"platform": platform, "status": "synced", "imported_count": created, "updated_count": updated, "message": sync_message})
+            results.append({"platform": platform, "status": "synced", "imported_count": created, "updated_count": updated})
         except Exception as exc:
             logger.exception("DSA platform sync failed for %s", platform)
             raw["last_error"] = str(exc)[:500]

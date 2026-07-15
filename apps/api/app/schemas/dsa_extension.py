@@ -48,6 +48,11 @@ class ExtensionImportRecord(BaseModel):
     source_updated_at: datetime | None = None
     tracker_notes: str | None = Field(default=None, max_length=100_000)
     tracker_tags: list[str] | None = Field(default=None, max_length=50)
+    capture_status: dict[str, Literal['fetched', 'unknown', 'not_available', 'failed']] = Field(
+        default_factory=dict,
+        max_length=8,
+    )
+    capture_errors: list[str] = Field(default_factory=list, max_length=8)
 
     @field_validator("url")
     @classmethod
@@ -66,6 +71,11 @@ class ExtensionImportRecord(BaseModel):
         if any(len(item) > 80 for item in cleaned):
             raise ValueError("tags must be at most 80 characters")
         return cleaned
+
+    @field_validator('capture_errors')
+    @classmethod
+    def clean_capture_errors(cls, value: list[str]) -> list[str]:
+        return [item.strip()[:160] for item in value if item.strip()][:8]
 
     @model_validator(mode="after")
     def url_matches_problem(self):

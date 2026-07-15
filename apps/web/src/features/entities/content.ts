@@ -1,4 +1,4 @@
-﻿import type { ContentType, Entity, EntityType } from "@/lib/api"
+import type { ContentType, Entity, EntityType } from "@/lib/api"
 
 const PREVIEW_LENGTH = 120
 const CANVAS_APP_STATE_KEYS = [
@@ -143,11 +143,12 @@ function extractBlockText(value: unknown): string {
 }
 
 export function getDefaultCanvasDocument(): CanvasDocument {
+  const dark = typeof document !== "undefined" && document.documentElement.classList.contains("dark")
   return {
     elements: [],
     appState: {
-      theme: "dark",
-      viewBackgroundColor: "#18181b",
+      theme: dark ? "dark" : "light",
+      viewBackgroundColor: dark ? "#080d18" : "#f8fafc",
       gridModeEnabled: false,
       objectsSnapModeEnabled: false,
       zenModeEnabled: false,

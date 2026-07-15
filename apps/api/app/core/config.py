@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     auth_jwks_url: str = "http://localhost:3001/api/auth/jwks"
     auth_jwt_issuer: str = "http://localhost:3001"
     auth_jwt_audience: str = "personal-dev-kg-api"
-    root_admin_email: str = "rachittaneja56@gmail.com"
+    root_admin_email: str | None = None
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
     embedding_backend: Literal["auto", "sentence_transformer", "hash"] = "auto"
     embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"

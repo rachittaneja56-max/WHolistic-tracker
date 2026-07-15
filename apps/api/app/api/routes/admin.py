@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import hashlib
 import secrets
@@ -65,7 +65,7 @@ def _audit(db: Session, request: Request, principal: AuthPrincipal, action: str,
             target_user_id=target,
             action=action,
             ip_address=request.client.host if request.client else None,
-            details=details or {},
+            details={**(details or {}), "actor_email": str(principal.email)},
         )
     )
 
@@ -81,12 +81,15 @@ def _user(db: Session, user_id: UUID) -> dict:
 
 
 def _protect_root(user: dict) -> None:
-    if str(user["email"]).lower() == settings.root_admin_email.lower() or user["role"] == "root_admin":
+    configured_email = (settings.root_admin_email or "").strip().lower()
+    if (configured_email and str(user["email"]).lower() == configured_email) or user["role"] == "root_admin":
         raise HTTPException(status_code=409, detail="The root administrator account is protected")
 
 
 def _protect_root_from_other_admins(user: dict, actor: AuthPrincipal) -> None:
-    if (str(user["email"]).lower() == settings.root_admin_email.lower() or user["role"] == "root_admin") and not actor.is_root_admin:
+    configured_email = (settings.root_admin_email or "").strip().lower()
+    is_root = (configured_email and str(user["email"]).lower() == configured_email) or user["role"] == "root_admin"
+    if is_root and not actor.is_root_admin:
         raise HTTPException(status_code=403, detail="Only the root administrator can manage root sessions or credentials")
 
 
@@ -314,7 +317,7 @@ def password_reset_link(user_id: UUID, request: Request, db: Session = Depends(g
     db.add(PasswordResetToken(id=uuid4(), user_id=user_id, token_hash=hashlib.sha256(token.encode()).hexdigest(), expires_at=now + timedelta(hours=1), created_by_user_id=admin.user_id))
     _audit(db, request, admin, "password_reset.created", user_id)
     db.commit()
-    return {"email": user["email"], "expires_at": now + timedelta(hours=1), "reset_url": f"{settings.frontend_origin.rstrip('/')}/reset-password?token={token}"}
+    return {"email": user["email"], "expires_at": now + timedelta(hours=1), "reset_url": f"{settings.frontend_origin.rstrip('/')}/reset-password?token={token}&source=admin"}
 
 
 @router.patch("/users/{user_id}/role")
@@ -351,11 +354,30 @@ def usage(days: int = Query(default=30, ge=1, le=365), db: Session = Depends(get
     return [dict(row) for row in db.execute(text("SELECT date, sum(entity_writes) AS entity_writes, sum(assistant_messages) AS assistant_messages, sum(ai_requests) AS ai_requests, sum(prompt_tokens) AS prompt_tokens, sum(completion_tokens) AS completion_tokens, sum(integration_syncs) AS integration_syncs, sum(errors) AS errors FROM usage_daily WHERE date >= :cutoff GROUP BY date ORDER BY date"), {"cutoff": cutoff}).mappings()]
 
 
+@router.get("/product-metrics")
+def product_metrics(
+    days: int = Query(default=30, ge=1, le=365),
+    db: Session = Depends(get_db),
+    _admin: AuthPrincipal = Depends(require_admin),
+) -> list[dict]:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    rows = db.execute(
+        text(
+            "SELECT date_trunc('day', created_at) AS day, event_name, count(*) AS event_count, "
+            "avg(CASE WHEN event_name = 'core_web_vital' "
+            "THEN (properties->>'value')::double precision END) AS average_value "
+            "FROM product_events WHERE created_at >= :cutoff "
+            "GROUP BY day, event_name ORDER BY day, event_name"
+        ),
+        {"cutoff": cutoff},
+    ).mappings()
+    return [dict(row) for row in rows]
+
+
 @router.get("/audit-log")
 def audit_log(limit: int = Query(default=100, ge=1, le=500), db: Session = Depends(get_db), _admin: AuthPrincipal = Depends(require_admin)) -> list[dict]:
-    return [dict(row) for row in db.execute(text('SELECT a.id, a.action, a.target_user_id, a.ip_address, a.details, a.created_at, u.email AS actor_email FROM admin_audit_logs a JOIN auth."user" u ON u.id = a.actor_user_id ORDER BY a.created_at DESC LIMIT :limit'), {"limit": limit}).mappings()]
-
-
+    query = text("SELECT a.id, a.action, a.target_user_id, a.ip_address, a.details, a.created_at, COALESCE(u.email, a.details->>'actor_email', 'Deleted account') AS actor_email FROM admin_audit_logs a LEFT JOIN auth.\"user\" u ON u.id = a.actor_user_id ORDER BY a.created_at DESC LIMIT :limit")
+    return [dict(row) for row in db.execute(query, {"limit": limit}).mappings()]
 @router.get("/system-settings")
 def system_settings(db: Session = Depends(get_db), _admin: AuthPrincipal = Depends(require_admin)) -> dict:
     return {row.key: row.value for row in db.scalars(select(SystemSetting)).all()}

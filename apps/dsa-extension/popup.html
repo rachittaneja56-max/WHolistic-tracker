@@ -1,51 +1,75 @@
 <!doctype html>
-<html lang="en">
+<html lang='en'>
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>DSA Importer</title>
-    <link rel="stylesheet" href="popup.css" />
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width,initial-scale=1'>
+    <title>Personal Dev KG LeetCode Importer</title>
+    <link rel='stylesheet' href='popup.css'>
   </head>
   <body>
     <main>
-      <header><span class="eyebrow">PERSONAL DEV KG</span><h1>LeetCode Importer</h1></header>
-      <div id="notice" class="notice hidden"></div>
+      <header>
+        <div><span class='eyebrow'>PERSONAL DEV KG</span><h1>LeetCode importer</h1></div>
+        <span id='extension-version' class='muted'></span>
+      </header>
+      <div id='notice' class='notice hidden' role='status' aria-live='polite'></div>
 
-      <section id="pairing" class="hidden">
-        <p>Generate a pairing code from the DSA tracker, then enter it here.</p>
-        <label>API origin<input id="api-origin" value="http://localhost:8000" /></label>
-        <label>Pairing code<input id="pair-code" maxlength="16" placeholder="ABCD2345" /></label>
-        <button id="pair">Pair extension</button>
-      </section>
-
-      <section id="offsite" class="hidden">
-        <p>Open LeetCode in this tab to capture or import solved problems.</p>
-        <button id="open-leetcode">Open LeetCode</button>
-      </section>
-
-      <section id="logged-out" class="hidden">
-        <p>Log in to LeetCode in this tab. Your cookies never leave LeetCode.</p>
-        <button id="login">Log in to LeetCode</button>
-      </section>
-
-      <section id="problem" class="hidden">
-        <div class="problem-heading"><div><span id="difficulty" class="pill"></span><h2 id="title"></h2></div><span id="tracker-status" class="muted"></span></div>
-        <label>Tracker tags<input id="tracker-tags" placeholder="arrays, revisit" /></label>
-        <label>My tracker note<textarea id="tracker-note" rows="4" placeholder="What did you learn?"></textarea></label>
-        <button id="capture">Capture problem</button>
-      </section>
-
-      <section id="importer" class="hidden">
-        <div class="row"><strong>Solved history</strong><span id="progress-label" class="muted"></span></div>
-        <progress id="progress" max="1" value="0"></progress>
-        <button id="import-all">Import all solved problems</button>
-        <div class="button-row">
-          <button id="pause" class="secondary">Pause</button>
-          <button id="resume" class="secondary">Resume</button>
-          <button id="cancel" class="danger">Cancel</button>
+      <section id='connection' class='connection hidden' aria-label='Extension connection'>
+        <div><strong>Workspace connected</strong><span id='connected-origin' class='muted'></span></div>
+        <div class='button-row two'>
+          <button id='reconnect' class='secondary'>Reconnect</button>
+          <button id='forget' class='danger'>Forget connection</button>
         </div>
       </section>
+
+      <section id='pairing' class='hidden'>
+        <div><h2>Connect your workspace</h2><p>Generate a pairing code from DSA practice, then enter it here.</p></div>
+        <label id='api-origin-field' for='api-origin'>API origin<input id='api-origin' value='http://localhost:8000' inputmode='url'></label>
+        <label for='pair-code'>Pairing code<input id='pair-code' maxlength='16' autocomplete='one-time-code' placeholder='ABCD2345'></label>
+        <button id='pair'>Pair extension</button>
+      </section>
+
+      <section id='offsite' class='hidden'>
+        <div><h2>Open LeetCode</h2><p>Use a LeetCode tab to capture the current problem or import solved history.</p></div>
+        <button id='open-leetcode'>Open LeetCode</button>
+      </section>
+
+      <section id='logged-out' class='hidden warning-card'>
+        <div><h2>LeetCode sign-in needed</h2><p>Problem metadata may still load, but private submissions and notes require your signed-in LeetCode tab.</p></div>
+        <button id='login' class='secondary'>Log in to LeetCode</button>
+      </section>
+
+      <section id='problem' class='hidden'>
+        <div class='problem-heading'>
+          <div><span id='difficulty' class='pill'></span><h2 id='title'></h2></div>
+          <span id='tracker-status' class='muted'></span>
+        </div>
+        <label for='tracker-tags'>Tracker tags<input id='tracker-tags' placeholder='arrays, revisit'></label>
+        <label for='tracker-note'>What did you learn?<textarea id='tracker-note' rows='4' placeholder='Capture the insight you want to remember.'></textarea></label>
+        <button id='capture'>Capture problem</button>
+        <div id='capture-details' class='capture-details hidden' aria-live='polite'></div>
+      </section>
+
+      <section id='importer' class='hidden'>
+        <div class='row'><div><h2>Solved history</h2><span id='progress-label' class='muted'></span></div><span id='job-status' class='pill'></span></div>
+        <progress id='progress' max='1' value='0' aria-label='Historical import progress'></progress>
+        <div id='counters' class='counter-grid'></div>
+        <button id='import-all'>Import solved history</button>
+        <div class='button-row'>
+          <button id='pause' class='secondary'>Pause</button>
+          <button id='resume' class='secondary'>Resume</button>
+          <button id='cancel' class='danger'>Cancel</button>
+        </div>
+        <button id='retry-failed' class='secondary'>Retry failed problems</button>
+        <div id='failure-list' class='failure-list hidden'></div>
+      </section>
+
+      <section id='diagnostics' class='diagnostics'>
+        <div class='row'><div><h2>Diagnostics</h2><p>Safe status only; no code, notes, cookies, or response bodies.</p></div><button id='run-diagnostics' class='secondary compact'>Run</button></div>
+        <div id='diagnostic-list' class='diagnostic-list'></div>
+        <div id='latest-error' class='latest-error hidden'></div>
+      </section>
     </main>
-    <script src="popup.js"></script>
+    <script src='popup.js'></script>
   </body>
 </html>

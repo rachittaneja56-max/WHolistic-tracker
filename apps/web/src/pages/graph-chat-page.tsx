@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { Link } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
@@ -118,12 +118,12 @@ export function GraphChatPage({ sectionControl }: { sectionControl?: import("rea
           </form>
 
           {isChatDisabled ? (
-            <div className="rounded-lg border border-amber-500/30 bg-zinc-950 px-4 py-3 text-sm text-amber-300">
+            <div className="rounded-lg border border-warning/30 bg-background px-4 py-3 text-sm text-warning">
               {agentStatus?.disabled_reason ?? "Graph chat is unavailable until AI is configured."}
             </div>
           ) : null}
 
-          {error ? <p className="text-sm text-red-300">{error}</p> : null}
+          {error ? <p className="text-sm text-danger">{error}</p> : null}
         </CardContent>
       </Card>
 
@@ -137,19 +137,20 @@ export function GraphChatPage({ sectionControl }: { sectionControl?: import("rea
             <CardDescription>Claims should be traceable to the cited entities below.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-              <p className="whitespace-pre-wrap text-sm leading-7 text-zinc-300">{result.answer}</p>
+            <div className="rounded-lg border border-border bg-background p-4">
+              <p className="whitespace-pre-wrap text-sm leading-7 text-secondary">{result.answer}</p>
             </div>
 
             {result.citations.length > 0 ? (
               <div className="space-y-3">
-                <p className="text-sm font-semibold text-zinc-100">Citations</p>
+                <p className="text-sm font-semibold text-foreground">Citations</p>
                 <div className="grid gap-3 xl:grid-cols-2">
                   {result.citations.map((citation) => (
-                    <Link key={citation.entity_id} to={`/entities/${citation.entity_id}`} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4 transition-colors hover:border-blue-500/40">
-                      <p className="text-sm font-medium text-zinc-100">{citation.title}</p>
-                      <p className="mt-2 text-sm text-zinc-300">{citation.reason_used}</p>
-                      <p className="mt-3 font-mono text-xs text-zinc-500">entity {citation.entity_id}</p>
+                    <Link key={citation.entity_id} to={`/knowledge/entities/${citation.entity_id}`} className="rounded-lg border border-border bg-background px-4 py-4 transition-colors hover:border-primary/40">
+                      <p className="text-sm font-medium text-foreground">{citation.title}</p>
+                      <p className="mt-2 text-sm text-secondary">{citation.reason_used}</p>
+                      <blockquote className="mt-3 border-l-2 border-primary/30 pl-3 text-xs leading-5 text-muted-foreground">"{citation.evidence_excerpt}"</blockquote>
+                      <p className="mt-3 font-mono text-xs text-muted-foreground">entity {citation.entity_id}</p>
                     </Link>
                   ))}
                 </div>
@@ -157,8 +158,8 @@ export function GraphChatPage({ sectionControl }: { sectionControl?: import("rea
             ) : null}
 
             {result.missing ? (
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4">
-                <p className="text-sm text-zinc-300">You have not written enough about this yet.</p>
+              <div className="rounded-lg border border-border bg-background px-4 py-4">
+                <p className="text-sm text-secondary">You have not written enough about this yet.</p>
                 <Button asChild className="mt-4">
                   <Link to={captureHref}>Create a note from this question</Link>
                 </Button>

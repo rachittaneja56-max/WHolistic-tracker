@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import itertools
-import json
 import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -13,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.api.activity import record_session
 from app.agents.schemas.common import DeepConnectionsRunResponseRead, DeepConnectionSuggestionRead
 from app.agents.services.provider import AgentMessage, OpenAIProvider, get_ai_provider
+from app.agents.utils.context import serialize_untrusted_context
 from app.agents.utils.prompts import build_system_prompt
 from app.models.entity import Entity
 from app.models.link import Link
@@ -229,14 +229,14 @@ def build_deep_connection_messages(from_entity: Entity, to_entity: Entity, reaso
         {"role": "system", "content": build_system_prompt("deep_connection_agent.md")},
         {
             "role": "user",
-            "content": json.dumps(
-                {
+            "content": serialize_untrusted_context(
+                "deep_connections",
+                provenance="personal_graph_candidate_pair",
+                data={
                     "candidate_reasons": reasons,
                     "entity_a": serialize_entity_for_prompt(from_entity),
                     "entity_b": serialize_entity_for_prompt(to_entity),
                 },
-                ensure_ascii=True,
-                sort_keys=True,
             ),
         },
     ]

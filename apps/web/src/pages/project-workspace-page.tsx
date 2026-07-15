@@ -13,6 +13,7 @@ import { ProjectOverview } from "@/features/projects/project-overview"
 import { ProjectActivity, ProjectKnowledge, ProjectTimeline } from "@/features/projects/project-secondary-views"
 import { displayLabel, errorMessage, formatDate, healthVariant, metaString, taskBoardStatus, type BoardStatus, type WorkspaceTab } from "@/features/projects/project-utils"
 import { TaskDrawer } from "@/features/projects/task-drawer"
+import { useModalFocus } from "@/hooks/use-modal-focus"
 import {
   createEntity,
   createLink,
@@ -48,6 +49,9 @@ export function ProjectWorkspacePage() {
   const [tilContent, setTilContent] = useState("")
   const [savingTil, setSavingTil] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const { dialogRef, onDialogKeyDown } = useModalFocus(Boolean(pendingCompletionTask), () => {
+    if (!savingTil) setPendingCompletionTask(null)
+  })
 
   async function loadWorkspace() {
     if (!projectId) return
@@ -128,23 +132,23 @@ export function ProjectWorkspacePage() {
     setShowTaskForm(true)
   }
 
-  if (loading && !workspace) return <div className="rounded-lg border border-zinc-800 p-10 text-center text-sm text-zinc-500">Loading the project workspace...</div>
-  if (!workspace) return <div className="space-y-4"><Button asChild variant="outline"><Link to="/trackers/projects"><ArrowLeft className="mr-2 h-4 w-4" />Projects</Link></Button><div className="rounded-lg border border-red-500/30 bg-red-500/5 p-5 text-red-300">{error ?? "Project not found."}</div></div>
+  if (loading && !workspace) return <div className="rounded-lg border border-border p-10 text-center text-sm text-muted-foreground">Loading the project workspace...</div>
+  if (!workspace) return <div className="space-y-4"><Button asChild variant="outline"><Link to="/trackers/projects"><ArrowLeft className="mr-2 h-4 w-4" />Projects</Link></Button><div className="rounded-lg border border-danger/30 bg-danger/5 p-5 text-danger">{error ?? "Project not found."}</div></div>
 
   const { summary } = workspace
   const project = summary.project
 
   return <div className="space-y-6">
     <div className="flex flex-col gap-4">
-      <Link to="/trackers/projects" className="flex w-fit items-center text-sm text-zinc-500 hover:text-zinc-200"><ArrowLeft className="mr-2 h-4 w-4" />Project portfolio</Link>
+      <Link to="/trackers/projects" className="flex w-fit items-center text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="mr-2 h-4 w-4" />Project portfolio</Link>
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0"><div className="flex flex-wrap items-center gap-3"><h1 className="truncate text-3xl font-semibold text-zinc-100">{project.title ?? "Untitled project"}</h1><Badge variant={healthVariant(summary.health)}>{displayLabel(summary.health)}</Badge><Badge>{displayLabel(metaString(project, "status", "active"))}</Badge></div><p className="mt-2 max-w-4xl text-sm text-zinc-400">{metaString(project, "objective", project.content || "Add an objective in project settings.")}</p><div className="mt-3 flex flex-wrap gap-4 text-xs text-zinc-500"><span>{summary.progress_percent}% complete</span><span>{summary.open_task_count} open tasks</span><span>Target {formatDate(metaString(project, "target_at") || null)}</span>{metaString(project, "repo_url") ? <a className="flex items-center gap-1 text-blue-400 hover:text-blue-300" href={metaString(project, "repo_url").startsWith("http") ? metaString(project, "repo_url") : `https://github.com/${metaString(project, "repo_url")}`} target="_blank" rel="noreferrer"><Github className="h-3.5 w-3.5" />Repository</a> : null}</div></div>
+        <div className="min-w-0"><div className="flex flex-wrap items-center gap-3"><h1 className="truncate text-3xl font-semibold text-foreground">{project.title ?? "Untitled project"}</h1><Badge variant={healthVariant(summary.health)}>{displayLabel(summary.health)}</Badge><Badge>{displayLabel(metaString(project, "status", "active"))}</Badge></div><p className="mt-2 max-w-4xl text-sm text-secondary">{metaString(project, "objective", project.content || "Add an objective in project settings.")}</p><div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground"><span>{summary.progress_percent}% complete</span><span>{summary.open_task_count} open tasks</span><span>Target {formatDate(metaString(project, "target_at") || null)}</span>{metaString(project, "repo_url") ? <a className="flex items-center gap-1 text-primary hover:text-primary" href={metaString(project, "repo_url").startsWith("http") ? metaString(project, "repo_url") : `https://github.com/${metaString(project, "repo_url")}`} target="_blank" rel="noreferrer"><Github className="h-3.5 w-3.5" />Repository</a> : null}</div></div>
         <div className="flex gap-3"><Button variant="outline" onClick={() => setShowMilestoneForm(true)}><Plus className="mr-2 h-4 w-4" />Milestone</Button><Button onClick={() => openTaskForm()} disabled={workspace.milestones.length === 0}><Plus className="mr-2 h-4 w-4" />Task</Button></div>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${summary.progress_percent}%` }} /></div>
+      <div className="h-2 overflow-hidden rounded-full bg-surface-subtle"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${summary.progress_percent}%` }} /></div>
     </div>
 
-    <div className="flex gap-1 overflow-x-auto border-b border-zinc-800 pb-px">{tabs.map((item) => { const Icon = item.icon; return <button key={item.value} type="button" onClick={() => setTab(item.value)} className={`flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-sm transition-colors ${tab === item.value ? "border-blue-400 text-zinc-100" : "border-transparent text-zinc-500 hover:text-zinc-200"}`}><Icon className="h-4 w-4" />{item.label}</button> })}</div>
+    <div className="flex gap-1 overflow-x-auto border-b border-border pb-px">{tabs.map((item) => { const Icon = item.icon; return <button key={item.value} type="button" onClick={() => setTab(item.value)} className={`flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-sm transition-colors ${tab === item.value ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Icon className="h-4 w-4" />{item.label}</button> })}</div>
     {error ? <Notice tone="error" message={error} onClose={() => setError(null)} /> : null}
     {message ? <Notice tone="success" message={message} onClose={() => setMessage(null)} /> : null}
 
@@ -159,10 +163,10 @@ export function ProjectWorkspacePage() {
     {tab === "settings" ? <ProjectSettings project={project} onSave={async (payload) => { await patchEntity(project.id, payload) }} /> : null}
 
     {selectedTask ? <TaskDrawer task={selectedTask} milestones={workspace.milestones} tasks={workspace.tasks} relationships={workspace.relationships} onClose={() => setSelectedTaskId(null)} onSave={async (payload, nextStatus) => { if (nextStatus === "done" && taskBoardStatus(selectedTask) !== "done") { const updated = await patchEntity(selectedTask.id, { ...payload, metadata: { ...(payload.metadata ?? {}), status: metaString(selectedTask, "status", "backlog") } }); if (updated) setPendingCompletionTask(updated) } else { await patchEntity(selectedTask.id, payload) } }} onStatus={(status) => void changeTaskStatus(selectedTask, status)} onRefresh={loadWorkspace} /> : null}
-    {pendingCompletionTask ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"><Card className="w-full max-w-2xl"><CardHeader><CardTitle>What did you learn?</CardTitle><CardDescription>Complete {pendingCompletionTask.title} and connect durable learning to the work.</CardDescription></CardHeader><CardContent className="space-y-4"><Textarea value={tilContent} onChange={(event) => setTilContent(event.target.value)} className="min-h-40" placeholder="Key decision, tradeoff, bug, or concept you want to retain" /><div className="flex justify-end gap-3"><Button variant="outline" onClick={() => setPendingCompletionTask(null)}>Cancel</Button><Button onClick={() => void completeTask()} disabled={!tilContent.trim() || savingTil}>{savingTil ? "Saving..." : "Complete + save TIL"}</Button></div></CardContent></Card></div> : null}
+    {pendingCompletionTask ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingTil) setPendingCompletionTask(null) }}><Card ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="project-learning-title" tabIndex={-1} onKeyDown={onDialogKeyDown} className="w-full max-w-2xl outline-none"><CardHeader><CardTitle id="project-learning-title">What did you learn?</CardTitle><CardDescription>Complete {pendingCompletionTask.title} and connect durable learning to the work.</CardDescription></CardHeader><CardContent className="space-y-4"><Textarea aria-label="Learning retained from this task" value={tilContent} onChange={(event) => setTilContent(event.target.value)} className="min-h-40" placeholder="Key decision, tradeoff, bug, or concept you want to retain" /><div className="flex justify-end gap-3"><Button variant="outline" onClick={() => setPendingCompletionTask(null)} disabled={savingTil}>Cancel</Button><Button onClick={() => void completeTask()} disabled={!tilContent.trim() || savingTil}>{savingTil ? "Saving..." : "Complete + save TIL"}</Button></div></CardContent></Card></div> : null}
   </div>
 }
 
 function Notice({ tone, message, onClose }: { tone: "error" | "success"; message: string; onClose: () => void }) {
-  return <div className={`flex items-center justify-between rounded-lg border p-4 text-sm ${tone === "error" ? "border-red-500/30 bg-red-500/5 text-red-300" : "border-emerald-500/30 bg-emerald-500/5 text-emerald-200"}`}><span>{message}</span><button onClick={onClose} aria-label="Dismiss"><X className="h-4 w-4" /></button></div>
+  return <div className={`flex items-center justify-between rounded-lg border p-4 text-sm ${tone === "error" ? "border-danger/30 bg-danger/5 text-danger" : "border-success/30 bg-success/5 text-success"}`}><span>{message}</span><button onClick={onClose} aria-label="Dismiss"><X className="h-4 w-4" /></button></div>
 }

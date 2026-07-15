@@ -5,6 +5,7 @@ __pycache__/
 *.pyd
 *.pyc
 .pytest_cache/
+pytest-cache-files-*/
 .mypy_cache/
 .venv/
 
@@ -22,3 +23,9 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated QA and extension bundles
+artifacts/visual-qa/
+apps/dsa-extension/release/
+apps/dsa-extension/test-results/
+apps/dsa-extension/playwright-report/

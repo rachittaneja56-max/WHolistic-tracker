@@ -3,12 +3,12 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
-import json
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.agents.services.provider import OpenAIProvider
+from app.agents.utils.context import serialize_untrusted_context
 from app.agents.services.recall import get_due_recall_items, parse_exam_date
 from app.agents.utils.prompts import build_system_prompt
 from app.models.comprehension_check import ComprehensionCheck
@@ -204,7 +204,7 @@ def get_weekly_digest(
                 "content": (
                     "Return a concise weekly digest JSON using only this personal knowledge graph data. "
                     "Do not invent progress or actions.\n\n"
-                    f"Context:\n{json.dumps(prompt_context, ensure_ascii=True, sort_keys=True)}"
+                    f"{serialize_untrusted_context('weekly', provenance='weekly_graph_summary', data=prompt_context)}"
                 ),
             },
         ],

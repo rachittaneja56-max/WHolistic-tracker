@@ -13,6 +13,10 @@ def test_recursive_redaction() -> None:
     assert "password" not in redacted["nested"][1]["url"]
     assert redacted["authorization"] == REDACTED
     assert "abc" not in redact_text("Bearer abc")
+    assert "sk-abcdefghijklmnop1234" not in redact_text("api_key=sk-abcdefghijklmnop1234")
+    assert "PRIVATE KEY" not in redact_text(
+        "-----BEGIN PRIVATE KEY-----\\nsecret material\\n-----END PRIVATE KEY-----"
+    )
 
 
 def test_private_api_requires_bearer_token() -> None:

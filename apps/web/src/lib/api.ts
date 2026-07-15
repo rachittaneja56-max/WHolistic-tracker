@@ -37,6 +37,8 @@ export type LinkStatus = "agent_suggested" | "confirmed" | "rejected"
 export type GuidancePriority = "low" | "medium" | "high"
 export type RecallNextAction = "review_again" | "mark_revisited" | "strengthen_note"
 export type EntityMetadata = Record<string, unknown>
+export type ThemePreference = "system" | "light" | "dark"
+export type WorkspacePreferences = { theme: ThemePreference; onboarding_completed: boolean; learning_focuses: string[] }
 
 export type Entity = {
   id: string
@@ -415,6 +417,21 @@ export type RecallGradePayload = {
   self_score?: number
 }
 
+export type RecallGradePreview = {
+  entity_id: string
+  suggested_score: number
+  feedback: string
+  missed_points: string[]
+  next_action: RecallNextAction
+  used_fallback: boolean
+  mutates_state: false
+}
+
+export type RecallGradeApplyPayload = {
+  answer: string
+  confirmed_score: number
+}
+
 export type RecallGradeResult = {
   entity_id: string
   recalled_score: number
@@ -430,6 +447,7 @@ export type GraphChatCitation = {
   entity_id: string
   title: string
   reason_used: string
+  evidence_excerpt: string
 }
 
 export type GraphChatResult = {
@@ -621,6 +639,16 @@ export type AnswerComprehensionCheckResult = {
   updated_confidence_score: number
 }
 
+export type AnswerComprehensionCheckPreview = {
+  check_id: string
+  entity_id: string | null
+  suggested_grade: ComprehensionGrade
+  feedback: string
+  follow_up: string
+  used_fallback: boolean
+  mutates_state: false
+}
+
 const apiBaseUrl = (import.meta.env.VITE_API_URL ?? "http://localhost:8000").replace(/\/$/, "")
 
 async function getErrorMessage(response: Response) {
@@ -673,6 +701,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getEntities(query?: EntitiesQuery) {
   return request<Entity[]>(`/entities${buildQueryString(query)}`)
+}
+
+export function getPreferences() {
+  return request<WorkspacePreferences>("/settings/preferences")
+}
+
+export function patchPreferences(payload: Partial<WorkspacePreferences>) {
+  return request<WorkspacePreferences>("/settings/preferences", { method: "PATCH", body: JSON.stringify(payload) })
+}
+
+export function recordProductEvent(event_name: string, properties: Record<string, string | number | boolean>) {
+  return request<{ accepted: true }>("/events", { method: "POST", body: JSON.stringify({ event_name, properties }) })
 }
 
 export function getEntity(entityId: string) {
@@ -866,6 +906,20 @@ export function gradeRecall(entityId: string, payload: RecallGradePayload) {
   })
 }
 
+export function previewRecall(entityId: string, payload: RecallGradePayload) {
+  return request<RecallGradePreview>(`/recall/${entityId}/grade/preview`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function applyRecall(entityId: string, payload: RecallGradeApplyPayload) {
+  return request<RecallGradeResult>(`/recall/${entityId}/grade/apply`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
 export function getComprehensionChecks(status: "pending" | "answered" | "all" = "pending", limit = 100) {
   return request<ComprehensionCheck[]>(`/comprehension-checks${buildQueryString({ status, limit })}`)
 }
@@ -879,6 +933,20 @@ export function generateComprehensionCheck(payload: GenerateComprehensionCheckPa
 
 export function answerComprehensionCheck(checkId: string, payload: AnswerComprehensionCheckPayload) {
   return request<AnswerComprehensionCheckResult>(`/comprehension-checks/${checkId}/answer`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function previewComprehensionCheck(checkId: string, payload: AnswerComprehensionCheckPayload) {
+  return request<AnswerComprehensionCheckPreview>(`/comprehension-checks/${checkId}/answer/preview`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function applyComprehensionCheck(checkId: string, payload: { your_answer: string; confirmed_grade: ComprehensionGrade }) {
+  return request<AnswerComprehensionCheckResult>(`/comprehension-checks/${checkId}/answer/apply`, {
     method: "POST",
     body: JSON.stringify(payload),
   })
@@ -934,6 +1002,14 @@ export function getDsaExtensionStatus() { return request<DsaExtensionStatus>("/i
 export function createDsaPairingCode() { return request<DsaPairingCode>("/integrations/dsa/extension/pairing-codes", { method: "POST" }) }
 export function revokeDsaExtension() { return request<void>("/integrations/dsa/extension/pairing", { method: "DELETE" }) }
 
+export type AssistantActionBefore = {
+  title: string | null
+  content: string | null
+  tags: string[]
+  status: string | null
+  difficulty: string | null
+}
+
 export type AssistantAction = {
   id: string
   action_type: "create_entity" | "update_entity" | "log_shipping"
@@ -949,6 +1025,7 @@ export type AssistantAction = {
   url: string | null
   solution_code: string | null
   summary: string
+  before?: AssistantActionBefore | null
 }
 export type AssistantThread = { id: string; title: string; archived_at: string | null; created_at: string; updated_at: string }
 export type AssistantMessage = { id: string; thread_id: string; role: "user" | "assistant"; content: string; model_stage: string | null; payload: AssistantMessagePayload; created_at: string }
@@ -969,6 +1046,7 @@ export type AssistantMessagePayload =
 export type AssistantExecution = { proposal_id: string; status: "executed"; results: Array<{ action_id: string; entity_id: string; title: string | null; status: string }>; message?: AssistantMessage }
 export type AssistantPageContext = { route: string; entity_id?: string; entity_type?: EntityType; entity_title?: string }
 export type AssistantRecallResponse = { grade: RecallGradeResult; message?: AssistantMessage }
+export type AssistantRecallPreviewResponse = { grade: RecallGradePreview }
 
 export function getAssistantThreads() { return request<AssistantThread[]>("/assistant/threads") }
 export function createAssistantThread() { return request<AssistantThread>("/assistant/threads", { method: "POST" }) }
@@ -986,5 +1064,11 @@ export function executeAssistantProposal(proposalId: string, payload: { idempote
 export function cancelAssistantProposal(proposalId: string) { return request<void>(`/assistant/proposals/${proposalId}`, { method: "DELETE" }) }
 export function gradeAssistantRecall(payload: { entity_id: string; answer: string; self_score?: number; thread_id?: string; source_message_id?: string }) {
   return request<AssistantRecallResponse>("/assistant/recall/grade", { method: "POST", body: JSON.stringify(payload) })
+}
+export function previewAssistantRecall(payload: { entity_id: string; answer: string; self_score?: number; thread_id?: string; source_message_id?: string }) {
+  return request<AssistantRecallPreviewResponse>("/assistant/recall/preview", { method: "POST", body: JSON.stringify(payload) })
+}
+export function applyAssistantRecall(payload: { entity_id: string; answer: string; self_score: number; thread_id?: string; source_message_id?: string }) {
+  return request<AssistantRecallResponse>("/assistant/recall/apply", { method: "POST", body: JSON.stringify(payload) })
 }
 import { authenticatedFetch } from "@/lib/auth-client"

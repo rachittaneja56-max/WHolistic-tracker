@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.agents.services.provider import get_ai_provider
+from app.agents.services.recall import preview_recall_answer
 from app.agents.utils.exceptions import AgentDisabledError, AgentProviderError, InvalidJSONError, MissingAPIKeyError, ModelResponseError, ProviderTimeoutError
 from app.db.session import get_db
 from app.schemas.assistant import (
@@ -13,6 +14,7 @@ from app.schemas.assistant import (
     AssistantExecutionRead,
     AssistantProposalUpdate,
     AssistantRecallRead,
+    AssistantRecallPreviewRead,
     AssistantRecallRequest,
     AssistantThreadDetailRead,
     AssistantThreadRead,
@@ -95,22 +97,45 @@ def discard_proposal(proposal_id: UUID, db: Session = Depends(get_db), _owner: s
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post("/recall/apply", response_model=AssistantRecallRead)
 @router.post("/recall/grade", response_model=AssistantRecallRead)
 def assistant_recall(payload: AssistantRecallRequest, db: Session = Depends(get_db), _owner: str = Depends(require_owner_mutation)) -> AssistantRecallRead:
     try:
-        provider = get_ai_provider(db)
-    except (AgentDisabledError, MissingAPIKeyError):
-        provider = None
-    try:
         return run_recall(
             db,
-            provider,
+            None,
             entity_id=payload.entity_id,
             answer=payload.answer,
             self_score=payload.self_score,
             thread_id=payload.thread_id,
             source_message_id=payload.source_message_id,
         )
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ProviderTimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except (InvalidJSONError, ModelResponseError, AgentProviderError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/recall/preview", response_model=AssistantRecallPreviewRead)
+def assistant_recall_preview(
+    payload: AssistantRecallRequest,
+    db: Session = Depends(get_db),
+) -> AssistantRecallPreviewRead:
+    try:
+        provider = get_ai_provider(db)
+    except (AgentDisabledError, MissingAPIKeyError):
+        provider = None
+    try:
+        grade = preview_recall_answer(
+            payload.entity_id,
+            answer=payload.answer,
+            self_score=payload.self_score,
+            db=db,
+            provider=provider,
+        )
+        return AssistantRecallPreviewRead(grade=grade)
     except (ValueError, TypeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ProviderTimeoutError as exc:

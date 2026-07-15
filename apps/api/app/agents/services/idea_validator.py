@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import Counter
-import json
 import re
 import uuid
 
@@ -9,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agents.services.provider import OpenAIProvider
+from app.agents.utils.context import serialize_untrusted_context
 from app.agents.services.web_search import get_web_search_provider
 from app.agents.utils.prompts import build_system_prompt
 from app.api.routes.entities import serialize_entity
@@ -111,8 +111,10 @@ def validate_idea(idea: str, *, db: Session, provider: OpenAIProvider | None) ->
             {"role": "system", "content": build_system_prompt("idea_validator.md")},
             {
                 "role": "user",
-                "content": json.dumps(
-                    {
+                "content": serialize_untrusted_context(
+                    "idea_validator",
+                    provenance="idea_graph_and_web_results",
+                    data={
                         "idea": cleaned_idea,
                         "graph_candidates": graph_context,
                         "related_projects": related_projects,
@@ -121,8 +123,6 @@ def validate_idea(idea: str, *, db: Session, provider: OpenAIProvider | None) ->
                         "similar_products": similar_products,
                         "web_search_note": web_note,
                     },
-                    ensure_ascii=True,
-                    sort_keys=True,
                 ),
             },
         ],

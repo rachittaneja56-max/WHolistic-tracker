@@ -1,12 +1,12 @@
 ﻿from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
-import json
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.agents.services.provider import OpenAIProvider
+from app.agents.utils.context import serialize_untrusted_context
 from app.agents.services.recall import get_due_recall_items, parse_exam_date
 from app.agents.utils.prompts import build_system_prompt
 from app.models.entity import Entity
@@ -273,7 +273,7 @@ def get_daily_guidance(
                     "Prefer due recall items and upcoming deadlines over optional work.\n\n"
                     f"Date: {current_date.isoformat()}\n"
                     f"Available entity_ids: {sorted(valid_entity_ids)}\n"
-                    f"Context:\n{json.dumps(context, ensure_ascii=True, sort_keys=True)}"
+                    f"{serialize_untrusted_context('weekly', provenance='daily_graph_summary', data=context)}"
                 ),
             },
         ],

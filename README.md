@@ -30,6 +30,7 @@ Additional architecture notes live in:
 - `docs/PHASES.md`
 - `docs/AGENTS.md`
 - `docs/MOBILE_PWA.md`
+- `docs/AWS_DEPLOYMENT.md`
 
 ## Prerequisites
 
@@ -38,7 +39,7 @@ Additional architecture notes live in:
 - Node.js 22+
 - npm 11+
 
-## Phase 0 Local Runbook
+## Local Runbook
 
 ### 1. Start Postgres and Redis
 
@@ -88,7 +89,7 @@ npm run bootstrap-admin
 npm run dev
 ```
 
-The bootstrap command is one-time and attaches a password to the protected root identity `rachittaneja56@gmail.com`. The password is prompted without being stored in source control. Better Auth runs at `http://localhost:3001`.
+Before running the one-time bootstrap command, replace the `ROOT_ADMIN_EMAIL` placeholder in `apps/auth/.env` with the real root-administrator email. The password is prompted without being stored in source control. Better Auth runs at `http://localhost:3001`.
 
 ### 4. Frontend setup
 
@@ -113,6 +114,26 @@ alembic history
 alembic upgrade head
 ```
 
+### 6. Tests and build checks
+
+Run each command from the indicated application directory:
+
+```powershell
+# apps/api (with its virtual environment active)
+python -m pytest
+
+# apps/auth
+npm run typecheck
+npm run build
+
+# apps/web
+npm test
+npm run build
+
+# apps/dsa-extension
+npm test
+```
+
 ## Environment Variables
 
 ### `apps/api/.env`
@@ -125,9 +146,11 @@ APP_ENCRYPTION_SECRET=<new-random-secret>
 AUTH_JWKS_URL=http://localhost:3001/api/auth/jwks
 AUTH_JWT_ISSUER=http://localhost:3001
 AUTH_JWT_AUDIENCE=personal-dev-kg-api
-ROOT_ADMIN_EMAIL=rachittaneja56@gmail.com
+ROOT_ADMIN_EMAIL=root-admin@example.com
+FRONTEND_ORIGIN=http://localhost:5173
 API_HOST=0.0.0.0
 API_PORT=8000
+API_PUBLIC_ORIGIN=
 CORS_ORIGINS=http://localhost:5173
 EMBEDDING_BACKEND=auto
 EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
@@ -136,6 +159,10 @@ EMBEDDING_TEXT_MAX_CHARS=8000
 AI_ENABLED=false
 OPENAI_MODEL_FAST=gpt-4.1-mini
 OPENAI_MODEL_SMART=gpt-4.1
+GEMINI_MODEL_FAST=gemini-2.5-flash
+GEMINI_MODEL_SMART=gemini-2.5-pro
+MISTRAL_MODEL_FAST=mistral-small-latest
+MISTRAL_MODEL_SMART=mistral-large-latest
 GITHUB_INTEGRATION_ENABLED=false
 WEB_SEARCH_ENABLED=false
 WEB_SEARCH_PROVIDER=tavily
@@ -144,11 +171,24 @@ WEB_SEARCH_PROVIDER=tavily
 ### `apps/auth/.env`
 
 ```env
+NODE_ENV=development
 AUTH_DATABASE_URL=postgresql://postgres:postgres@localhost:5433/personal_dev_kg?options=-c%20search_path%3Dauth%2Cpublic
 BETTER_AUTH_SECRET=<new-random-secret>
 BETTER_AUTH_URL=http://localhost:3001
 AUTH_JWT_AUDIENCE=personal-dev-kg-api
 FRONTEND_ORIGIN=http://localhost:5173
+AUTH_PORT=3001
+AUTH_TRUST_PROXY_HOPS=0
+ROOT_ADMIN_EMAIL=root-admin@example.com
+AUTH_REQUIRE_EMAIL_VERIFICATION=false
+AUTH_VERIFICATION_DELIVERY_URL=
+AUTH_PASSWORD_RESET_DELIVERY_URL=
+AUTH_VERIFICATION_DELIVERY_TOKEN=
+TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET_KEY=
+TURNSTILE_ALLOWED_HOSTNAMES=
+GITHUB_OAUTH_CLIENT_ID=
+GITHUB_OAUTH_CLIENT_SECRET=
 ```
 
 ### `apps/web/.env`
@@ -217,11 +257,11 @@ GitHub activity is stored in `sessions`. No separate PR, commit, or CI tables ar
 - GitHub integration can remain disabled without breaking the rest of the app.
 ## Multi-user authentication and reset
 
-Better Auth owns accounts and seven-day HttpOnly sessions in the PostgreSQL `auth` schema. The SPA keeps 15-minute Ed25519 API JWTs in memory only; FastAPI validates issuer, audience, signature, expiry, and the live session/account on every private request. Public sign-up and impersonation are disabled. Users join through hashed, single-use 72-hour invitations created at `/admin`.
+Better Auth owns accounts and seven-day HttpOnly sessions in the PostgreSQL `auth` schema. The SPA keeps 15-minute Ed25519 API JWTs in memory only; FastAPI validates issuer, audience, signature, expiry, and the live session/account on every private request. Public email/password sign-up is enabled. Production requires email verification and Cloudflare Turnstile; administrators can also create hashed, single-use 72-hour invitations at `/admin`. Admin impersonation is disabled.
 
-Every private application row has a non-null Better Auth `user_id`. SQLAlchemy applies tenant filters automatically and the database enforces same-owner hierarchy, graph, session, review, assistant, setting, webhook, and integration relationships. Admin APIs expose operational metadata and aggregate usage only—not titles, notes, tags, code, prompts, answers, usernames, or secrets.
+Every private application row has a non-null Better Auth `user_id`. SQLAlchemy applies tenant filters automatically and the database enforces same-owner hierarchy, graph, session, review, assistant, setting, webhook, and integration relationships. Admin APIs expose account identity, operational metadata, and aggregate usage, but not private titles, notes, tags, code, prompts, answers, or secrets.
 
-The root identity is permanently reserved for `rachittaneja56@gmail.com`. A database trigger prevents deleting, banning, demoting, or renaming it. Run `npm run bootstrap-admin` from `apps/auth` once to set its initial password.
+The root identity configured through `ROOT_ADMIN_EMAIL` is permanently reserved. A database trigger prevents deleting, banning, demoting, or renaming it. Run `npm run bootstrap-admin` from `apps/auth` once to set its initial password.
 
 The destructive reset is explicit and irreversible:
 
@@ -242,8 +282,8 @@ VITE_AUTH_URL=http://localhost:3001
 
 ## Routes
 
-- Public: `/`, `/login`, `/invite`, `/reset-password`
-- Primary workspace: `/app`, `/capture`
+- Public: `/`, `/login`, `/signup`, `/forgot-password`, `/invite`, `/reset-password`
+- Primary workspace: `/app`, `/app/insights`, `/learn`, `/library`, `/capture`
 - Trackers: `/trackers/dsa`, `/trackers/projects`, `/trackers/projects/:projectId`, `/trackers/subjects`, `/trackers/subjects/:subjectId`
 - Knowledge: `/knowledge/entities`, `/knowledge/entities/:entityId`, `/knowledge/graph`, `/knowledge/tags`, `/knowledge/recall`
 - Agents: `/agents/assistant`, `/agents/ask-graph`, `/agents/review-inbox`, `/agents/ideas`, `/agents/analyst`
@@ -252,7 +292,7 @@ VITE_AUTH_URL=http://localhost:3001
 
 Legacy routes redirect to these locations.
 
-## Soft Delete and Restore
+## Permanent Entity Deletion
 
 `DELETE /entities/{id}` permanently deletes the entity, its descendants, links, history, reviews, and comprehension checks. Entities with children or links require exact-title confirmation at the API boundary.
 

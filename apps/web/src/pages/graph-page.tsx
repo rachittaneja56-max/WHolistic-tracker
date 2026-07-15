@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { EntitiesLayoutContext } from "@/features/entities/layout-context"
+import { useTheme } from "@/features/theme/theme-provider"
 import {
   decayConfidenceJob,
   entityTypeOptions,
@@ -70,8 +71,14 @@ function getNodeOpacity(confidenceScore: number) {
   return Math.max(0.28, Math.min(1, 0.2 + confidenceScore * 0.8))
 }
 
+function semanticColor(variable: string, fallback: string) {
+  if (typeof document === "undefined") return fallback
+  const channels = window.getComputedStyle(document.documentElement).getPropertyValue(variable).trim()
+  return channels ? `rgb(${channels.split(/\s+/).join(", ")})` : fallback
+}
+
 function getNodeColor(_type: string | null) {
-  return "#71717a"
+  return semanticColor("--primary-strong", "rgb(67, 56, 202)")
 }
 
 function splitLongWord(word: string, maxLength: number) {
@@ -167,6 +174,7 @@ function buildElements(graph: GraphPayload): ElementDefinition[] {
 }
 
 export function GraphPage() {
+  const { resolvedTheme } = useTheme()
   const { refreshEntities, upsertEntityInList } = useOutletContext<EntitiesLayoutContext>()
   const containerRef = useRef<HTMLDivElement | null>(null)
 
@@ -273,6 +281,14 @@ export function GraphPage() {
       return
     }
 
+    const colors = {
+      nodeText: semanticColor("--primary-foreground", "rgb(255, 255, 255)"),
+      border: semanticColor("--border-strong", "rgb(100, 116, 139)"),
+      primary: semanticColor("--primary", "rgb(79, 70, 229)"),
+      muted: semanticColor("--text-muted", "rgb(100, 116, 139)"),
+      canvas: semanticColor("--canvas", "rgb(248, 250, 252)"),
+      selected: semanticColor("--text", "rgb(15, 23, 42)"),
+    }
     const cy = cytoscape({
       container: containerRef.current,
       elements: buildElements(graph),
@@ -290,7 +306,7 @@ export function GraphPage() {
             shape: "ellipse",
             "background-color": "data(color)",
             label: "data(label)",
-            color: "#f4f4f5",
+            color: colors.nodeText,
             opacity: "data(opacity)",
             width: "data(size)",
             height: "data(size)",
@@ -303,21 +319,21 @@ export function GraphPage() {
             "text-justification": "center",
             "line-height": 1.1,
             "border-width": 1,
-            "border-color": "#27272a",
+            "border-color": colors.border,
           },
         },
         {
           selector: "edge",
           style: {
             width: 1.5,
-            "line-color": "#3b82f6",
-            "target-arrow-color": "#3b82f6",
+            "line-color": colors.primary,
+            "target-arrow-color": colors.primary,
             "target-arrow-shape": "triangle",
             "curve-style": "bezier",
             label: "data(label)",
-            color: "#71717a",
+            color: colors.muted,
             "font-size": 9,
-            "text-background-color": "#09090b",
+            "text-background-color": colors.canvas,
             "text-background-opacity": 1,
             "text-background-padding": 2,
           },
@@ -325,7 +341,7 @@ export function GraphPage() {
         {
           selector: ":selected",
           style: {
-            "border-color": "#e4e4e7",
+            "border-color": colors.selected,
             "border-width": 2,
           },
         },
@@ -349,7 +365,7 @@ export function GraphPage() {
     return () => {
       cy.destroy()
     }
-  }, [graph, isInteractiveGraphVisible])
+  }, [graph, isInteractiveGraphVisible, resolvedTheme])
 
   async function handleMarkRevisited() {
     if (!selectedNode) {
@@ -470,22 +486,22 @@ export function GraphPage() {
               </div>
             </form>
 
-            {isLoading ? <p className="text-sm text-zinc-500">Loading graph...</p> : null}
-            {error ? <p className="text-sm text-red-300">{error}</p> : null}
+            {isLoading ? <p className="text-sm text-muted-foreground">Loading graph...</p> : null}
+            {error ? <p className="text-sm text-danger">{error}</p> : null}
 
             {!isInteractiveGraphVisible ? (
               <section className="space-y-3 md:hidden" aria-labelledby="mobile-graph-list-title">
                 <div className="flex items-end justify-between gap-3">
                   <div>
-                    <h2 id="mobile-graph-list-title" className="text-sm font-semibold text-zinc-100">Filtered entities</h2>
-                    <p className="mt-1 text-xs text-zinc-500">Tap an entity to inspect its connections.</p>
+                    <h2 id="mobile-graph-list-title" className="text-sm font-semibold text-foreground">Filtered entities</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">Tap an entity to inspect its connections.</p>
                   </div>
-                  <span className="font-mono text-xs text-zinc-500">{graph.nodes.length}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{graph.nodes.length}</span>
                 </div>
                 <Button type="button" variant="outline" className="min-h-11 w-full" onClick={() => setIsMobileGraphEnabled(true)} disabled={isLoading || graph.nodes.length === 0}>
                   Open interactive graph
                 </Button>
-                {graph.nodes.length ? <ul className="divide-y divide-zinc-800 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
+                {graph.nodes.length ? <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-background">
                   {graph.nodes.map((node) => {
                     const connectionCount = connectionCounts.get(node.id) ?? 0
                     const isSelected = selection?.kind === "node" && selection.id === node.id
@@ -494,23 +510,23 @@ export function GraphPage() {
                         type="button"
                         aria-pressed={isSelected}
                         onClick={() => setSelection({ kind: "node", id: node.id })}
-                        className={`min-h-11 w-full px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 ${isSelected ? "bg-blue-500/10" : "hover:bg-zinc-900"}`}
+                        className={`min-h-11 w-full px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${isSelected ? "bg-primary/10" : "hover:bg-surface"}`}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <span className="min-w-0 text-sm font-medium text-zinc-100">{node.title ?? "Untitled entity"}</span>
-                          <span className="shrink-0 font-mono text-xs text-zinc-500">{Math.round(node.confidence_score * 100)}%</span>
+                          <span className="min-w-0 text-sm font-medium text-foreground">{node.title ?? "Untitled entity"}</span>
+                          <span className="shrink-0 font-mono text-xs text-muted-foreground">{Math.round(node.confidence_score * 100)}%</span>
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
                           <Badge variant="blue" className="capitalize">{node.type ?? "unknown"}</Badge>
                           {node.tags.slice(0, 3).map((tag) => <Badge key={tag}>{tag}</Badge>)}
                           {node.tags.length > 3 ? <Badge>+{node.tags.length - 3}</Badge> : null}
-                          <span className="ml-auto text-[11px] text-zinc-600">{connectionCount} {connectionCount === 1 ? "connection" : "connections"}</span>
+                          <span className="ml-auto text-[11px] text-muted-foreground">{connectionCount} {connectionCount === 1 ? "connection" : "connections"}</span>
                         </div>
                       </button>
                     </li>
                   })}
                 </ul> : null}
-                {isEmpty ? <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-5 py-6 text-center"><p className="text-sm font-medium text-zinc-100">No graph data yet</p><p className="mt-2 text-sm text-zinc-500">Create an entity and confirm a link to populate this list.</p></div> : null}
+                {isEmpty ? <div className="rounded-xl border border-border bg-background px-5 py-6 text-center"><p className="text-sm font-medium text-foreground">No graph data yet</p><p className="mt-2 text-sm text-muted-foreground">Create an entity and confirm a link to populate this list.</p></div> : null}
               </section>
             ) : null}
 
@@ -521,20 +537,20 @@ export function GraphPage() {
               }}>
                 Show entity list
               </Button>
-              <div className="relative rounded-xl border border-zinc-800 bg-zinc-950">
+              <div className="relative rounded-xl border border-border bg-background">
                 <div ref={containerRef} className="h-[65dvh] min-h-[420px] w-full md:h-[70vh] md:min-h-[560px]" />
                 {isEmpty ? (
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center">
-                    <div className="max-w-md space-y-2 rounded-lg border border-zinc-800 bg-zinc-950/95 px-5 py-4">
-                      <p className="text-sm font-medium text-zinc-100">No graph data yet</p>
-                      <p className="text-sm text-zinc-500">Create an entity and confirm a link to populate the graph. Hierarchy stays out of this view on purpose.</p>
+                    <div className="max-w-md space-y-2 rounded-lg border border-border bg-background/95 px-5 py-4">
+                      <p className="text-sm font-medium text-foreground">No graph data yet</p>
+                      <p className="text-sm text-muted-foreground">Create an entity and confirm a link to populate the graph. Hierarchy stays out of this view on purpose.</p>
                     </div>
                   </div>
                 ) : null}
               </div>
             </> : null}
 
-            <div className="flex flex-wrap gap-3 text-xs text-zinc-500">
+            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
               <span className="font-mono">Nodes: {graph.nodes.length}</span>
               <span className="font-mono">Confirmed edges: {graph.edges.length}</span>
               <span>Low-confidence nodes fade using their current `confidence_score`.</span>
@@ -549,7 +565,7 @@ export function GraphPage() {
           <CardDescription>Select an entity, node, or edge to inspect confidence, relation details, and connected links.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!selection ? <p className="text-sm text-zinc-500">Select an entity from the list or interactive graph to inspect it.</p> : null}
+          {!selection ? <p className="text-sm text-muted-foreground">Select an entity from the list or interactive graph to inspect it.</p> : null}
 
           {selectedNode ? (
             <div className="space-y-4">
@@ -560,21 +576,21 @@ export function GraphPage() {
                     <Badge key={tag}>{tag}</Badge>
                   ))}
                 </div>
-                <h2 className="text-xl font-semibold text-zinc-100">{selectedNode.title ?? "Untitled entity"}</h2>
+                <h2 className="text-xl font-semibold text-foreground">{selectedNode.title ?? "Untitled entity"}</h2>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Confidence</p>
-                  <p className="mt-2 font-mono text-sm text-zinc-100">{selectedNode.confidence_score.toFixed(3)}</p>
+                <div className="rounded-lg border border-border bg-background p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Confidence</p>
+                  <p className="mt-2 font-mono text-sm text-foreground">{selectedNode.confidence_score.toFixed(3)}</p>
                 </div>
-                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Last revisited</p>
-                  <p className="mt-2 font-mono text-sm text-zinc-100">{formatDate(selectedNode.last_revisited_at)}</p>
+                <div className="rounded-lg border border-border bg-background p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Last revisited</p>
+                  <p className="mt-2 font-mono text-sm text-foreground">{formatDate(selectedNode.last_revisited_at)}</p>
                 </div>
               </div>
 
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 font-mono text-xs text-zinc-500">
+              <div className="rounded-lg border border-border bg-background p-4 font-mono text-xs text-muted-foreground">
                 Created {formatDate(selectedNode.created_at)}
               </div>
 
@@ -583,15 +599,15 @@ export function GraphPage() {
               </Button>
 
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Connected links</h3>
-                {connectedLinks.length === 0 ? <p className="text-sm text-zinc-500">No confirmed links touch this node yet.</p> : null}
+                <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">Connected links</h3>
+                {connectedLinks.length === 0 ? <p className="text-sm text-muted-foreground">No confirmed links touch this node yet.</p> : null}
                 {connectedLinks.map(({ edge, counterpart }) => (
-                  <div key={edge.id} className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+                  <div key={edge.id} className="rounded-lg border border-border bg-background p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-medium text-zinc-100">{counterpart?.title ?? "Unknown entity"}</p>
-                      <p className="font-mono text-xs text-zinc-500">{edge.relation_type ?? "confirmed"}</p>
+                      <p className="text-sm font-medium text-foreground">{counterpart?.title ?? "Unknown entity"}</p>
+                      <p className="font-mono text-xs text-muted-foreground">{edge.relation_type ?? "confirmed"}</p>
                     </div>
-                    <p className="mt-2 text-sm text-zinc-300">{edge.explanation ?? "No explanation provided."}</p>
+                    <p className="mt-2 text-sm text-secondary">{edge.explanation ?? "No explanation provided."}</p>
                   </div>
                 ))}
               </div>
@@ -601,23 +617,23 @@ export function GraphPage() {
           {selectedEdge ? (
             <div className="space-y-4">
               <div className="space-y-2">
-                <p className="font-mono text-xs uppercase tracking-[0.18em] text-zinc-500">{selectedEdge.relation_type ?? "confirmed"}</p>
-                <h2 className="text-xl font-semibold text-zinc-100">Connection detail</h2>
-                <p className="text-sm leading-7 text-zinc-300">{selectedEdge.explanation ?? "No explanation provided."}</p>
+                <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">{selectedEdge.relation_type ?? "confirmed"}</p>
+                <h2 className="text-xl font-semibold text-foreground">Connection detail</h2>
+                <p className="text-sm leading-7 text-secondary">{selectedEdge.explanation ?? "No explanation provided."}</p>
               </div>
 
               <div className="grid gap-3">
-                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">From</p>
-                  <p className="mt-2 text-sm text-zinc-100">{edgeFromNode?.title ?? "Unknown entity"}</p>
-                  <p className="mt-1 font-mono text-xs text-zinc-500">{edgeFromNode?.type ?? "unknown"}</p>
+                <div className="rounded-lg border border-border bg-background p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">From</p>
+                  <p className="mt-2 text-sm text-foreground">{edgeFromNode?.title ?? "Unknown entity"}</p>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">{edgeFromNode?.type ?? "unknown"}</p>
                 </div>
-                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">To</p>
-                  <p className="mt-2 text-sm text-zinc-100">{edgeToNode?.title ?? "Unknown entity"}</p>
-                  <p className="mt-1 font-mono text-xs text-zinc-500">{edgeToNode?.type ?? "unknown"}</p>
+                <div className="rounded-lg border border-border bg-background p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">To</p>
+                  <p className="mt-2 text-sm text-foreground">{edgeToNode?.title ?? "Unknown entity"}</p>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">{edgeToNode?.type ?? "unknown"}</p>
                 </div>
-                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 font-mono text-xs text-zinc-500">
+                <div className="rounded-lg border border-border bg-background p-4 font-mono text-xs text-muted-foreground">
                   Status {selectedEdge.status ?? "confirmed"}
                 </div>
               </div>

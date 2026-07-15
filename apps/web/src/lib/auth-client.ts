@@ -9,13 +9,56 @@ export const authClient = createAuthClient({
   plugins: [jwtClient(), adminClient()],
 })
 
+export type AuthConfig = {
+  githubEnabled: boolean
+  passwordMinLength: number
+  emailVerificationRequired: boolean
+  passwordResetEnabled: boolean
+  turnstileEnabled: boolean
+  turnstileSiteKey?: string
+}
+
+export type PasswordResetSource = "self-service" | "admin"
+
+const defaultConfig: AuthConfig = {
+  githubEnabled: false,
+  passwordMinLength: 12,
+  emailVerificationRequired: false,
+  passwordResetEnabled: false,
+  turnstileEnabled: false,
+}
+
+let configPromise: Promise<AuthConfig> | null = null
 let accessToken: string | null = null
 let accessTokenExpiresAt = 0
 let tokenRequest: Promise<string> | null = null
 
+function captchaFetchOptions(token?: string) {
+  return token ? { headers: { "x-captcha-response": token } } : undefined
+}
+
+export function addPasswordResetSource(url: string, source: PasswordResetSource): string {
+  const value = new URL(url)
+  value.searchParams.set("source", source)
+  return value.toString()
+}
+
+export function getSelfServicePasswordResetRedirect(origin: string): string {
+  return addPasswordResetSource(new URL("/reset-password", origin).toString(), "self-service")
+}
+
+export function resolvePasswordResetSource(value: string | null): PasswordResetSource | null {
+  if (value === "self-service" || value === "admin") return value
+  return value === null ? "admin" : null
+}
+
 function tokenExpiration(token: string) {
   try {
-    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))) as { exp?: number }
+    const encodedPayload = token.split(".")[1]
+    if (!encodedPayload) return 0
+    const normalizedPayload = encodedPayload.replace(/-/g, "+").replace(/_/g, "/")
+    const paddedPayload = normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, "=")
+    const payload = JSON.parse(atob(paddedPayload)) as { exp?: number }
     return (payload.exp ?? 0) * 1000
   } catch {
     return 0
@@ -67,14 +110,28 @@ export async function authenticatedFetch(url: string, init?: RequestInit): Promi
   return response
 }
 
-export async function getAuthConfig(): Promise<{ githubEnabled: boolean }> {
-  const response = await fetch(`${authBaseUrl}/api/auth/config`, { credentials: "include" })
-  if (!response.ok) return { githubEnabled: false }
-  return response.json() as Promise<{ githubEnabled: boolean }>
+export async function getAuthConfig(): Promise<AuthConfig> {
+  if (!configPromise) {
+    configPromise = fetch(`${authBaseUrl}/api/auth/config`, { credentials: "include" })
+      .then(async (response) => response.ok ? { ...defaultConfig, ...(await response.json() as Partial<AuthConfig>) } : defaultConfig)
+      .catch(() => defaultConfig)
+  }
+  return configPromise
 }
 
-export async function signUpWithEmail(payload: { email: string; name: string; password: string; callbackURL?: string }) {
-  const { data, error } = await authClient.signUp.email(payload)
+export async function signUpWithEmail(payload: { email: string; name: string; password: string; callbackURL?: string; captchaToken?: string }) {
+  const { captchaToken, ...body } = payload
+  const { data, error } = await authClient.signUp.email({ ...body, fetchOptions: captchaFetchOptions(captchaToken) })
+  if (error) throw new Error(error.message)
+  return data
+}
+
+export async function requestPasswordReset(email: string, redirectTo: string, captchaToken?: string) {
+  const { data, error } = await authClient.requestPasswordReset({
+    email,
+    redirectTo,
+    fetchOptions: captchaFetchOptions(captchaToken),
+  })
   if (error) throw new Error(error.message)
   return data
 }
@@ -104,7 +161,12 @@ export async function getPasswordReset(token: string): Promise<{ email: string; 
   return payload as { email: string; expires_at: string }
 }
 
-export async function acceptPasswordReset(token: string, password: string) {
+export async function acceptPasswordReset(token: string, password: string, source: PasswordResetSource) {
+  if (source === "self-service") {
+    const { data, error } = await authClient.resetPassword({ token, newPassword: password })
+    if (error) throw new Error(error.message)
+    return data
+  }
   const response = await fetch(`${authBaseUrl}/api/password-resets/accept`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, password }) })
   const payload = (await response.json().catch(() => null)) as { detail?: string } | null
   if (!response.ok) throw new Error(payload?.detail ?? "Unable to reset password")

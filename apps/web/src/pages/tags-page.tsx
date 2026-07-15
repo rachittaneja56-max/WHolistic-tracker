@@ -197,9 +197,9 @@ export function TagsPage() {
               ["Weak tags", taxonomySummary.weakTags],
               ["Tags with reviews due", taxonomySummary.dueTags],
             ].map(([label, value]) => (
-              <div key={String(label)} className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">{label}</p>
-                <p className="mt-2 font-mono text-lg text-zinc-100">{value}</p>
+              <div key={String(label)} className="rounded-lg border border-border bg-background p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+                <p className="mt-2 font-mono text-lg text-foreground">{value}</p>
               </div>
             ))}
           </div>
@@ -247,12 +247,12 @@ export function TagsPage() {
             </Button>
           </div>
 
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-muted-foreground">
             Showing {filteredTags.length} of {taxonomy.length} tags.
           </p>
 
-          {error ? <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-300">{error}</p> : null}
-          {isLoading ? <p className="text-sm text-zinc-500">Loading tag taxonomy...</p> : null}
+          {error ? <p className="rounded-lg border border-warning/20 bg-warning/5 px-4 py-3 text-sm text-warning">{error}</p> : null}
+          {isLoading ? <p className="text-sm text-muted-foreground">Loading tag taxonomy...</p> : null}
 
           {!isLoading && !error ? (
             filteredTags.length > 0 ? (
@@ -262,10 +262,10 @@ export function TagsPage() {
                     key={tag.tag}
                     type="button"
                     onClick={() => selectTag(tag.tag)}
-                    className={`rounded-lg border bg-zinc-900 px-4 py-4 text-left transition-colors hover:border-blue-500/40 ${selectedTag === tag.tag ? "border-blue-500/70 ring-1 ring-blue-500/30" : "border-zinc-800"}`}
+                    className={`rounded-lg border bg-surface px-4 py-4 text-left transition-colors hover:border-primary/40 ${selectedTag === tag.tag ? "border-primary/70 ring-1 ring-primary/30" : "border-border"}`}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-mono text-sm text-zinc-100">#{tag.tag}</span>
+                      <span className="font-mono text-sm text-foreground">#{tag.tag}</span>
                       <Badge variant="blue">{tag.total_entity_count}</Badge>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -277,27 +277,27 @@ export function TagsPage() {
                     </div>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       <div>
-                        <p className="font-mono text-xs text-zinc-500">avg confidence</p>
-                        <p className="mt-1 font-mono text-sm text-zinc-100">{tag.average_confidence_score.toFixed(2)}</p>
+                        <p className="font-mono text-xs text-muted-foreground">avg confidence</p>
+                        <p className="mt-1 font-mono text-sm text-foreground">{tag.average_confidence_score.toFixed(2)}</p>
                       </div>
                       <div>
-                        <p className="font-mono text-xs text-zinc-500">open tasks</p>
-                        <p className="mt-1 font-mono text-sm text-zinc-100">{tag.open_task_count}</p>
+                        <p className="font-mono text-xs text-muted-foreground">open tasks</p>
+                        <p className="mt-1 font-mono text-sm text-foreground">{tag.open_task_count}</p>
                       </div>
                       <div>
-                        <p className="font-mono text-xs text-zinc-500">review due</p>
-                        <p className="mt-1 font-mono text-sm text-zinc-100">{tag.review_due_count}</p>
+                        <p className="font-mono text-xs text-muted-foreground">review due</p>
+                        <p className="mt-1 font-mono text-sm text-foreground">{tag.review_due_count}</p>
                       </div>
                       <div>
-                        <p className="font-mono text-xs text-zinc-500">last activity</p>
-                        <p className="mt-1 font-mono text-sm text-zinc-100">{formatEntityDate(tag.last_activity_at)}</p>
+                        <p className="font-mono text-xs text-muted-foreground">last activity</p>
+                        <p className="mt-1 font-mono text-sm text-foreground">{formatEntityDate(tag.last_activity_at)}</p>
                       </div>
                     </div>
                   </button>
                 ))}
               </div>
             ) : (
-              <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-6 text-sm text-zinc-500">No tags match the current filters yet.</div>
+              <div className="rounded-lg border border-border bg-surface px-4 py-6 text-sm text-muted-foreground">No tags match the current filters yet.</div>
             )
           ) : null}
         </CardContent>
@@ -311,11 +311,11 @@ export function TagsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {coverageGaps.manyLowConfidence.length > 0 ? coverageGaps.manyLowConfidence.map((tag) => (
-              <button key={tag.tag} type="button" onClick={() => selectTag(tag.tag)} className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-left">
-                <p className="font-mono text-sm text-zinc-100">#{tag.tag}</p>
-                <p className="mt-1 text-sm text-zinc-300">{tag.total_entity_count} entities, confidence {tag.average_confidence_score.toFixed(2)}</p>
+              <button key={tag.tag} type="button" onClick={() => selectTag(tag.tag)} className="w-full rounded-lg border border-border bg-background px-4 py-3 text-left">
+                <p className="font-mono text-sm text-foreground">#{tag.tag}</p>
+                <p className="mt-1 text-sm text-secondary">{tag.total_entity_count} entities, confidence {tag.average_confidence_score.toFixed(2)}</p>
               </button>
-            )) : <p className="text-sm text-zinc-500">No large low-confidence gaps yet.</p>}
+            )) : <p className="text-sm text-muted-foreground">No large low-confidence gaps yet.</p>}
           </CardContent>
         </Card>
 
@@ -326,11 +326,11 @@ export function TagsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {coverageGaps.openTasksNoNotes.length > 0 ? coverageGaps.openTasksNoNotes.map((tag) => (
-              <button key={tag.tag} type="button" onClick={() => selectTag(tag.tag)} className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-left">
-                <p className="font-mono text-sm text-zinc-100">#{tag.tag}</p>
-                <p className="mt-1 text-sm text-zinc-300">{tag.open_task_count} open tasks and no note entities.</p>
+              <button key={tag.tag} type="button" onClick={() => selectTag(tag.tag)} className="w-full rounded-lg border border-border bg-background px-4 py-3 text-left">
+                <p className="font-mono text-sm text-foreground">#{tag.tag}</p>
+                <p className="mt-1 text-sm text-secondary">{tag.open_task_count} open tasks and no note entities.</p>
               </button>
-            )) : <p className="text-sm text-zinc-500">No note-coverage gaps showed up here.</p>}
+            )) : <p className="text-sm text-muted-foreground">No note-coverage gaps showed up here.</p>}
           </CardContent>
         </Card>
 
@@ -341,11 +341,11 @@ export function TagsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {coverageGaps.projectsWithoutConceptsOrTils.length > 0 ? coverageGaps.projectsWithoutConceptsOrTils.map((tag) => (
-              <button key={tag.tag} type="button" onClick={() => selectTag(tag.tag)} className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-left">
-                <p className="font-mono text-sm text-zinc-100">#{tag.tag}</p>
-                <p className="mt-1 text-sm text-zinc-300">Project work exists here, but concepts and TILs do not.</p>
+              <button key={tag.tag} type="button" onClick={() => selectTag(tag.tag)} className="w-full rounded-lg border border-border bg-background px-4 py-3 text-left">
+                <p className="font-mono text-sm text-foreground">#{tag.tag}</p>
+                <p className="mt-1 text-sm text-secondary">Project work exists here, but concepts and TILs do not.</p>
               </button>
-            )) : <p className="text-sm text-zinc-500">No concept coverage gaps showed up here.</p>}
+            )) : <p className="text-sm text-muted-foreground">No concept coverage gaps showed up here.</p>}
           </CardContent>
         </Card>
       </div>
@@ -374,22 +374,22 @@ export function TagsPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {!selectedTag ? <p className="text-sm text-zinc-500">Select any tag card above to open its entity list.</p> : null}
-          {selectedTag && isEntitiesLoading ? <p className="text-sm text-zinc-500">Loading entities for #{selectedTag}...</p> : null}
-          {selectedTag && entitiesError ? <p className="text-sm text-amber-300">{entitiesError}</p> : null}
+          {!selectedTag ? <p className="text-sm text-muted-foreground">Select any tag card above to open its entity list.</p> : null}
+          {selectedTag && isEntitiesLoading ? <p className="text-sm text-muted-foreground">Loading entities for #{selectedTag}...</p> : null}
+          {selectedTag && entitiesError ? <p className="text-sm text-warning">{entitiesError}</p> : null}
           {selectedTag && !isEntitiesLoading && !entitiesError ? (
             tagEntities.length > 0 ? (
               <div className="space-y-3">
                 {tagEntities.map((entity) => (
-                  <Link key={entity.id} to={`/knowledge/entities/${entity.id}`} className="block rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4 transition-colors hover:border-blue-500/40">
+                  <Link key={entity.id} to={`/knowledge/entities/${entity.id}`} className="block rounded-lg border border-border bg-surface px-4 py-4 transition-colors hover:border-primary/40">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm text-zinc-100">{entity.title ?? "Untitled entity"}</p>
+                      <p className="text-sm text-foreground">{entity.title ?? "Untitled entity"}</p>
                       <div className="flex items-center gap-2">
                         {entity.type ? <Badge variant="blue">{entity.type}</Badge> : null}
-                        <span className="font-mono text-xs text-zinc-500">{entity.confidence_score.toFixed(2)}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{entity.confidence_score.toFixed(2)}</span>
                       </div>
                     </div>
-                    <p className="mt-2 text-sm text-zinc-300">{entity.content?.slice(0, 180) || "No content preview available."}</p>
+                    <p className="mt-2 text-sm text-secondary">{entity.content?.slice(0, 180) || "No content preview available."}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {entity.tags.map((tag) => (
                         <Badge key={`${entity.id}-${tag}`}>{tag}</Badge>
@@ -399,7 +399,7 @@ export function TagsPage() {
                 ))}
               </div>
             ) : (
-              <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-6 text-sm text-zinc-500">No entities currently use this tag.</div>
+              <div className="rounded-lg border border-border bg-surface px-4 py-6 text-sm text-muted-foreground">No entities currently use this tag.</div>
             )
           ) : null}
         </CardContent>

@@ -40,6 +40,25 @@ class ComprehensionCheckAnswerRequest(BaseModel):
     self_grade: ComprehensionGrade | None = None
 
 
+class ComprehensionCheckApplyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    your_answer: str = Field(min_length=1, max_length=12000)
+    confirmed_grade: ComprehensionGrade
+
+
+class ComprehensionCheckAnswerPreviewResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    check_id: UUID
+    entity_id: UUID | None
+    suggested_grade: ComprehensionGrade
+    feedback: str
+    follow_up: str
+    used_fallback: bool = False
+    mutates_state: Literal[False] = False
+
+
 class ComprehensionCheckAnswerResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

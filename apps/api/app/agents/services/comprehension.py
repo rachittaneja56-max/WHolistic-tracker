@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import json
 import uuid
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.agents.services.provider import OpenAIProvider
+from app.agents.utils.context import entity_prompt_data, is_ai_excluded, serialize_untrusted_context
 from app.agents.utils.prompts import build_system_prompt
 from app.api.activity import record_session
 from app.api.routes.entities import serialize_entity
 from app.models.comprehension_check import ComprehensionCheck
 from app.models.entity import Entity
 from app.models.session import ActivitySession
-from app.schemas.comprehension import ComprehensionCheckAnswerResponse, ComprehensionCheckGenerateResponse, ComprehensionCheckRead
+from app.schemas.comprehension import ComprehensionCheckAnswerPreviewResponse, ComprehensionCheckAnswerResponse, ComprehensionCheckGenerateResponse, ComprehensionCheckRead
 from app.schemas.entity import AI_ASSIST_LEVEL_VALUES, validate_ai_assist_level
 
 COMPREHENSION_GENERATOR_SCHEMA = {
@@ -92,16 +92,16 @@ def generate_comprehension_check(
 
     payload = FALLBACK_GENERATOR
     used_fallback = provider is None
-    if provider is not None:
+    if provider is not None and not is_ai_excluded(task):
         payload = provider.generate_json(
             messages=[
                 {"role": "system", "content": build_system_prompt("comprehension_question_generator.md")},
                 {
                     "role": "user",
-                    "content": json.dumps(
-                        build_task_context(task, diff_or_summary),
-                        ensure_ascii=True,
-                        sort_keys=True,
+                    "content": serialize_untrusted_context(
+                        "comprehension",
+                        provenance="task_and_optional_code_diff",
+                        data=build_task_context(task, diff_or_summary),
                     ),
                 },
             ],
@@ -147,16 +147,14 @@ def generate_comprehension_check(
         used_fallback=used_fallback,
     )
 
-
-
-def answer_comprehension_check(
+def preview_comprehension_answer(
     check_id: uuid.UUID,
     *,
     your_answer: str,
     self_grade: str | None,
     db: Session,
     provider: OpenAIProvider | None,
-) -> ComprehensionCheckAnswerResponse:
+) -> ComprehensionCheckAnswerPreviewResponse:
     check = db.get(ComprehensionCheck, check_id)
     if check is None:
         raise ValueError("Comprehension check not found")
@@ -169,8 +167,8 @@ def answer_comprehension_check(
     if task is None:
         raise ValueError("Task entity not found")
 
-    used_fallback = provider is None
-    if provider is None:
+    used_fallback = provider is None or is_ai_excluded(task)
+    if used_fallback:
         if self_grade not in {"passed", "flagged"}:
             raise TypeError("self_grade is required when AI grading is unavailable")
         grade = self_grade
@@ -182,14 +180,14 @@ def answer_comprehension_check(
                 {"role": "system", "content": build_system_prompt("comprehension_grader.md")},
                 {
                     "role": "user",
-                    "content": json.dumps(
-                        {
+                    "content": serialize_untrusted_context(
+                        "comprehension",
+                        provenance="task_question_and_comprehension_answer",
+                        data={
                             **build_task_context(task, None),
                             "question": check.question,
                             "answer": cleaned_answer,
                         },
-                        ensure_ascii=True,
-                        sort_keys=True,
                     ),
                 },
             ],
@@ -203,6 +201,44 @@ def answer_comprehension_check(
         follow_up = str(payload.get("follow_up", FALLBACK_GRADE_FOLLOW_UP["flagged"])).strip()[:220]
         used_fallback = False
 
+    return ComprehensionCheckAnswerPreviewResponse(
+        check_id=check.id,
+        entity_id=check.entity_id,
+        suggested_grade=grade,
+        feedback=feedback,
+        follow_up=follow_up,
+        used_fallback=used_fallback,
+    )
+
+
+def answer_comprehension_check(
+    check_id: uuid.UUID,
+    *,
+    your_answer: str,
+    self_grade: str | None,
+    db: Session,
+    provider: OpenAIProvider | None,
+) -> ComprehensionCheckAnswerResponse:
+    if self_grade not in {"passed", "flagged"}:
+        raise TypeError("A user-confirmed grade is required before applying a comprehension result")
+    preview = preview_comprehension_answer(
+        check_id,
+        your_answer=your_answer,
+        self_grade=self_grade,
+        db=db,
+        provider=provider,
+    )
+    check = db.get(ComprehensionCheck, check_id)
+    if check is None:
+        raise ValueError("Comprehension check not found")
+    task = db.get(Entity, check.entity_id) if check.entity_id is not None else None
+    if task is None:
+        raise ValueError("Task entity not found")
+    cleaned_answer = your_answer.strip()
+    grade = self_grade
+    overridden = preview.suggested_grade != grade
+    feedback = FALLBACK_GRADE_FEEDBACK[grade] if overridden else preview.feedback
+    follow_up = FALLBACK_GRADE_FOLLOW_UP[grade] if overridden else preview.follow_up
     answered_at = datetime.now(timezone.utc)
     check.your_answer = cleaned_answer
     check.ai_grade = grade
@@ -247,21 +283,19 @@ def answer_comprehension_check(
         feedback=feedback,
         follow_up=follow_up,
         answered_at=answered_at,
-        used_fallback=used_fallback,
+        used_fallback=preview.used_fallback,
         updated_confidence_score=task.confidence_score or 1.0,
     )
 
 
 
 def build_task_context(task: Entity, diff_or_summary: str | None) -> dict[str, object]:
-    return {
-        "task_id": str(task.id),
-        "title": task.title,
-        "content": (task.content or "").strip()[:4000],
-        "tags": task.tags or [],
-        "metadata": task.entity_metadata or {},
-        "diff_or_summary": (diff_or_summary or "").strip()[:8000] or None,
-    }
+    return entity_prompt_data(
+        "comprehension",
+        task,
+        content_chars=4_000,
+        extra={"diff_or_summary": (diff_or_summary or "").strip()[:8_000] or None},
+    )
 
 
 

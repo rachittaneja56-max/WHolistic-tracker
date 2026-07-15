@@ -120,7 +120,7 @@ export function GithubAnalyticsPanel() {
           <CardDescription>Session-derived activity only. Shipping comes from pushes and merged PRs. Learning comes from entity capture, revisits, and reviews.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {isLoading ? <p className="text-sm text-zinc-500">Loading heatmaps and shipping signals...</p> : null}
+          {isLoading ? <p className="text-sm text-muted-foreground">Loading heatmaps and shipping signals...</p> : null}
 
           <div className="grid gap-6 xl:grid-cols-2">
             <HeatmapGrid
@@ -140,39 +140,39 @@ export function GithubAnalyticsPanel() {
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4">
-              <p className="font-mono text-xs uppercase tracking-[0.18em] text-zinc-500">Shipping without learning</p>
-              <p className="mt-2 text-sm text-zinc-300">{learningVsShippingMessage?.shippedWithoutLearning ?? "Not enough data yet."}</p>
+            <div className="rounded-lg border border-border bg-background px-4 py-4">
+              <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">Shipping without learning</p>
+              <p className="mt-2 text-sm text-secondary">{learningVsShippingMessage?.shippedWithoutLearning ?? "Not enough data yet."}</p>
             </div>
-            <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4">
-              <p className="font-mono text-xs uppercase tracking-[0.18em] text-zinc-500">Learning after shipping</p>
-              <p className="mt-2 text-sm text-zinc-300">{learningVsShippingMessage?.learningAfterShipping ?? "Not enough data yet."}</p>
+            <div className="rounded-lg border border-border bg-background px-4 py-4">
+              <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">Learning after shipping</p>
+              <p className="mt-2 text-sm text-secondary">{learningVsShippingMessage?.learningAfterShipping ?? "Not enough data yet."}</p>
             </div>
           </div>
 
           {learningVsShipping ? (
             <div className="grid gap-3 md:grid-cols-4">
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                <p className="font-mono text-xs text-zinc-500">shipping days</p>
-                <p className="mt-2 font-mono text-sm text-zinc-100">{learningVsShipping.summary.shipping_days}</p>
+              <div className="rounded-lg border border-border bg-background p-4">
+                <p className="font-mono text-xs text-muted-foreground">shipping days</p>
+                <p className="mt-2 font-mono text-sm text-foreground">{learningVsShipping.summary.shipping_days}</p>
               </div>
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                <p className="font-mono text-xs text-zinc-500">learning days</p>
-                <p className="mt-2 font-mono text-sm text-zinc-100">{learningVsShipping.summary.learning_days}</p>
+              <div className="rounded-lg border border-border bg-background p-4">
+                <p className="font-mono text-xs text-muted-foreground">learning days</p>
+                <p className="mt-2 font-mono text-sm text-foreground">{learningVsShipping.summary.learning_days}</p>
               </div>
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                <p className="font-mono text-xs text-zinc-500">captured after shipping</p>
-                <p className="mt-2 font-mono text-sm text-zinc-100">{learningVsShipping.summary.learning_after_shipping_days}</p>
+              <div className="rounded-lg border border-border bg-background p-4">
+                <p className="font-mono text-xs text-muted-foreground">captured after shipping</p>
+                <p className="mt-2 font-mono text-sm text-foreground">{learningVsShipping.summary.learning_after_shipping_days}</p>
               </div>
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                <p className="font-mono text-xs text-zinc-500">missed capture days</p>
-                <p className="mt-2 font-mono text-sm text-zinc-100">{learningVsShipping.summary.shipped_without_learning_days}</p>
+              <div className="rounded-lg border border-border bg-background p-4">
+                <p className="font-mono text-xs text-muted-foreground">missed capture days</p>
+                <p className="mt-2 font-mono text-sm text-foreground">{learningVsShipping.summary.shipped_without_learning_days}</p>
               </div>
             </div>
           ) : null}
 
-          {analyticsError ? <p className="text-sm text-amber-300">{analyticsError}</p> : null}
-          {learningVsShippingError ? <p className="text-sm text-amber-300">{learningVsShippingError}</p> : null}
+          {analyticsError ? <p className="text-sm text-warning">{analyticsError}</p> : null}
+          {learningVsShippingError ? <p className="text-sm text-warning">{learningVsShippingError}</p> : null}
         </CardContent>
       </Card>
 
@@ -182,25 +182,25 @@ export function GithubAnalyticsPanel() {
           <CardDescription>Latest workflow/check status grouped by repo or matched project from `metadata.repo_url`.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {isLoading ? <p className="text-sm text-zinc-500">Loading CI status...</p> : null}
+          {isLoading ? <p className="text-sm text-muted-foreground">Loading CI status...</p> : null}
           {ciStatus.length > 0 ? (
             ciStatus.map((item) => (
-              <div key={`${item.project_id ?? "none"}:${item.repo}:${item.workflow_name}`} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4">
+              <div key={`${item.project_id ?? "none"}:${item.repo}:${item.workflow_name}`} className="rounded-lg border border-border bg-background px-4 py-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-zinc-100">{item.project_title ?? item.repo}</p>
-                    <p className="mt-1 font-mono text-xs text-zinc-500">{item.repo}</p>
+                    <p className="text-sm font-medium text-foreground">{item.project_title ?? item.repo}</p>
+                    <p className="mt-1 font-mono text-xs text-muted-foreground">{item.repo}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="blue">{item.latest_status}</Badge>
                     <Badge variant={getCiConclusionVariant(item.latest_conclusion)}>{item.latest_conclusion ?? "pending"}</Badge>
                   </div>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-zinc-500">
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                   <span className="font-mono">{item.workflow_name}</span>
                   <span className="font-mono">updated {formatEntityDate(item.updated_at)}</span>
                   {item.url ? (
-                    <a href={item.url} target="_blank" rel="noreferrer" className="text-blue-300 hover:text-blue-200">
+                    <a href={item.url} target="_blank" rel="noreferrer" className="text-primary hover:text-primary">
                       Open GitHub
                     </a>
                   ) : null}
@@ -208,10 +208,10 @@ export function GithubAnalyticsPanel() {
               </div>
             ))
           ) : (
-            <p className="text-sm text-zinc-500">No workflow or check events have been captured yet.</p>
+            <p className="text-sm text-muted-foreground">No workflow or check events have been captured yet.</p>
           )}
 
-          {ciStatusError ? <p className="text-sm text-amber-300">{ciStatusError}</p> : null}
+          {ciStatusError ? <p className="text-sm text-warning">{ciStatusError}</p> : null}
         </CardContent>
       </Card>
     </div>

@@ -1,4 +1,4 @@
-﻿import { Link } from "react-router-dom"
+import { Link } from "react-router-dom"
 
 import type { Entity } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -47,13 +47,13 @@ export function EntityList({
       </CardHeader>
       <CardContent className={cn("space-y-3", compact ? "p-4 pt-0" : undefined)}>
         {isLoading ? (
-          <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-6 text-sm text-zinc-500">
+          <div className="rounded-lg border border-border bg-background px-4 py-6 text-sm text-muted-foreground">
             Loading entities...
           </div>
         ) : null}
 
         {!isLoading && errorMessage ? (
-          <div className="space-y-3 rounded-lg border border-red-500/25 bg-red-500/5 px-4 py-4 text-sm text-red-300">
+          <div className="space-y-3 rounded-lg border border-danger/25 bg-danger/5 px-4 py-4 text-sm text-danger">
             <p>{errorMessage}</p>
             {onRetry ? (
               <Button type="button" variant="outline" size="sm" onClick={onRetry}>
@@ -64,8 +64,8 @@ export function EntityList({
         ) : null}
 
         {!isLoading && !errorMessage && entities.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-950 px-4 py-6 text-sm text-zinc-500">
-            <p className="font-medium text-zinc-300">No entities yet</p>
+          <div className="rounded-lg border border-dashed border-border bg-background px-4 py-6 text-sm text-muted-foreground">
+            <p className="font-medium text-secondary">No entities yet</p>
             <p className="mt-1">Create the first capture to populate the shared knowledge substrate.</p>
           </div>
         ) : null}
@@ -76,20 +76,20 @@ export function EntityList({
                 key={entity.id}
                 to={`/entities/${entity.id}`}
                 className={cn(
-                  "block rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 transition-colors hover:border-blue-500/40 hover:bg-zinc-950",
-                  entity.id === activeEntityId && "border-blue-500/50 bg-zinc-950",
+                  "block rounded-lg border border-border bg-background px-4 py-3 transition-colors hover:border-primary/40 hover:bg-background",
+                  entity.id === activeEntityId && "border-primary/50 bg-background",
                 )}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 space-y-2">
-                    <p className="truncate text-sm font-medium text-zinc-100">{entity.title ?? "Untitled entity"}</p>
+                    <p className="truncate text-sm font-medium text-foreground">{entity.title ?? "Untitled entity"}</p>
                     <div className="flex flex-wrap gap-2">
                       <Badge>{entity.type ?? "unknown"}</Badge>
                       <Badge>{entity.content_type ?? "unset"}</Badge>
                     </div>
-                    <p className="text-sm text-zinc-500">{getEntityContentPreview(entity)}</p>
+                    <p className="text-sm text-muted-foreground">{getEntityContentPreview(entity)}</p>
                   </div>
-                  <span className="font-mono text-xs text-zinc-500">{formatDate(entity.created_at)}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{formatDate(entity.created_at)}</span>
                 </div>
               </Link>
             ))

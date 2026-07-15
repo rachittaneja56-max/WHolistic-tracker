@@ -74,8 +74,8 @@ GitHub events are stored in `sessions` with action names such as:
 - `check_run`
 
 Metadata on the session stores repo and event details. Matching back to a project happens through `project.metadata.repo_url`.
-## System settings and archived entities
+## Operational data and deletion
 
-`app_settings` is the only non-learning table added after the stable Phase 0 schema. It stores system preferences plus encrypted owner-entered AI provider credentials. AI keys are encrypted using a key derived from `APP_SESSION_SECRET`, are never returned by the API, and fall back to process configuration when no database credential exists.
+The stable learning substrate remains separate from operational tables. `app_settings` stores each user's feature preferences and encrypted AI, web-search, GitHub, DSA, and extension credentials. Credential values are encrypted with `APP_ENCRYPTION_SECRET` and are never returned by the API. Assistant threads and proposals, integration clients, invitations, quotas, audit logs, usage counters, and privacy-safe product events use dedicated operational tables; Better Auth owns account and session tables in the PostgreSQL `auth` schema.
 
-Entity deletion is a reversible metadata state. Central SQLAlchemy loader criteria hide entities with `metadata.deleted_at` from ordinary queries, including tracker, graph, retrieval, and agent entity loads. Explicit authenticated archive/restore paths opt into archived visibility. Hierarchy and graph data are never cascaded or rewritten.
+Entity deletion is permanent. Deleting an entity also deletes its descendants and their dependent links, activity sessions, reviews, and comprehension checks. An entity with children or graph links requires exact-title confirmation before deletion.

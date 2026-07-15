@@ -37,6 +37,7 @@ describe("capture prefill", () => {
       type: "idea",
       parent_id: "parent-123",
       tags: "shared, mobile",
+      academic_kind: "exam",
     }))
     expect(result).toMatchObject({
       title: "Shared title",
@@ -44,7 +45,13 @@ describe("capture prefill", () => {
       type: "idea",
       parentId: "parent-123",
       tags: "shared, mobile",
+      academicKind: "exam",
     })
+  })
+
+  it("drops unsupported academic kinds before they reach the API", () => {
+    const result = normalizeCapturePrefill(new URLSearchParams({ academic_kind: "surprise-test" }))
+    expect(result.academicKind).toBeNull()
   })
 
   it("opens advanced mode for valid entity types outside quick capture", () => {

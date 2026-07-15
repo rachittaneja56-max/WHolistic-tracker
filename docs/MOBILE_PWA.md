@@ -24,9 +24,17 @@ NODE_ENV=production
 BETTER_AUTH_URL=https://auth.kg.example.com
 FRONTEND_ORIGIN=https://kg.example.com
 AUTH_JWT_AUDIENCE=personal-dev-kg-api
+ROOT_ADMIN_EMAIL=root-admin@example.com
+AUTH_TRUST_PROXY_HOPS=1
+AUTH_REQUIRE_EMAIL_VERIFICATION=true
+AUTH_VERIFICATION_DELIVERY_URL=https://mailer.example.com/auth-events
+AUTH_PASSWORD_RESET_DELIVERY_URL=https://mailer.example.com/auth-events
+TURNSTILE_SITE_KEY=<cloudflare-turnstile-site-key>
+TURNSTILE_SECRET_KEY=<cloudflare-turnstile-secret-key>
+TURNSTILE_ALLOWED_HOSTNAMES=kg.example.com
 ```
 
-Replace the example hosts with the deployment's real domains. `VITE_*` values are build-time settings, so rebuild the web app after changing them. Keep the API audience identical in the API and auth service.
+Replace the example hosts and credentials with the deployment's real values. `VITE_*` values are build-time settings, so rebuild the web app after changing them. Keep the API audience and `ROOT_ADMIN_EMAIL` identical in the API and auth service. The delivery endpoint must accept both auth templates; protect it with `AUTH_VERIFICATION_DELIVERY_TOKEN` when appropriate.
 
 ## Hosting requirements
 

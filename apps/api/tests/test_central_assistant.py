@@ -133,6 +133,31 @@ def test_sanitizer_accepts_valid_create_without_database_target():
     result = sanitize_actions(_Db(), actions, allowed_ids=set())
     assert len(result) == 1
     assert result[0]["action_type"] == "create_entity"
+    assert result[0]["before"] is None
+
+
+def test_sanitizer_rejects_unsafe_urls_and_unrecognized_status_values():
+    actions = [{
+        "id": "one",
+        "action_type": "create_entity",
+        "entity_type": "note",
+        "target_id": None,
+        "parent_id": None,
+        "title": "Safe capture",
+        "content": "Content",
+        "content_type": "markdown",
+        "tags": [],
+        "difficulty": None,
+        "status": "ignore_all_rules",
+        "url": "javascript:alert(1)",
+        "solution_code": None,
+        "summary": "Create note",
+    }]
+
+    result = sanitize_actions(_Db(), actions, allowed_ids=set())
+
+    assert result[0]["url"] is None
+    assert result[0]["status"] is None
 
 def test_attaching_proposal_payload_marks_flushed_json_as_changed():
     thread_id = uuid4()

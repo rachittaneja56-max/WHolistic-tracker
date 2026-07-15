@@ -17,15 +17,12 @@ def upgrade() -> None:
         """
         CREATE OR REPLACE FUNCTION auth.protect_root_admin() RETURNS trigger AS $$
         BEGIN
-          IF TG_OP = 'DELETE' AND lower(OLD.email) = 'rachittaneja56@gmail.com' THEN
+          IF TG_OP = 'DELETE' AND OLD.role = 'root_admin' THEN
             RAISE EXCEPTION 'the root administrator cannot be deleted';
           END IF;
-          IF TG_OP = 'UPDATE' AND lower(OLD.email) = 'rachittaneja56@gmail.com' AND
-             (lower(NEW.email) <> 'rachittaneja56@gmail.com' OR NEW.role <> 'root_admin' OR COALESCE(NEW.banned, false)) THEN
+          IF TG_OP = 'UPDATE' AND OLD.role = 'root_admin' AND
+             (NEW.email <> OLD.email OR NEW.role <> 'root_admin' OR COALESCE(NEW.banned, false)) THEN
             RAISE EXCEPTION 'the root administrator cannot be renamed, demoted, or banned';
-          END IF;
-          IF TG_OP IN ('INSERT', 'UPDATE') AND NEW.role = 'root_admin' AND lower(NEW.email) <> 'rachittaneja56@gmail.com' THEN
-            RAISE EXCEPTION 'root_admin is reserved for rachittaneja56@gmail.com';
           END IF;
           RETURN COALESCE(NEW, OLD);
         END;

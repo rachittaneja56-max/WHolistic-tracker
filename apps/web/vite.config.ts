@@ -8,13 +8,14 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      injectRegister: false,
       registerType: "autoUpdate",
       manifest: {
         name: "Personal Dev KG",
         short_name: "Dev KG",
-        description: "A private developer knowledge graph for quick capture, connected work, and recall.",
-        theme_color: "#09090b",
-        background_color: "#09090b",
+        description: "An AI-guided learning workspace for practice, projects, notes, recall, and progress.",
+        theme_color: "#080d18",
+        background_color: "#f8fafc",
         display: "standalone",
         start_url: "/app",
         scope: "/",
@@ -23,20 +24,8 @@ export default defineConfig({
           { src: "/pwa-512x512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
         ],
         shortcuts: [
-          {
-            name: "Today",
-            short_name: "Today",
-            description: "Open today's priorities",
-            url: "/app",
-            icons: [{ src: "/pwa-192x192.png", sizes: "192x192", type: "image/png" }],
-          },
-          {
-            name: "Quick Capture",
-            short_name: "Capture",
-            description: "Capture a note, idea, TIL, or task",
-            url: "/capture",
-            icons: [{ src: "/pwa-192x192.png", sizes: "192x192", type: "image/png" }],
-          },
+          { name: "Home", short_name: "Home", description: "Open your next learning action", url: "/app", icons: [{ src: "/pwa-192x192.png", sizes: "192x192", type: "image/png" }] },
+          { name: "Capture", short_name: "Capture", description: "Capture a learning item", url: "/capture", icons: [{ src: "/pwa-192x192.png", sizes: "192x192", type: "image/png" }] },
         ],
         share_target: {
           action: "/capture",
@@ -47,25 +36,21 @@ export default defineConfig({
       },
       workbox: {
         cleanupOutdatedCaches: true,
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-        globPatterns: ["**/*.{js,css,html,svg,woff,woff2}"],
+        maximumFileSizeToCacheInBytes: 512 * 1024,
+        globPatterns: ["index.html", "manifest.webmanifest", "pwa-*.png", "assets/index-*.css", "assets/inter-latin-*-normal-*.woff2", "assets/jetbrains-mono-latin-*-normal-*.woff2"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api(?:\/|$)/, /^\/auth(?:\/|$)/],
         runtimeCaching: [
           {
-            urlPattern: ({ request }) => request.destination === "",
-            handler: "NetworkOnly",
+            urlPattern: ({ request }) => ["script", "style", "font"].includes(request.destination),
+            handler: "StaleWhileRevalidate",
+            options: { cacheName: "visited-app-chunks", expiration: { maxEntries: 40, maxAgeSeconds: 7 * 24 * 60 * 60 } },
           },
         ],
       },
     }),
   ],
-  resolve: {
-    alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
-    },
-  },
-  server: {
-    port: 5173,
-  },
+  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+  build: { manifest: true, sourcemap: false },
+  server: { port: 5173 },
 })

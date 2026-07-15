@@ -28,7 +28,8 @@ class AuthPrincipal:
 
     @property
     def is_root_admin(self) -> bool:
-        return self.role == "root_admin" and self.email.lower() == settings.root_admin_email.lower()
+        configured_email = (settings.root_admin_email or "").strip().lower()
+        return self.role == "root_admin" and bool(configured_email) and self.email.lower() == configured_email
 
 
 _jwks = PyJWKClient(settings.auth_jwks_url, cache_keys=True, cache_jwk_set=True, lifespan=3600)

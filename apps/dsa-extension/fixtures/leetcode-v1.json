@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "operations": {
+    "userStatus": { "userStatus": { "isSignedIn": false } },
+    "question": {
+      "question": {
+        "questionId": "1",
+        "questionFrontendId": "1",
+        "title": "Two Sum",
+        "titleSlug": "two-sum",
+        "difficulty": "Easy",
+        "status": "ac",
+        "topicTags": [{ "name": "Array" }]
+      }
+    },
+    "questionList": {
+      "problemsetQuestionList": {
+        "total": 1,
+        "questions": [{ "questionFrontendId": "1", "title": "Two Sum", "titleSlug": "two-sum", "difficulty": "Easy", "status": "ac", "topicTags": [{ "name": "Array" }] }]
+      }
+    },
+    "submissions": { "submissionList": { "submissions": [{ "id": "100", "statusDisplay": "Accepted", "lang": "javascript", "timestamp": "1700000000" }] } },
+    "submissionDetails": { "submissionDetails": { "code": "const answer = [];", "lang": "javascript", "timestamp": "1700000000" } },
+    "questionNote": { "questionNote": { "note": "Use a hash map." } }
+  }
+}

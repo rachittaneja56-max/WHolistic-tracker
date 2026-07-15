@@ -2,18 +2,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
-import json
 import uuid
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agents.services.provider import OpenAIProvider
+from app.agents.utils.context import is_ai_excluded, serialize_entity_context
+from app.agents.utils.exceptions import ModelResponseError
 from app.agents.utils.prompts import build_system_prompt
 from app.api.activity import record_session
 from app.models.entity import Entity
 from app.models.review import Review
-from app.schemas.recall import RecallGradeResponse
+from app.schemas.recall import RecallGradePreviewResponse, RecallGradeResponse
 from app.services.confidence import apply_recall_result, build_latest_review_map, calculate_entity_confidence
 
 RECALL_DUE_CONFIDENCE_THRESHOLD = 0.72
@@ -156,15 +157,12 @@ def get_due_recall_items(
 
 
 def build_recall_grading_context(entity: Entity, answer: str) -> str:
-    metadata_text = json.dumps(entity.entity_metadata or {}, ensure_ascii=True, sort_keys=True)
-    return (
-        f"Entity ID: {entity.id}\n"
-        f"Title: {entity.title or 'Untitled entity'}\n"
-        f"Type: {entity.type or 'unknown'}\n"
-        f"Tags: {', '.join(entity.tags or []) or 'none'}\n"
-        f"Metadata: {metadata_text}\n\n"
-        f"Original content:\n{(entity.content or '').strip()[:5000] or '[no original content]'}\n\n"
-        f"User recall answer:\n{answer.strip()[:5000]}"
+    return serialize_entity_context(
+        "recall",
+        entity,
+        provenance="personal_graph_entity_and_recall_answer",
+        content_chars=5_000,
+        extra={"answer": answer},
     )
 
 
@@ -215,14 +213,14 @@ def finalize_recall_grade(
     )
 
 
-def grade_recall_answer(
+def preview_recall_answer(
     entity_id: uuid.UUID,
     *,
     answer: str,
     self_score: int | None,
     db: Session,
     provider: OpenAIProvider | None,
-) -> RecallGradeResponse:
+) -> RecallGradePreviewResponse:
     entity = db.get(Entity, entity_id)
     if entity is None:
         raise ValueError("Entity not found")
@@ -231,19 +229,15 @@ def grade_recall_answer(
     if not cleaned_answer:
         raise TypeError("Answer is required")
 
-    reviewed_at = datetime.now(timezone.utc)
-
-    if provider is None:
+    if provider is None or is_ai_excluded(entity):
         if self_score is None:
             raise TypeError("Self-score is required when AI grading is unavailable")
-        return finalize_recall_grade(
-            entity=entity,
-            recalled_score=self_score,
+        return RecallGradePreviewResponse(
+            entity_id=entity.id,
+            suggested_score=self_score,
             feedback=FALLBACK_FEEDBACK[self_score],
             missed_points=FALLBACK_MISSED_POINTS[self_score],
             next_action=FALLBACK_NEXT_ACTION[self_score],
-            reviewed_at=reviewed_at,
-            db=db,
             used_fallback=True,
         )
 
@@ -265,18 +259,55 @@ def grade_recall_answer(
         model=provider.smart_model,
     )
 
+    if str(payload.get("entity_id", "")).strip() != str(entity.id):
+        raise ModelResponseError("AI grade referenced an entity outside the requested target.")
     recalled_score = int(payload.get("recalled_score", 1))
     feedback = str(payload.get("feedback", "Insufficient grading feedback returned.")).strip()[:600]
     missed_points = [str(item).strip()[:160] for item in payload.get("missed_points", []) if str(item).strip()][:5]
     next_action = str(payload.get("next_action", "review_again"))
 
-    return finalize_recall_grade(
-        entity=entity,
-        recalled_score=recalled_score,
+    return RecallGradePreviewResponse(
+        entity_id=entity.id,
+        suggested_score=recalled_score,
         feedback=feedback,
         missed_points=missed_points,
         next_action=next_action,
-        reviewed_at=reviewed_at,
-        db=db,
         used_fallback=False,
+    )
+
+
+def grade_recall_answer(
+    entity_id: uuid.UUID,
+    *,
+    answer: str,
+    self_score: int | None,
+    db: Session,
+    provider: OpenAIProvider | None,
+) -> RecallGradeResponse:
+    if self_score is None:
+        raise TypeError("A user-confirmed score is required before applying a recall grade")
+
+    entity = db.get(Entity, entity_id)
+    if entity is None:
+        raise ValueError("Entity not found")
+    preview = preview_recall_answer(
+        entity_id,
+        answer=answer,
+        self_score=self_score,
+        db=db,
+        provider=provider,
+    )
+    # Only the explicit user score controls durable learning state. If it
+    # differs from the advisory score, use deterministic feedback aligned to
+    # the user's decision rather than persisting an AI-selected action.
+    overridden = preview.suggested_score != self_score
+    return finalize_recall_grade(
+        entity=entity,
+        recalled_score=self_score,
+        feedback=FALLBACK_FEEDBACK[self_score] if overridden else preview.feedback,
+        missed_points=FALLBACK_MISSED_POINTS[self_score] if overridden else preview.missed_points,
+        next_action=FALLBACK_NEXT_ACTION[self_score] if overridden else preview.next_action,
+        reviewed_at=datetime.now(timezone.utc),
+        db=db,
+        used_fallback=preview.used_fallback,
     )

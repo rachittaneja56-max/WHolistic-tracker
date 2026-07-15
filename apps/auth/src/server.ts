@@ -3,6 +3,7 @@ import "dotenv/config"
 import { createHash, randomUUID } from "node:crypto"
 import cors from "cors"
 import express from "express"
+import type { NextFunction, Request, Response } from "express"
 import { toNodeHandler } from "better-auth/node"
 import { hashPassword } from "better-auth/crypto"
 
@@ -10,6 +11,36 @@ import { auth, authConfig, frontendOrigin, pool } from "./auth.js"
 
 const app = express()
 const port = Number(process.env.AUTH_PORT ?? 3001)
+const trustProxyHops = Number(process.env.AUTH_TRUST_PROXY_HOPS ?? 0)
+if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0) {
+  throw new Error("AUTH_TRUST_PROXY_HOPS must be a non-negative integer")
+}
+app.set("trust proxy", trustProxyHops)
+
+function publicRateLimit(name: string, maximum: number, windowMs: number) {
+  return async (request: Request, response: Response, next: NextFunction) => {
+    const now = Date.now()
+    const key = createHash("sha256").update(`pdkg:${name}:${request.ip || "unknown"}`).digest("hex")
+    try {
+      const result = await pool.query(
+        `INSERT INTO auth."rateLimit" (id, key, count, "lastRequest")
+         VALUES ($1, $2, 1, $3)
+         ON CONFLICT (key) DO UPDATE SET
+           count = CASE WHEN auth."rateLimit"."lastRequest" < $4 THEN 1 ELSE auth."rateLimit".count + 1 END,
+           "lastRequest" = CASE WHEN auth."rateLimit"."lastRequest" < $4 THEN $3 ELSE auth."rateLimit"."lastRequest" END
+         RETURNING count`,
+        [randomUUID(), key, now, now - windowMs],
+      )
+      if (Number(result.rows[0]?.count ?? maximum + 1) > maximum) {
+        response.setHeader("Retry-After", Math.ceil(windowMs / 1000))
+        return response.status(429).json({ detail: "Too many attempts. Try again later." })
+      }
+      return next()
+    } catch {
+      return response.status(503).json({ detail: "Authentication rate limiter is unavailable" })
+    }
+  }
+}
 
 app.use(cors({ origin: frontendOrigin, credentials: true, exposedHeaders: ["set-auth-jwt"] }))
 app.get("/health", async (_request, response) => {
@@ -26,10 +57,10 @@ app.get("/api/invitations/:token", async (request, response) => {
   if (!result.rowCount) return response.status(404).json({ detail: "Invitation is invalid or expired" })
   return response.json(result.rows[0])
 })
-app.post("/api/invitations/accept", express.json(), async (request, response) => {
+app.post("/api/invitations/accept", publicRateLimit("invitation-accept", 5, 5 * 60_000), express.json(), async (request, response) => {
   const { token, name, password } = request.body as { token?: string; name?: string; password?: string }
-  if (!token || !name?.trim() || !password || password.length < 8) {
-    return response.status(400).json({ detail: "Token, name, and an 8-character password are required" })
+  if (!token || !name?.trim() || !password || password.length < 12) {
+    return response.status(400).json({ detail: "Token, name, and a 12-character password are required" })
   }
   const tokenHash = createHash("sha256").update(token).digest("hex")
   const client = await pool.connect()
@@ -68,9 +99,9 @@ app.get("/api/password-resets/:token", async (request, response) => {
   const email = String(result.rows[0].email)
   return response.json({ email: email.replace(/(^.).*(@.*$)/, "$1***$2"), expires_at: result.rows[0].expires_at })
 })
-app.post("/api/password-resets/accept", express.json(), async (request, response) => {
+app.post("/api/password-resets/accept", publicRateLimit("password-reset-accept", 5, 5 * 60_000), express.json(), async (request, response) => {
   const { token, password } = request.body as { token?: string; password?: string }
-  if (!token || !password || password.length < 8) return response.status(400).json({ detail: "Token and an 8-character password are required" })
+  if (!token || !password || password.length < 12) return response.status(400).json({ detail: "Token and a 12-character password are required" })
   const tokenHash = createHash("sha256").update(token).digest("hex")
   const client = await pool.connect()
   try {

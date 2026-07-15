@@ -424,7 +424,7 @@ export function CaptureEntityForm({
               placeholder="Write the thing you want to keep."
               aria-invalid={Boolean(fieldErrors.title)}
             />
-            {fieldErrors.title ? <p className="text-sm text-red-300">{fieldErrors.title}</p> : null}
+            {fieldErrors.title ? <p className="text-sm text-danger">{fieldErrors.title}</p> : null}
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">
@@ -451,7 +451,7 @@ export function CaptureEntityForm({
                   ))}
                 </SelectContent>
               </Select>
-              {fieldErrors.type ? <p className="text-sm text-red-300">{fieldErrors.type}</p> : null}
+              {fieldErrors.type ? <p className="text-sm text-danger">{fieldErrors.type}</p> : null}
             </div>
 
             <div className="space-y-2">
@@ -477,7 +477,7 @@ export function CaptureEntityForm({
                   <SelectItem value="code">code</SelectItem>
                 </SelectContent>
               </Select>
-              {fieldErrors.contentType ? <p className="text-sm text-red-300">{fieldErrors.contentType}</p> : null}
+              {fieldErrors.contentType ? <p className="text-sm text-danger">{fieldErrors.contentType}</p> : null}
             </div>
           </div>
 
@@ -514,7 +514,7 @@ export function CaptureEntityForm({
                   ))}
                 </SelectContent>
               </Select>
-              {fieldErrors.parentId ? <p className="text-sm text-red-300">{fieldErrors.parentId}</p> : null}
+              {fieldErrors.parentId ? <p className="text-sm text-danger">{fieldErrors.parentId}</p> : null}
             </div>
           ) : null}
 
@@ -527,7 +527,7 @@ export function CaptureEntityForm({
                 onChange={(event) => setRepoUrl(event.target.value)}
                 placeholder="https://github.com/owner/repo or owner/repo"
               />
-              <p className="text-sm text-zinc-500">Used for GitHub webhook matching against `metadata.repo_url`.</p>
+              <p className="text-sm text-muted-foreground">Used for GitHub webhook matching against `metadata.repo_url`.</p>
             </div>
           ) : null}
 
@@ -587,17 +587,17 @@ export function CaptureEntityForm({
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-sm text-zinc-500">Non-handwritten tasks will ask for a comprehension check when marked done.</p>
+                  <p className="text-sm text-muted-foreground">Non-handwritten tasks will ask for a comprehension check when marked done.</p>
                 </div>
               ) : null}
             </div>
           ) : null}
 
           {isAcademicTask ? (
-            <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
+            <div className="space-y-3 rounded-lg border border-border bg-background/50 p-3">
               <div>
-                <p className="text-sm font-medium text-zinc-200">Academic details</p>
-                <p className="text-xs text-zinc-500">Tracked against {selectedParent?.title ?? "the selected subject"}.</p>
+                <p className="text-sm font-medium text-foreground">Academic details</p>
+                <p className="text-xs text-muted-foreground">Tracked against {selectedParent?.title ?? "the selected subject"}.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-2">
@@ -686,19 +686,19 @@ export function CaptureEntityForm({
           <div className="space-y-2">
             <Label htmlFor="content">Content</Label>
             <EntityEditor contentType={contentType || "markdown"} value={content} onChange={setContent} resetKey={`capture-${type || "unknown"}-${contentType || "markdown"}`} />
-            <p className="text-sm text-zinc-500">BlockNote stores serialized block JSON. Excalidraw stores serialized scene JSON. Markdown and code continue as strings.</p>
+            <p className="text-sm text-muted-foreground">BlockNote stores serialized block JSON. Excalidraw stores serialized scene JSON. Markdown and code continue as strings.</p>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="tags">Tags</Label>
             <Input id="tags" value={tags} onChange={(event) => setTags(event.target.value)} placeholder="fastapi, postgres, linked-list" />
-            <p className="text-sm text-zinc-500">Comma-separated tags stay shared across every tracker view.</p>
+            <p className="text-sm text-muted-foreground">Comma-separated tags stay shared across every tracker view.</p>
           </div>
 
-          {submitError ? <p className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-sm text-red-300">{submitError}</p> : null}
+          {submitError ? <p className="rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{submitError}</p> : null}
 
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-zinc-500">Required fields: title, type, and content type.</p>
+            <p className="text-sm text-muted-foreground">Required fields: title, type, and content type.</p>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Saving..." : "Create Entity"}
             </Button>

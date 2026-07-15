@@ -1,27 +1,36 @@
-import { Bot, Brain, ChartColumnIncreasing, Database, LayoutGrid, Library, ListChecks, Network, NotebookPen, RotateCcw, Settings, SunMedium, Tags, type LucideIcon } from "lucide-react"
+import { Bot, Brain, Braces, ChartColumnIncreasing, FileText, FolderKanban, GraduationCap, Home, Library, Network, RotateCcw, Tags, type LucideIcon } from "lucide-react"
 
 export type NavigationItem = { to: string; label: string; icon: LucideIcon; exact?: boolean }
 export type NavigationGroup = { label: string; items: NavigationItem[] }
 
 export const navigationGroups: NavigationGroup[] = [
-  { label: "Capture", items: [{ to: "/capture", label: "Capture", icon: NotebookPen }] },
-  { label: "Today", items: [{ to: "/app", label: "Today", icon: SunMedium, exact: true }] },
-  { label: "Trackers", items: [
-    { to: "/trackers/dsa", label: "DSA", icon: LayoutGrid },
-    { to: "/trackers/projects", label: "Projects", icon: ListChecks },
-    { to: "/trackers/subjects", label: "Subjects", icon: Library },
+  { label: "Home", items: [
+    { to: "/app", label: "Home", icon: Home, exact: true },
+    { to: "/app/insights", label: "Insights", icon: ChartColumnIncreasing },
   ] },
-  { label: "Knowledge", items: [
-    { to: "/knowledge/entities", label: "All Entities", icon: Database },
-    { to: "/knowledge/graph", label: "Graph", icon: Network },
-    { to: "/knowledge/tags", label: "Tags", icon: Tags },
+  { label: "Learn", items: [
+    { to: "/learn", label: "Learn overview", icon: GraduationCap, exact: true },
+    { to: "/trackers/subjects", label: "Subjects", icon: Library },
+    { to: "/trackers/dsa", label: "DSA practice", icon: Braces },
+    { to: "/knowledge/recall/comprehension", label: "Comprehension", icon: Brain },
     { to: "/knowledge/recall", label: "Recall", icon: RotateCcw },
   ] },
-  { label: "Agents", items: [
-    { to: "/agents/assistant", label: "AI Workspace", icon: Bot },
-    { to: "/agents/analyst", label: "Analyst", icon: ChartColumnIncreasing },
+  { label: "Projects", items: [{ to: "/trackers/projects", label: "Projects", icon: FolderKanban }] },
+  { label: "Library", items: [
+    { to: "/library", label: "Library overview", icon: Library, exact: true },
+    { to: "/knowledge/entities", label: "Notes", icon: FileText },
+    { to: "/knowledge/graph", label: "Graph", icon: Network },
+    { to: "/knowledge/tags", label: "Tags", icon: Tags },
   ] },
-  { label: "System", items: [{ to: "/settings", label: "Settings", icon: Settings }] },
+  { label: "AI Coach", items: [{ to: "/agents/assistant", label: "AI Coach", icon: Bot }] },
+]
+
+export const mobileDestinations: NavigationItem[] = [
+  { to: "/app", label: "Home", icon: Home, exact: true },
+  { to: "/learn", label: "Learn", icon: GraduationCap },
+  { to: "/trackers/projects", label: "Projects", icon: FolderKanban },
+  { to: "/library", label: "Library", icon: Library },
+  { to: "/agents/assistant", label: "AI Coach", icon: Bot },
 ]
 
 export const BrandIcon = Brain
@@ -29,12 +38,12 @@ export const BrandIcon = Brain
 export function routeMeta(pathname: string) {
   for (const group of navigationGroups) {
     for (const item of group.items) {
-      if ((item.exact && pathname === item.to) || (!item.exact && pathname.startsWith(item.to))) {
-        return { title: item.label, group: group.label }
-      }
+      if ((item.exact && pathname === item.to) || (!item.exact && pathname.startsWith(item.to))) return { title: item.label, group: group.label }
     }
   }
-  if (pathname.startsWith("/insights/weekly")) return { title: "Weekly Digest", group: "Insights" }
-  if (pathname.startsWith("/knowledge/recall/comprehension")) return { title: "Comprehension Checks", group: "Knowledge" }
+  if (pathname.startsWith("/settings")) return { title: "Settings", group: "Account" }
+  if (pathname.startsWith("/admin")) return { title: "Administration", group: "Account" }
+  if (pathname.startsWith("/insights/weekly")) return { title: "Weekly digest", group: "Home / Insights" }
+  if (pathname.startsWith("/capture")) return { title: "Capture", group: "Workspace" }
   return { title: "Personal Dev KG", group: "Workspace" }
 }

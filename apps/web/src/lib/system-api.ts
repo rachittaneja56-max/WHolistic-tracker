@@ -1,5 +1,5 @@
 import type { Entity, RecallDueItem, SessionRecord } from "@/lib/api"
-import { authenticatedFetch } from "@/lib/auth-client"
+import { addPasswordResetSource, authenticatedFetch } from "@/lib/auth-client"
 
 const apiBaseUrl = (import.meta.env.VITE_API_URL ?? "http://localhost:8000").replace(/\/$/, "")
 
@@ -22,6 +22,7 @@ export type SettingsStatus = {
   ai: { enabled: boolean; provider: AiProviderName; model_mode: AiModelMode; openai_configured: boolean; providers: Record<AiProviderName, AiProviderStatus>; provider_ready: boolean; fast_model: string; smart_model: string; disabled_reason: string | null }
   github: { enabled: boolean; webhook_secret_configured: boolean; access_token_configured: boolean; ready: boolean; disabled_reason: string | null; webhook_url: string; webhook_events: string[] }
   web_search: { enabled: boolean; provider: string | null; api_key_configured: boolean }
+  ai_egress: { provider: AiProviderName; destination: string; data_categories: string[]; ai_exclude_supported: boolean; review_before_write: boolean }
 }
 export type DeletionImpact = { child_count: number; link_count: number; review_count: number; comprehension_check_count: number; session_count: number }
 export type SubjectSummaryMetrics = {
@@ -66,7 +67,10 @@ export const revokeAdminInvitation = (id: string) => request<void>(`/admin/invit
 export const banAdminUser = (id: string, reason: string) => request<AdminUser>(`/admin/users/${id}/ban`, { method: "POST", body: JSON.stringify({ reason }) })
 export const unbanAdminUser = (id: string) => request<AdminUser>(`/admin/users/${id}/ban`, { method: "DELETE" })
 export const revokeAdminUserSessions = (id: string) => request<void>(`/admin/users/${id}/sessions/revoke`, { method: "POST" })
-export const createAdminPasswordReset = (id: string) => request<{ reset_url: string }>(`/admin/users/${id}/password-reset-link`, { method: "POST" })
+export async function createAdminPasswordReset(id: string) {
+  const result = await request<{ reset_url: string }>(`/admin/users/${id}/password-reset-link`, { method: "POST" })
+  return { ...result, reset_url: addPasswordResetSource(result.reset_url, "admin") }
+}
 export const updateAdminUserRole = (id: string, role: "user" | "admin") => request<AdminUser>(`/admin/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) })
 export const updateAdminUserQuota = (id: string, payload: Partial<AdminUserDetail["quota"]>) => request<AdminUserDetail["quota"]>(`/admin/users/${id}/quota`, { method: "PATCH", body: JSON.stringify(payload) })
 export const deleteAdminUser = (id: string, email: string) => request<void>(`/admin/users/${id}`, { method: "DELETE", body: JSON.stringify({ confirmation_email: email }) })
@@ -77,16 +81,57 @@ export async function downloadAdminUsers() {
   const anchor = document.createElement("a"); anchor.href = url; anchor.download = "account-operations.csv"; anchor.click(); URL.revokeObjectURL(url)
 }
 
-export const getSettingsStatus = () => request<SettingsStatus>("/settings/status")
-export const updateAiSetting = (payload: { enabled?: boolean; provider?: AiProviderName; model_mode?: AiModelMode; models?: Partial<Record<AiProviderName, { fast_model: string; smart_model: string }>> }) => request<SettingsStatus>("/settings/ai", { method: "PATCH", body: JSON.stringify(payload) })
-export const saveAiCredential = (provider: AiProviderName, apiKey: string) => request<SettingsStatus>(`/settings/ai/credentials/${provider}`, { method: "PUT", body: JSON.stringify({ api_key: apiKey }) })
-export const deleteAiCredential = (provider: AiProviderName) => request<SettingsStatus>(`/settings/ai/credentials/${provider}`, { method: "DELETE" })
-export const updateGithubSetting = (enabled: boolean) => request<SettingsStatus>("/settings/github", { method: "PATCH", body: JSON.stringify({ enabled }) })
-export const saveGithubCredential = (credential: "access_token" | "webhook_secret", value: string) => request<SettingsStatus>(`/settings/github/credentials/${credential}`, { method: "PUT", body: JSON.stringify({ value }) })
-export const deleteGithubCredential = (credential: "access_token" | "webhook_secret") => request<SettingsStatus>(`/settings/github/credentials/${credential}`, { method: "DELETE" })
-export const getArchivedEntities = () => request<Entity[]>("/entities/archived")
+const settingsStatusTtlMs = 30_000
+let settingsStatusCache: { value: SettingsStatus; expiresAt: number } | null = null
+let settingsStatusRequest: Promise<SettingsStatus> | null = null
+
+function publishSettingsStatus(value: SettingsStatus) {
+  settingsStatusCache = { value, expiresAt: Date.now() + settingsStatusTtlMs }
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("pdkg:settings-updated", { detail: value }))
+  return value
+}
+
+export function invalidateSettingsStatus() {
+  settingsStatusCache = null
+  settingsStatusRequest = null
+}
+
+export function getSettingsStatus(force = false) {
+  if (!force && settingsStatusCache && settingsStatusCache.expiresAt > Date.now()) return Promise.resolve(settingsStatusCache.value)
+  if (!force && settingsStatusRequest) return settingsStatusRequest
+  settingsStatusRequest = request<SettingsStatus>("/settings/status").then(publishSettingsStatus)
+  return settingsStatusRequest.finally(() => { settingsStatusRequest = null })
+}
+
+function mutateSettings(path: string, init: RequestInit) {
+  return request<SettingsStatus>(path, init).then(publishSettingsStatus)
+}
+
+export const updateAiSetting = (payload: { enabled?: boolean; provider?: AiProviderName; model_mode?: AiModelMode; models?: Partial<Record<AiProviderName, { fast_model: string; smart_model: string }>> }) => mutateSettings("/settings/ai", { method: "PATCH", body: JSON.stringify(payload) })
+export const saveAiCredential = (provider: AiProviderName, apiKey: string) => mutateSettings("/settings/ai/credentials/" + provider, { method: "PUT", body: JSON.stringify({ api_key: apiKey }) })
+export const deleteAiCredential = (provider: AiProviderName) => mutateSettings("/settings/ai/credentials/" + provider, { method: "DELETE" })
+export const updateGithubSetting = (enabled: boolean) => mutateSettings("/settings/github", { method: "PATCH", body: JSON.stringify({ enabled }) })
+export const saveGithubCredential = (credential: "access_token" | "webhook_secret", value: string) => mutateSettings("/settings/github/credentials/" + credential, { method: "PUT", body: JSON.stringify({ value }) })
+export const deleteGithubCredential = (credential: "access_token" | "webhook_secret") => mutateSettings("/settings/github/credentials/" + credential, { method: "DELETE" })
+
+export async function downloadAccountData() {
+  const response = await authenticatedFetch(`${apiBaseUrl}/account/export`, { headers: { Accept: "application/json" } })
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { detail?: string } | null
+    throw new Error(payload?.detail ?? "Unable to export account data")
+  }
+  const url = URL.createObjectURL(await response.blob())
+  const anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = "personal-dev-kg-export.json"
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+export const deleteOwnAccount = (confirmationEmail: string) => request<void>("/account", { method: "DELETE", body: JSON.stringify({ confirmation_email: confirmationEmail }) })
 export const getDeletionImpact = (id: string) => request<DeletionImpact>(`/entities/${id}/deletion-impact`)
 export const deleteEntity = (id: string, confirmationTitle?: string) => request<{ entity: Entity; deleted_at: string }>(`/entities/${id}`, { method: "DELETE", body: JSON.stringify({ confirmation_title: confirmationTitle ?? null }) })
-export const restoreEntity = (id: string) => request<Entity>(`/entities/${id}/restore`, { method: "POST" })
 export const getSubjectTracker = () => request<SubjectTrackerSummary[]>("/subjects/tracker")
 export const getSubjectOverview = (id: string) => request<SubjectOverview>(`/subjects/${id}/overview`)

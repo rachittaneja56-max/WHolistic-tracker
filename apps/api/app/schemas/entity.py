@@ -239,6 +239,8 @@ def normalize_entity_metadata(entity_type: EntityType | None, metadata: dict[str
         normalized = normalize_task_metadata(metadata)
     else:
         normalized = dict(metadata or {})
+    if "ai_exclude" in normalized and not isinstance(normalized["ai_exclude"], bool):
+        raise ValueError("metadata.ai_exclude must be a boolean")
     ai_assist_level = normalized.get("ai_assist_level")
 
     if entity_type == "task":

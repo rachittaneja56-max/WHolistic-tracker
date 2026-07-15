@@ -1,4 +1,7 @@
-﻿import { Suspense, lazy, useMemo } from "react"
+import "@blocknote/react/style.css"
+import "@excalidraw/excalidraw/index.css"
+
+import { Suspense, lazy, useMemo } from "react"
 import { BlockNoteViewRaw, useCreateBlockNote } from "@blocknote/react"
 import ReactMarkdown from "react-markdown"
 
@@ -6,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import type { ContentType } from "@/lib/api"
 import { parseBlockNoteContent, parseCanvasContent, serializeBlockNoteContent, serializeCanvasContent } from "@/features/entities/content"
+import { useTheme } from "@/features/theme/theme-provider"
 
 const LazyExcalidraw = lazy(async () => {
   const module = await import("@excalidraw/excalidraw")
@@ -41,13 +45,13 @@ function MarkdownEntityEditor({ value, onChange }: { value: string; onChange: (n
   return (
     <div className="space-y-4">
       <Textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder="Write markdown content here." className="min-h-[220px]" />
-      <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+      <div className="rounded-lg border border-border bg-background p-4">
         {value.trim() ? (
-          <div className="space-y-3 text-sm leading-7 text-zinc-300 [&_a]:text-blue-300 [&_code]:rounded [&_code]:bg-zinc-900 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_h1]:text-2xl [&_h1]:font-semibold [&_h1]:text-zinc-100 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-zinc-100 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-zinc-100 [&_li]:ml-5 [&_li]:list-disc [&_p]:text-zinc-300 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-zinc-800 [&_pre]:bg-zinc-900 [&_pre]:p-3 [&_pre]:font-mono [&_strong]:text-zinc-100">
+          <div className="space-y-3 text-sm leading-7 text-secondary [&_a]:text-primary [&_code]:rounded [&_code]:bg-surface [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_h1]:text-2xl [&_h1]:font-semibold [&_h1]:text-foreground [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-foreground [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-foreground [&_li]:ml-5 [&_li]:list-disc [&_p]:text-secondary [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-border [&_pre]:bg-surface [&_pre]:p-3 [&_pre]:font-mono [&_strong]:text-foreground">
             <ReactMarkdown>{value}</ReactMarkdown>
           </div>
         ) : (
-          <p className="text-sm text-zinc-500">Markdown preview will appear here.</p>
+          <p className="text-sm text-muted-foreground">Markdown preview will appear here.</p>
         )}
       </div>
     </div>
@@ -59,6 +63,7 @@ function CodeEntityEditor({ value, onChange }: { value: string; onChange: (nextV
 }
 
 function BlockNoteEntityEditor({ value, onChange }: { value: string; onChange: (nextValue: string) => void }) {
+  const { resolvedTheme } = useTheme()
   const parsed = useMemo(() => parseBlockNoteContent(value), [value])
   const editor = useCreateBlockNote(
     {
@@ -71,35 +76,44 @@ function BlockNoteEntityEditor({ value, onChange }: { value: string; onChange: (
     return (
       <div className="space-y-3">
         <Badge variant="warning">Invalid block JSON</Badge>
-        <p className="text-sm text-zinc-500">This entity has block content that could not be parsed safely. Edit the raw JSON below to recover it.</p>
+        <p className="text-sm text-muted-foreground">This entity has block content that could not be parsed safely. Edit the raw JSON below to recover it.</p>
         <Textarea value={value} onChange={(event) => onChange(event.target.value)} className="min-h-[260px] font-mono text-xs" />
       </div>
     )
   }
 
   return (
-    <div className="kg-rich-editor rounded-lg border border-zinc-800 bg-zinc-900 p-3">
-      <BlockNoteViewRaw editor={editor} theme="dark" onChange={() => onChange(serializeBlockNoteContent(editor.document))} className="min-h-[360px]" />
+    <div className="kg-rich-editor rounded-lg border border-border bg-surface p-3">
+      <BlockNoteViewRaw editor={editor} theme={resolvedTheme} onChange={() => onChange(serializeBlockNoteContent(editor.document))} className="min-h-[360px]" />
     </div>
   )
 }
 
 function CanvasEntityEditor({ value, onChange }: { value: string; onChange: (nextValue: string) => void }) {
+  const { resolvedTheme } = useTheme()
   const parsed = useMemo(() => parseCanvasContent(value), [value])
 
   if (parsed.invalid) {
     return (
       <div className="space-y-3">
         <Badge variant="warning">Invalid canvas JSON</Badge>
-        <p className="text-sm text-zinc-500">This entity has canvas content that could not be parsed safely. Edit the raw JSON below to recover it.</p>
+        <p className="text-sm text-muted-foreground">This entity has canvas content that could not be parsed safely. Edit the raw JSON below to recover it.</p>
         <Textarea value={value} onChange={(event) => onChange(event.target.value)} className="min-h-[260px] font-mono text-xs" />
       </div>
     )
   }
 
+  const initialData = {
+    ...parsed.document,
+    appState: {
+      ...parsed.document.appState,
+      theme: resolvedTheme,
+      viewBackgroundColor: resolvedTheme === "dark" ? "#080d18" : "#f8fafc",
+    },
+  }
   const excalidrawProps: ExcalidrawComponentProps = {
-    initialData: parsed.document as unknown as ExcalidrawComponentProps["initialData"],
-    theme: "dark",
+    initialData: initialData as unknown as ExcalidrawComponentProps["initialData"],
+    theme: resolvedTheme,
     gridModeEnabled: false,
     viewModeEnabled: false,
     zenModeEnabled: false,
@@ -118,9 +132,9 @@ function CanvasEntityEditor({ value, onChange }: { value: string; onChange: (nex
   }
 
   return (
-    <div className="kg-excalidraw rounded-lg border border-zinc-800 bg-zinc-900 p-3">
-      <Suspense fallback={<div className="flex min-h-[520px] items-center justify-center text-sm text-zinc-500">Loading canvas editor...</div>}>
-        <div className="h-[520px] overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950">
+    <div className="kg-excalidraw rounded-lg border border-border bg-surface p-3">
+      <Suspense fallback={<div className="flex min-h-[520px] items-center justify-center text-sm text-muted-foreground">Loading canvas editor...</div>}>
+        <div className="h-[520px] overflow-hidden rounded-lg border border-border bg-background">
           <LazyExcalidraw {...excalidrawProps} />
         </div>
       </Suspense>

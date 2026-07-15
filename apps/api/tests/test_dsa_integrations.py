@@ -1,9 +1,22 @@
+import pytest
+
 from app.schemas.dsa_integrations import DsaConnection, DsaConnectionsUpdate
-from app.services.dsa_integrations import CodeforcesAdapter, ImportedProblem, _CodeChefProblemParser
+from app.services import dsa_integrations
+from app.services.dsa_integrations import (
+    CodeforcesAdapter,
+    LeetCodeAdapter,
+    PUBLIC_LEETCODE_DEPRECATION_MESSAGE,
+    _CodeChefProblemParser,
+    sync_connections,
+)
 
 
 def test_connections_strip_usernames_and_limit_platforms() -> None:
-    connection = DsaConnection(platform="leetcode", username="  alice  ", profile_url=" https://leetcode.com/u/alice/ ")
+    connection = DsaConnection(
+        platform="leetcode",
+        username="  alice  ",
+        profile_url=" https://leetcode.com/u/alice/ ",
+    )
     assert connection.username == "alice"
     assert connection.profile_url == "https://leetcode.com/u/alice/"
     assert len(DsaConnectionsUpdate(connections=[connection]).connections) == 1
@@ -21,15 +34,43 @@ def test_codeforces_groups_submissions_and_preserves_best_solution(monkeypatch) 
             return None
 
         def json(self):
-            return {"status": "OK", "result": [
-                {"creationTimeSeconds": 2, "verdict": "WRONG_ANSWER", "problem": {"contestId": 1, "index": "A", "name": "Pair", "tags": ["greedy"]}},
-                {"creationTimeSeconds": 3, "verdict": "OK", "sourceCode": "print(1)", "programmingLanguage": "Python", "problem": {"contestId": 1, "index": "A", "name": "Pair", "tags": ["greedy"]}},
-            ]}
+            return {
+                "status": "OK",
+                "result": [
+                    {
+                        "creationTimeSeconds": 2,
+                        "verdict": "WRONG_ANSWER",
+                        "problem": {
+                            "contestId": 1,
+                            "index": "A",
+                            "name": "Pair",
+                            "tags": ["greedy"],
+                        },
+                    },
+                    {
+                        "creationTimeSeconds": 3,
+                        "verdict": "OK",
+                        "sourceCode": "print(1)",
+                        "programmingLanguage": "Python",
+                        "problem": {
+                            "contestId": 1,
+                            "index": "A",
+                            "name": "Pair",
+                            "tags": ["greedy"],
+                        },
+                    },
+                ],
+            }
 
     class Client:
-        def __enter__(self): return self
-        def __exit__(self, *args): return None
-        def get(self, *args, **kwargs): return Response()
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def get(self, *args, **kwargs):
+            return Response()
 
     monkeypatch.setattr("app.services.dsa_integrations._client", lambda: Client())
     result = CodeforcesAdapter().fetch(DsaConnection(platform="codeforces", username="alice"))
@@ -40,53 +81,64 @@ def test_codeforces_groups_submissions_and_preserves_best_solution(monkeypatch) 
     assert result[0].solution_code == "print(1)"
 
 
-def test_leetcode_enriches_all_accepted_submissions_from_catalog(monkeypatch) -> None:
-    class Response:
-        def __init__(self, payload): self.payload = payload
-        def raise_for_status(self): return None
-        def json(self): return self.payload
+def test_public_leetcode_adapter_is_explicitly_deprecated(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.dsa_integrations._client",
+        lambda: pytest.fail("deprecated LeetCode sync must not make a network request"),
+    )
 
-    class Client:
-        def __enter__(self): return self
-        def __exit__(self, *args): return None
-        def post(self, url, *args, **kwargs):
-            return Response({"data": {"question": {"title": "Two Sum", "difficulty": "Easy", "topicTags": [{"name": "Array"}]}}})
-        def request(self, method, url, *args, **kwargs):
-            return Response({"data": {"question": {"title": "Two Sum", "difficulty": "Easy", "topicTags": [{"name": "Array"}]}}})
-        def get(self, url, *args, **kwargs):
-            if url.endswith("/acSubmission"):
-                return Response({"submission": [{"titleSlug": "two-sum", "title": "Two Sum", "timestamp": "10", "lang": "python3"}, {"titleSlug": "two-sum", "timestamp": "20", "lang": "python3"}, {"titleSlug": "binary-tree", "title": "Binary Tree", "timestamp": "30", "lang": "java"}]})
-            return Response({"problem": [{"titleSlug": "two-sum", "title": "Two Sum", "difficulty": "Easy", "topicTags": [{"name": "Array"}]}, {"titleSlug": "binary-tree", "title": "Binary Tree", "difficulty": "Medium", "topicTags": [{"name": "Tree"}]}]})
+    with pytest.raises(RuntimeError, match="browser extension"):
+        LeetCodeAdapter().fetch(DsaConnection(platform="leetcode", username="alice"))
 
-    monkeypatch.setattr("app.services.dsa_integrations._client", lambda: Client())
-    from app.services.dsa_integrations import LeetCodeAdapter
-    result = LeetCodeAdapter().fetch(DsaConnection(platform="leetcode", username="alice"))
-    assert len(result) == 2
-    assert next(item for item in result if item.external_id == "two-sum").difficulty == "easy"
-    assert next(item for item in result if item.external_id == "two-sum").tags == ["Array"]
-    assert next(item for item in result if item.external_id == "two-sum").submission_count == 2
+    assert "third-party feed is unreliable" in PUBLIC_LEETCODE_DEPRECATION_MESSAGE
 
 
-def test_leetcode_catalog_uses_problemset_question_list(monkeypatch) -> None:
-    class Response:
-        def __init__(self, payload): self.payload = payload
-        def raise_for_status(self): return None
-        def json(self): return self.payload
+def test_sync_skips_leetcode_and_keeps_codeforces_enabled(monkeypatch) -> None:
+    configured = [
+        {"platform": "leetcode", "username": "alice", "profile_url": None, "enabled": True},
+        {"platform": "codeforces", "username": "alice_cf", "profile_url": None, "enabled": True},
+    ]
+    calls = {"leetcode": 0, "codeforces": 0}
 
-    class Client:
-        def __enter__(self): return self
-        def __exit__(self, *args): return None
-        def post(self, url, *args, **kwargs):
-            return Response({"data": {"question": {"title": "Two Sum", "difficulty": "Easy", "topicTags": [{"name": "Array"}]}}})
-        def request(self, method, url, *args, **kwargs):
-            return Response({"data": {"question": {"title": "Two Sum", "difficulty": "Easy", "topicTags": [{"name": "Array"}]}}})
-        def get(self, url, *args, **kwargs):
-            if url.endswith("/acSubmission"):
-                return Response({"submission": [{"titleSlug": "two-sum", "title": "Two Sum", "timestamp": "10", "lang": "python3"}]})
-            return Response({"problemsetQuestionList": [{"titleSlug": "two-sum", "title": "Two Sum", "difficulty": "Easy", "topicTags": [{"name": "Array"}]}]})
+    class Adapter:
+        def __init__(self, platform):
+            self.platform = platform
 
-    monkeypatch.setattr("app.services.dsa_integrations._client", lambda: Client())
-    from app.services.dsa_integrations import LeetCodeAdapter
-    result = LeetCodeAdapter().fetch(DsaConnection(platform="leetcode", username="alice"))
-    assert result[0].difficulty == "easy"
-    assert result[0].tags == ["Array"]
+        def fetch(self, _connection):
+            calls[self.platform] += 1
+            if self.platform == "leetcode":
+                pytest.fail("sync_connections must not call the deprecated LeetCode adapter")
+            return []
+
+    class Rows:
+        def all(self):
+            return []
+
+    class Db:
+        def __init__(self):
+            self.commits = 0
+
+        def scalars(self, _query):
+            return Rows()
+
+        def commit(self):
+            self.commits += 1
+
+    monkeypatch.setattr(dsa_integrations, "get_connections", lambda _db: configured)
+    monkeypatch.setattr(dsa_integrations, "record_session", lambda *_args, **_kwargs: None)
+    monkeypatch.setitem(dsa_integrations.ADAPTERS, "leetcode", Adapter("leetcode"))
+    monkeypatch.setitem(dsa_integrations.ADAPTERS, "codeforces", Adapter("codeforces"))
+
+    db = Db()
+    results = sync_connections(db)
+
+    assert results[0] == {
+        "platform": "leetcode",
+        "status": "skipped",
+        "skipped_count": 0,
+        "message": PUBLIC_LEETCODE_DEPRECATION_MESSAGE,
+    }
+    assert results[1]["platform"] == "codeforces"
+    assert results[1]["status"] == "synced"
+    assert calls == {"leetcode": 0, "codeforces": 1}
+    assert db.commits == 1

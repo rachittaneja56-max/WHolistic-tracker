@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/check-public-bundle.mjs",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "qa:visual": "node scripts/visual-qa.mjs"
   },
   "dependencies": {
     "@blocknote/core": "^0.51.4",

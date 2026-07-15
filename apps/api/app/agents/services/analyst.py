@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
-import json
 from statistics import mean
 from uuid import UUID
 
@@ -11,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.agents.services.provider import OpenAIProvider
+from app.agents.utils.context import serialize_untrusted_context
 from app.agents.services.recall import parse_exam_date
 from app.agents.utils.prompts import build_system_prompt
 from app.models.comprehension_check import ComprehensionCheck
@@ -486,7 +486,7 @@ def get_weekly_analyst_brief(
                 "content": (
                     "Return a grounded weekly analyst brief using only this personal knowledge graph evidence. "
                     "Do not invent missing data or overstate weak trends.\n\n"
-                    f"Context:\n{json.dumps(serialize_analyst_context(context), ensure_ascii=True, sort_keys=True)}"
+                    f"{serialize_untrusted_context('weekly', provenance='analyst_graph_summary', data=serialize_analyst_context(context))}"
                 ),
             },
         ],

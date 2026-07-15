@@ -50,16 +50,16 @@ export function SubjectsPage() {
           <CardDescription>Subjects stay in the same entities table and use metadata.exam_date for scheduling.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {isLoading ? <p className="text-sm text-zinc-500">Loading subjects...</p> : null}
+          {isLoading ? <p className="text-sm text-muted-foreground">Loading subjects...</p> : null}
           {!isLoading && error ? (
-            <div className="space-y-3 rounded-lg border border-red-500/25 bg-red-500/5 px-4 py-4 text-sm text-red-300">
+            <div className="space-y-3 rounded-lg border border-danger/25 bg-danger/5 px-4 py-4 text-sm text-danger">
               <p>{error}</p>
               <Button type="button" variant="outline" size="sm" onClick={() => void loadSubjects()}>
                 Retry
               </Button>
             </div>
           ) : null}
-          {!isLoading && !error && subjects.length === 0 ? <p className="text-sm text-zinc-500">No subject topics captured yet.</p> : null}
+          {!isLoading && !error && subjects.length === 0 ? <p className="text-sm text-muted-foreground">No subject topics captured yet.</p> : null}
           {!isLoading && !error
             ? subjects.map((subject) => (
                 <button
@@ -68,15 +68,15 @@ export function SubjectsPage() {
                   onClick={() => setSelectedSubjectId(subject.id)}
                   className={`w-full rounded-lg border px-4 py-3 text-left transition-colors ${
                     selectedSubject?.id === subject.id
-                      ? "border-blue-500/50 bg-zinc-950"
-                      : "border-zinc-800 bg-zinc-950 hover:border-blue-500/30"
+                      ? "border-primary/50 bg-background"
+                      : "border-border bg-background hover:border-primary/30"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium text-zinc-100">{subject.title ?? "Untitled subject"}</p>
+                    <p className="text-sm font-medium text-foreground">{subject.title ?? "Untitled subject"}</p>
                     <Badge variant="warning">{formatExamDate(getEntityExamDate(subject))}</Badge>
                   </div>
-                  <p className="mt-2 text-sm text-zinc-500">{subject.content?.slice(0, 96) || "No notes captured yet."}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">{subject.content?.slice(0, 96) || "No notes captured yet."}</p>
                 </button>
               ))
             : null}
@@ -99,8 +99,8 @@ export function SubjectsPage() {
                   <Badge key={tag}>{tag}</Badge>
                 ))}
               </div>
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                <p className="whitespace-pre-wrap text-sm leading-7 text-zinc-300">
+              <div className="rounded-lg border border-border bg-background p-4">
+                <p className="whitespace-pre-wrap text-sm leading-7 text-secondary">
                   {selectedSubject.content?.trim() || "No notes captured yet."}
                 </p>
               </div>
@@ -109,7 +109,7 @@ export function SubjectsPage() {
               </Button>
             </>
           ) : (
-            <p className="text-sm text-zinc-500">Select a subject topic from the list to review it.</p>
+            <p className="text-sm text-muted-foreground">Select a subject topic from the list to review it.</p>
           )}
         </CardContent>
       </Card>

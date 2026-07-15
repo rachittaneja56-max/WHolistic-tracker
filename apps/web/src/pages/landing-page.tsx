@@ -1,310 +1,89 @@
 import { Link } from "react-router-dom"
-import {
-  ArrowRight,
-  Bot,
-  Brain,
-  CheckCircle2,
-  Code2,
-  Database,
-  FolderKanban,
-  GitBranch,
-  LockKeyhole,
-  Network,
-  NotebookPen,
-  RotateCcw,
-  Search,
-  ShieldCheck,
-  Sparkles,
-  type LucideIcon,
-} from "lucide-react"
+import { ArrowRight, BookOpenCheck, Brain, Braces, Check, CheckCircle2, Code2, FileText, FolderKanban, Github, LockKeyhole, Network, RotateCcw, ShieldCheck, Sparkles } from "lucide-react"
 
+import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
 
-const capabilities: Array<{ icon: LucideIcon; label: string; detail: string }> = [
-  { icon: NotebookPen, label: "Capture", detail: "Solutions, notes, and decisions" },
-  { icon: Network, label: "Connect", detail: "Relationships across every project" },
-  { icon: RotateCcw, label: "Recall", detail: "Confidence-aware review queues" },
-  { icon: GitBranch, label: "Deliver", detail: "Work and learning in one loop" },
+const outcomes = [
+  { icon: BookOpenCheck, title: "Learn consistently", text: "Turn subjects, assignments, practice, and deadlines into one clear next action." },
+  { icon: FolderKanban, title: "Build projects", text: "Connect active work to the decisions, concepts, and lessons that made it possible." },
+  { icon: RotateCcw, title: "Retain knowledge", text: "Review fading ideas from memory and confirm every durable confidence change." },
 ]
 
-const workflow = [
-  { number: "01", title: "Capture", text: "Save a solution, concept, task, or TIL without deciding which silo it belongs in." },
-  { number: "02", title: "Connect", text: "Link related work manually or review safe suggestions from the agent layer." },
-  { number: "03", title: "Recall", text: "Bring fading knowledge back at the right moment and explain it in your own words." },
-  { number: "04", title: "Ship", text: "Tie project delivery and GitHub activity back to the lessons that made it possible." },
+const trust = [
+  { title: "Grounded context", text: "AI receives task-specific fields, not an unrestricted dump of your workspace." },
+  { title: "Evidence attached", text: "Graph answers point to canonical source excerpts; unsupported citations are rejected." },
+  { title: "Review before write", text: "Suggestions begin unselected. You inspect the exact changes before a separate apply step." },
+  { title: "Injection containment", text: "Notes, code, imports, and web content are labelled as untrusted data, sanitized, and kept away from write authority." },
 ]
 
-const features: Array<{ icon: LucideIcon; title: string; text: string; tag: string }> = [
-  { icon: Code2, title: "DSA tracking", text: "Keep solutions, patterns, revisit history, and confidence together.", tag: "Practice" },
-  { icon: FolderKanban, title: "Project delivery", text: "Plan milestones and tasks while capturing the learning behind completed work.", tag: "Build" },
-  { icon: Search, title: "Graph search", text: "Find related knowledge through structure, tags, embeddings, and confirmed links.", tag: "Discover" },
-  { icon: Bot, title: "Grounded assistant", text: "Ask questions against your own graph and keep every answer tied to real context.", tag: "Reason" },
-  { icon: GitBranch, title: "GitHub activity", text: "Turn real shipping signals into reviewable TIL drafts and project evidence.", tag: "Integrate" },
-  { icon: RotateCcw, title: "Spaced recall", text: "Let confidence decay surface what needs another pass before it disappears.", tag: "Remember" },
+const faq = [
+  ["Does AI write directly to my knowledge base?", "No. AI can prepare advice, grades, or proposed changes. Durable writes and learning-state changes require an explicit confirmation."],
+  ["Can I use it beyond software development?", "Yes. The workspace supports broad subjects and projects; DSA and developer workflows are the strongest initial specialization."],
+  ["How does LeetCode import work?", "A paired browser extension captures metadata and, when available, accepted status, code, and notes from your own LeetCode session. Each field reports its capture status."],
+  ["Which AI provider is required?", "None is hard-wired. The server supports provider-neutral configuration, and core tracking remains available when AI is disabled."],
 ]
 
-function GraphPreview() {
-  return (
-    <div className="landing-float relative mx-auto w-full max-w-[620px]" aria-hidden="true">
-      <div className="absolute -inset-6 rounded-[2.5rem] bg-blue-500/10 blur-3xl" />
-      <div className="relative overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/95 shadow-2xl shadow-black/50">
-        <div className="flex h-11 items-center gap-2 border-b border-zinc-800 px-4">
-          <span className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
-          <span className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
-          <span className="h-2.5 w-2.5 rounded-full bg-blue-400/70" />
-          <span className="ml-3 font-mono text-[10px] uppercase tracking-[0.18em] text-zinc-500">Workspace / Knowledge graph</span>
-        </div>
-        <div className="grid min-h-[390px] grid-cols-[72px_1fr] sm:grid-cols-[150px_1fr]">
-          <div className="border-r border-zinc-800 bg-zinc-950/80 p-3">
-            <div className="mb-7 flex items-center gap-2 text-zinc-200"><Brain className="h-4 w-4 text-blue-300" /><span className="hidden text-xs sm:block">Dev KG</span></div>
-            {["Today", "Projects", "Graph", "Recall"].map((item, index) => (
-              <div key={item} className={`mb-2 flex items-center gap-2 rounded-md px-2 py-2 text-[10px] ${index === 2 ? "bg-blue-500/10 text-blue-200" : "text-zinc-600"}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${index === 2 ? "bg-blue-300" : "bg-zinc-700"}`} />
-                <span className="hidden sm:block">{item}</span>
-              </div>
-            ))}
-          </div>
-          <div className="relative overflow-hidden p-4 sm:p-6">
-            <div className="flex items-start justify-between">
-              <div><p className="font-mono text-[9px] uppercase tracking-widest text-zinc-600">Connected knowledge</p><p className="mt-1 text-sm text-zinc-100">Architecture patterns</p></div>
-              <span className="rounded-full border border-emerald-400/20 px-2 py-1 font-mono text-[8px] text-emerald-300">6 links</span>
-            </div>
-            <svg className="absolute inset-x-5 top-20 h-64 w-[calc(100%-2.5rem)]" viewBox="0 0 380 240">
-              <g stroke="#3f3f46" strokeWidth="1">
-                <line x1="190" y1="105" x2="64" y2="42" /><line x1="190" y1="105" x2="322" y2="52" />
-                <line x1="190" y1="105" x2="78" y2="191" /><line x1="190" y1="105" x2="304" y2="191" />
-                <line x1="64" y1="42" x2="322" y2="52" strokeDasharray="4 5" />
-              </g>
-            </svg>
-            <div className="absolute left-[47%] top-[43%] z-10 -translate-x-1/2 rounded-xl border border-blue-400/30 bg-blue-500/15 px-4 py-3 text-center shadow-lg shadow-blue-950/40">
-              <Network className="mx-auto h-4 w-4 text-blue-200" /><p className="mt-1 text-[10px] text-blue-100">Event systems</p>
-            </div>
-            <div className="absolute left-[20%] top-[28%] z-10 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-[9px] text-zinc-300">Queues</div>
-            <div className="absolute right-[8%] top-[31%] z-10 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-[9px] text-zinc-300">Webhooks</div>
-            <div className="absolute bottom-[18%] left-[23%] z-10 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-[9px] text-zinc-300">Retries</div>
-            <div className="absolute bottom-[17%] right-[10%] z-10 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-[9px] text-zinc-300">Idempotency</div>
-            <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950/90 px-3 py-2">
-              <span className="font-mono text-[8px] uppercase tracking-wider text-zinc-600">Agent suggestions require review</span>
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
-            </div>
-          </div>
-        </div>
+function ProductFlow() {
+  return <div className="relative min-w-0 max-w-full overflow-hidden rounded-2xl border border-border bg-surface shadow-panel">
+    <div className="flex items-center justify-between border-b border-border px-4 py-3"><div className="flex items-center gap-2"><Brain className="h-4 w-4 text-primary" /><span className="text-sm font-semibold text-foreground">Personal Dev KG</span></div><span className="rounded-full bg-success/10 px-2 py-1 font-mono text-[10px] text-success">Review controlled</span></div>
+    <div className="grid min-h-[410px] md:grid-cols-[170px_1fr]">
+      <aside className="hidden border-r border-border bg-background p-3 md:block">{["Home", "Learn", "Projects", "Library", "AI Coach"].map((item, index) => <div key={item} className={`mb-1 rounded-lg px-3 py-2 text-xs ${index === 0 ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground"}`}>{item}</div>)}</aside>
+      <div className="p-4 sm:p-6">
+        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Recommended next action</p>
+        <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-4"><div className="flex flex-wrap items-center gap-2"><span className="rounded-md bg-primary/10 px-2 py-1 text-xs text-primary">Recall</span><span className="text-xs text-muted-foreground">8 minutes</span></div><p className="mt-3 font-semibold text-foreground">Explain why a sliding window stays linear</p><p className="mt-1 text-sm text-secondary">Due because confidence is fading after recent DSA practice.</p><button type="button" tabIndex={-1} className="mt-4 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground">Start review</button></div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-border bg-background p-4"><p className="text-xs text-muted-foreground">Due reviews</p><p className="mt-2 text-2xl font-semibold text-foreground">3</p><p className="mt-1 text-xs text-secondary">One exam-related topic</p></div><div className="rounded-xl border border-border bg-background p-4"><p className="text-xs text-muted-foreground">Recent progress</p><p className="mt-2 text-sm font-medium text-foreground">Two Sum captured</p><p className="mt-1 text-xs text-secondary">Metadata, accepted status, code</p></div></div>
       </div>
     </div>
-  )
+  </div>
 }
 
 export function LandingPage() {
-  return (
-    <main className="relative overflow-hidden bg-zinc-950 text-zinc-300">
-      <div className="landing-grid pointer-events-none absolute inset-x-0 top-0 h-[900px] opacity-50" />
-      <header className="sticky top-0 z-50 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl">
-        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8" aria-label="Primary navigation">
-          <Link to="/" className="flex items-center gap-3 rounded-md text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-            <span className="rounded-lg border border-blue-400/20 bg-blue-500/10 p-2"><Brain className="h-4 w-4 text-blue-300" /></span>
-            <span className="text-sm font-semibold">Personal Dev KG</span>
-          </Link>
-          <div className="hidden items-center gap-7 md:flex">
-            <a href="#features" className="text-sm text-zinc-400 transition-colors hover:text-zinc-100">Features</a>
-            <a href="#workflow" className="text-sm text-zinc-400 transition-colors hover:text-zinc-100">Workflow</a>
-            <a href="#security" className="text-sm text-zinc-400 transition-colors hover:text-zinc-100">Security</a>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button asChild size="sm" variant="outline"><Link to="/signup">Create account</Link></Button>
-            <Button asChild size="sm"><Link to="/login">Sign in <ArrowRight className="ml-2 h-3.5 w-3.5" /></Link></Button>
-          </div>
-        </nav>
-      </header>
+  return <div className="min-h-dvh overflow-x-hidden bg-background text-secondary">
+    <a href="#main-content" className="skip-link">Skip to main content</a>
+    <header className="sticky top-0 z-40 border-b border-border bg-surface/90 backdrop-blur">
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
+        <Link to="/" aria-label="Personal Dev KG home" className="flex items-center gap-2 rounded-md text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10"><Brain className="h-5 w-5 text-primary" /></span><span className="hidden font-semibold min-[400px]:inline">Personal Dev KG</span></Link>
+        <nav aria-label="Landing navigation" className="ml-auto hidden items-center gap-5 text-sm md:flex"><a href="#product" className="hover:text-foreground">Product</a><a href="#how-it-works" className="hover:text-foreground">How it works</a><a href="#security" className="hover:text-foreground">Security</a></nav>
+        <div className="ml-auto flex items-center gap-2 md:ml-2"><ThemeToggle /><Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex"><Link to="/login">Sign in</Link></Button><Button asChild size="sm"><Link to="/signup" aria-label="Create workspace"><span className="sm:hidden">Create</span><span className="hidden sm:inline">Create workspace</span></Link></Button></div>
+      </div>
+    </header>
 
-      <section className="relative mx-auto grid max-w-7xl items-center gap-16 px-4 pb-20 pt-20 sm:px-6 md:pt-28 lg:grid-cols-[0.92fr_1.08fr] lg:px-8 lg:pb-28">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/5 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-blue-300">
-            <Sparkles className="h-3.5 w-3.5" /> A connected workspace for developers
-          </div>
-          <h1 className="mt-7 max-w-3xl text-5xl font-semibold leading-[1.02] tracking-[-0.045em] text-zinc-50 sm:text-6xl">
-            Turn everything you build into knowledge you keep.
-          </h1>
-          <p className="mt-6 max-w-xl text-base leading-8 text-zinc-400 sm:text-lg">
-            Personal Dev KG connects code practice, project delivery, notes, recall, and grounded AI in one private graph—so every hard-won lesson compounds.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Button asChild size="lg"><Link to="/signup">Create account</Link></Button>
-            <Button asChild size="lg" variant="outline"><Link to="/login">Open your workspace <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
-            <Button asChild size="lg" variant="outline"><a href="#workflow">See how it works</a></Button>
-          </div>
-          <p className="mt-5 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.15em] text-zinc-600">
-            <LockKeyhole className="h-3.5 w-3.5 text-zinc-500" /> Private by design · Public sign-up with admin protections
-          </p>
-        </div>
-        <GraphPreview />
-      </section>
-
-      <section className="relative border-y border-zinc-800/80 bg-zinc-900/30">
-        <div className="mx-auto grid max-w-7xl divide-y divide-zinc-800 px-4 sm:grid-cols-2 sm:divide-x sm:divide-y-0 sm:px-6 lg:grid-cols-4 lg:px-8">
-          {capabilities.map(({ icon: Icon, label, detail }) => (
-            <div key={label} className="flex gap-3 px-4 py-6 first:pl-0 sm:px-6 lg:py-8">
-              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-blue-300" />
-              <div><p className="text-sm font-medium text-zinc-100">{label}</p><p className="mt-1 text-xs leading-5 text-zinc-500">{detail}</p></div>
-            </div>
-          ))}
+    <main id="main-content" tabIndex={-1} className="outline-none">
+      <section className="relative overflow-hidden border-b border-border">
+        <div className="landing-grid pointer-events-none absolute inset-0 opacity-60" />
+        <div className="relative mx-auto grid min-w-0 max-w-7xl items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:py-28">
+          <div className="min-w-0"><p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">AI-guided learning workspace</p><h1 className="mt-5 max-w-3xl text-4xl font-semibold leading-[1.08] break-words tracking-[-0.04em] text-foreground sm:text-5xl lg:text-6xl">Track what you learn. Get AI guidance. Remember and apply it.</h1><p className="mt-6 max-w-2xl text-lg leading-8 text-secondary">Bring subjects, DSA practice, projects, notes, recall, and progress into one learning operating system. You stay in control of every durable AI-assisted change.</p><div className="mt-8 flex flex-col gap-3 min-[420px]:flex-row min-[420px]:flex-wrap"><Button asChild size="lg" className="w-full min-[420px]:w-auto"><Link to="/signup">Create workspace <ArrowRight className="ml-2 h-4 w-4" /></Link></Button><Button asChild size="lg" variant="outline" className="w-full min-[420px]:w-auto"><a href="#product">See the workflow</a></Button></div><div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground"><span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-success" />Public signup</span><span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-success" />Provider-neutral AI</span><span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-success" />Review-before-write</span></div></div>
+          <ProductFlow />
         </div>
       </section>
 
-      <section id="workflow" className="relative scroll-mt-20 px-4 py-24 sm:px-6 lg:px-8 lg:py-32">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid gap-8 lg:grid-cols-[0.75fr_1.25fr] lg:gap-20">
-            <div>
-              <p className="font-mono text-xs uppercase tracking-[0.2em] text-blue-300">A closed learning loop</p>
-              <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-zinc-50 sm:text-4xl">Do the work once. Keep the insight forever.</h2>
-              <p className="mt-5 max-w-lg text-sm leading-7 text-zinc-400">
-                The workspace follows the way development actually happens—from the first rough note to the lesson you can explain months later.
-              </p>
-            </div>
-            <div className="grid gap-px overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-800 sm:grid-cols-2">
-              {workflow.map((step) => (
-                <article key={step.number} className="group bg-zinc-950 p-6 transition-colors hover:bg-zinc-900/80 sm:p-8">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs text-blue-300">{step.number}</span>
-                    <span className="h-px w-10 bg-zinc-800 transition-colors group-hover:bg-blue-400/50" />
-                  </div>
-                  <h3 className="mt-10 text-xl font-medium text-zinc-100">{step.title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-zinc-500">{step.text}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </div>
+      <section id="product" className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
+        <div className="max-w-2xl"><p className="font-mono text-xs uppercase tracking-[0.18em] text-primary">One genuine workflow</p><h2 className="mt-3 text-3xl font-semibold text-foreground">From capture to retained insight</h2><p className="mt-3 leading-7 text-secondary">The product loop uses the same source item throughout. Structure is derived for you; AI advice remains evidence-backed and reviewable.</p></div>
+        <ol className="mt-10 grid gap-4 md:grid-cols-4">{[
+          [FileText, "1. Capture", "Save a note, practice problem, assignment, project, subject, or idea."],
+          [Sparkles, "2. Guidance", "Get one grounded next action based on reviews, deadlines, and current work."],
+          [RotateCcw, "3. Recall", "Explain the idea from memory before the source is revealed."],
+          [CheckCircle2, "4. Retain", "Accept or override the advisory score before confidence changes."],
+        ].map(([Icon, title, text]) => { const FlowIcon = Icon as typeof FileText; return <li key={String(title)} className="rounded-xl border border-border bg-surface p-5"><FlowIcon className="h-5 w-5 text-primary" /><h3 className="mt-5 font-semibold text-foreground">{String(title)}</h3><p className="mt-2 text-sm leading-6 text-secondary">{String(text)}</p></li> })}</ol>
       </section>
 
-      <section id="features" className="relative scroll-mt-20 border-y border-zinc-800/80 bg-zinc-900/30 px-4 py-24 sm:px-6 lg:px-8 lg:py-32">
-        <div className="mx-auto max-w-7xl">
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="font-mono text-xs uppercase tracking-[0.2em] text-blue-300">One substrate, many lenses</p>
-            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-zinc-50 sm:text-4xl">Everything a developer learns, in context.</h2>
-            <p className="mt-5 text-sm leading-7 text-zinc-400">
-              Your practice, projects, and notes stop competing for attention and start strengthening each other.
-            </p>
-          </div>
-          <div className="mt-14 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {features.map(({ icon: Icon, title, text, tag }) => (
-              <article key={title} className="group rounded-2xl border border-zinc-800 bg-zinc-950 p-6 transition-all hover:-translate-y-1 hover:border-blue-400/30 hover:bg-zinc-900/60">
-                <div className="flex items-start justify-between">
-                  <span className="rounded-xl border border-zinc-800 bg-zinc-900 p-3 transition-colors group-hover:border-blue-400/20 group-hover:bg-blue-500/10">
-                    <Icon className="h-5 w-5 text-blue-300" />
-                  </span>
-                  <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-zinc-600">{tag}</span>
-                </div>
-                <h3 className="mt-8 text-lg font-medium text-zinc-100">{title}</h3>
-                <p className="mt-3 text-sm leading-6 text-zinc-500">{text}</p>
-              </article>
-            ))}
-          </div>
+      <section className="border-y border-border bg-surface-subtle"><div className="mx-auto max-w-7xl px-4 py-20 sm:px-6"><div className="grid gap-5 md:grid-cols-3">{outcomes.map(({ icon: Icon, title, text }) => <article key={title} className="rounded-2xl border border-border bg-surface p-6"><Icon className="h-6 w-6 text-primary" /><h2 className="mt-5 text-xl font-semibold text-foreground">{title}</h2><p className="mt-2 leading-7 text-secondary">{text}</p></article>)}</div></div></section>
 
-          <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">
-            <div className="grid lg:grid-cols-[0.85fr_1.15fr]">
-              <div className="flex flex-col justify-center border-b border-zinc-800 p-7 sm:p-10 lg:border-b-0 lg:border-r">
-                <div className="w-fit rounded-xl border border-blue-400/20 bg-blue-500/10 p-3"><Database className="h-5 w-5 text-blue-300" /></div>
-                <h3 className="mt-6 text-2xl font-semibold tracking-tight text-zinc-50">One stable knowledge substrate</h3>
-                <p className="mt-4 text-sm leading-7 text-zinc-400">Projects, tasks, concepts, solutions, and TILs share a common graph. Different views, no fragmented source of truth.</p>
-              </div>
-              <div className="landing-grid relative min-h-[320px] p-6 sm:p-10">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {[
-                    ["project", "Knowledge platform", "3 milestones"],
-                    ["task", "Model graph search", "in progress"],
-                    ["concept", "Vector retrieval", "0.84 confidence"],
-                    ["til", "Reranking tradeoffs", "captured today"],
-                  ].map(([type, title, meta], index) => (
-                    <div key={title} className={`rounded-xl border p-4 ${index === 1 ? "border-blue-400/30 bg-blue-500/10" : "border-zinc-800 bg-zinc-900/90"}`}>
-                      <p className="font-mono text-[9px] uppercase tracking-wider text-blue-300">{type}</p>
-                      <p className="mt-3 text-sm text-zinc-100">{title}</p>
-                      <p className="mt-2 text-[11px] text-zinc-600">{meta}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3 flex items-center justify-center gap-2 font-mono text-[9px] uppercase tracking-widest text-zinc-600">
-                  <span className="h-px w-8 bg-zinc-800" /> Connected by hierarchy + graph links <span className="h-px w-8 bg-zinc-800" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      <section id="how-it-works" className="mx-auto grid max-w-7xl gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2">
+        <div><p className="font-mono text-xs uppercase tracking-[0.18em] text-primary">A short operating loop</p><h2 className="mt-3 text-3xl font-semibold text-foreground">Know what matters today without losing the bigger picture</h2><div className="mt-8 space-y-5">{["Home recommends one next action and keeps due reviews and deadlines visible.", "Learn organizes subjects, DSA, recall, and comprehension around outcomes.", "Projects and Library connect delivery to the knowledge that supports it.", "AI Coach advises and proposes; you choose what, if anything, is applied."].map((text, index) => <div key={text} className="flex gap-4"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-xs text-primary">{index + 1}</span><p className="pt-1 text-sm leading-6 text-secondary">{text}</p></div>)}</div></div>
+        <div className="rounded-2xl border border-border bg-surface p-6"><h3 className="font-semibold text-foreground">Focused integrations</h3><p className="mt-2 text-sm leading-6 text-secondary">Integrations add evidence to your workspace without becoming the product itself.</p><div className="mt-6 grid gap-3 sm:grid-cols-2">{[[Braces, "LeetCode extension", "Metadata, accepted status, code, and notes captured independently."], [Code2, "Codeforces & CodeChef", "Public-profile practice synchronization."], [Github, "GitHub", "Shipping signals and reviewable TIL drafts."], [Network, "Knowledge graph", "Confirmed connections and canonical evidence."]].map(([Icon, title, text]) => { const IntegrationIcon = Icon as typeof Braces; return <div key={String(title)} className="rounded-xl bg-background p-4"><IntegrationIcon className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-medium text-foreground">{String(title)}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{String(text)}</p></div> })}</div></div>
       </section>
 
-      <section id="security" className="relative scroll-mt-20 px-4 py-24 sm:px-6 lg:px-8 lg:py-32">
-        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-20">
-          <div>
-            <div className="w-fit rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3"><ShieldCheck className="h-5 w-5 text-emerald-300" /></div>
-            <p className="mt-6 font-mono text-xs uppercase tracking-[0.2em] text-emerald-300">Private by default</p>
-            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-zinc-50 sm:text-4xl">Your graph stays yours.</h2>
-            <p className="mt-5 max-w-xl text-sm leading-7 text-zinc-400">
-              Access is invitation-only, workspace data is isolated by account, and secrets never need to live in the browser.
-            </p>
-            <div className="mt-8 space-y-4">
-              {[
-                "Seven-day HttpOnly sessions with short-lived API tokens",
-                "Per-user encrypted provider and integration credentials",
-                "Agent output remains a suggestion until you confirm it",
-              ].map((item) => (
-                <div key={item} className="flex items-start gap-3 text-sm leading-6 text-zinc-300">
-                  <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-300" /> {item}
-                </div>
-              ))}
-            </div>
-          </div>
+      <section className="border-y border-border bg-surface-subtle"><div className="mx-auto max-w-7xl px-4 py-20 sm:px-6"><div className="max-w-2xl"><div className="flex items-center gap-2 text-primary"><ShieldCheck className="h-5 w-5" /><span className="font-mono text-xs uppercase tracking-[0.18em]">AI trust</span></div><h2 className="mt-3 text-3xl font-semibold text-foreground">Useful guidance without pretending prompt injection is solved</h2><p className="mt-3 leading-7 text-secondary">Containment is layered across context, evidence, authority, review, and logging.</p></div><div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{trust.map((item) => <article key={item.title} className="rounded-xl border border-border bg-surface p-5"><h3 className="font-semibold text-foreground">{item.title}</h3><p className="mt-2 text-sm leading-6 text-secondary">{item.text}</p></article>)}</div></div></section>
 
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 sm:p-6">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5 sm:p-7">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-zinc-600">Deep connection agent</p>
-                  <h3 className="mt-2 text-base font-medium text-zinc-100">Suggested relationship</h3>
-                </div>
-                <span className="rounded-full border border-amber-400/20 bg-amber-400/5 px-3 py-1 font-mono text-[9px] uppercase tracking-wider text-amber-300">Needs review</span>
-              </div>
-              <div className="mt-7 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4"><p className="font-mono text-[9px] text-blue-300">CONCEPT</p><p className="mt-2 text-xs text-zinc-200">Linked lists</p></div>
-                <Network className="h-4 w-4 text-zinc-600" />
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4"><p className="font-mono text-[9px] text-blue-300">TIL</p><p className="mt-2 text-xs text-zinc-200">Git history</p></div>
-              </div>
-              <div className="mt-5 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
-                <p className="font-mono text-[9px] uppercase tracking-wider text-zinc-600">Why they connect</p>
-                <p className="mt-2 text-xs leading-5 text-zinc-400">Both model a sequence of nodes where each state keeps a reference to earlier context.</p>
-              </div>
-              <div className="mt-5 flex justify-end gap-2">
-                <span className="rounded-md border border-zinc-800 px-3 py-2 text-[10px] text-zinc-500">Reject</span>
-                <span className="rounded-md bg-blue-500 px-3 py-2 text-[10px] font-medium text-white">Review and confirm</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <section id="security" className="mx-auto grid max-w-7xl gap-10 px-4 py-20 sm:px-6 lg:grid-cols-[0.8fr_1.2fr]"><div><LockKeyhole className="h-7 w-7 text-primary" /><h2 className="mt-5 text-3xl font-semibold text-foreground">Security and privacy match public signup</h2><p className="mt-3 leading-7 text-secondary">Every workspace is tenant-scoped. Authentication supports verified email, 12-character passwords, rate limits, and Cloudflare Turnstile when configured.</p></div><div className="grid gap-3 sm:grid-cols-2">{["User-scoped imports and extension tokens", "Account data export and self-service deletion", "Sensitive items can be excluded from AI egress", "Provider egress is disclosed in settings", "Revoked extension tokens clear locally on 401", "Security decisions are logged without raw personal content"].map((item) => <div key={item} className="flex gap-3 rounded-xl border border-border bg-surface p-4 text-sm text-secondary"><ShieldCheck className="h-4 w-4 shrink-0 text-success" />{item}</div>)}</div></section>
 
-      <section className="px-4 pb-24 sm:px-6 lg:px-8 lg:pb-32">
-        <div className="landing-grid relative mx-auto max-w-7xl overflow-hidden rounded-3xl border border-blue-400/20 bg-blue-500/[0.07] px-6 py-16 text-center sm:px-12 sm:py-20">
-          <div className="pointer-events-none absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-500/15 blur-[100px]" />
-          <div className="relative">
-            <p className="font-mono text-xs uppercase tracking-[0.2em] text-blue-300">Your workspace is waiting</p>
-            <h2 className="mx-auto mt-4 max-w-2xl text-3xl font-semibold tracking-[-0.035em] text-zinc-50 sm:text-4xl">Build a second brain that understands the first.</h2>
-            <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-zinc-400">Sign in to continue capturing, connecting, and recalling the work that matters.</p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <Button asChild size="lg"><Link to="/signup">Create account</Link></Button>
-              <Button asChild size="lg" variant="outline"><Link to="/login">Sign in to your workspace <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
-            </div>
-          </div>
-        </div>
-      </section>
+      <section className="border-y border-border bg-surface-subtle"><div className="mx-auto max-w-4xl px-4 py-20 sm:px-6"><h2 className="text-center text-3xl font-semibold text-foreground">Frequently asked questions</h2><div className="mt-8 space-y-3">{faq.map(([question, answer]) => <details key={question} className="group rounded-xl border border-border bg-surface p-5"><summary className="cursor-pointer list-none font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">{question}<span className="float-right text-primary group-open:rotate-45" aria-hidden="true">+</span></summary><p className="mt-3 max-w-3xl text-sm leading-6 text-secondary">{answer}</p></details>)}</div></div></section>
 
-      <footer className="border-t border-zinc-800/80">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3 text-sm text-zinc-300"><Brain className="h-4 w-4 text-blue-300" /> Personal Dev KG</div>
-          <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-zinc-600">Capture · Connect · Recall · Ship</p>
-          <div className="flex items-center gap-4 text-sm">
-            <Link to="/signup" className="text-zinc-500 transition-colors hover:text-zinc-100">Create account</Link>
-            <Link to="/login" className="text-zinc-500 transition-colors hover:text-zinc-100">Sign in</Link>
-          </div>
-        </div>
-      </footer>
+      <section className="mx-auto max-w-4xl px-4 py-24 text-center sm:px-6"><Brain className="mx-auto h-8 w-8 text-primary" /><h2 className="mt-5 text-4xl font-semibold text-foreground">Build a learning system that stays yours</h2><p className="mx-auto mt-4 max-w-2xl leading-7 text-secondary">Capture the work, get one clear next step, and confirm what becomes durable knowledge.</p><Button asChild size="lg" className="mt-8"><Link to="/signup">Create workspace <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></section>
     </main>
-  )
+
+    <footer className="border-t border-border bg-surface"><div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-xs text-muted-foreground sm:px-6 md:flex-row md:items-center md:justify-between"><p>Personal Dev KG — AI-guided learning workspace</p><div className="flex flex-wrap gap-4"><span>Privacy policy: owner review required before launch</span><span>Terms: owner review required before launch</span></div></div></footer>
+  </div>
 }

@@ -4,22 +4,41 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.settings import AiCredentialUpdate, AiProviderName, AiSettingUpdate, GithubCredentialName, GithubCredentialUpdate, GithubSettingUpdate, SettingsStatusRead, WebSearchCredentialUpdate, WebSearchSettingUpdate
+from app.schemas.settings import AiCredentialUpdate, AiProviderName, AiSettingUpdate, GithubCredentialName, GithubCredentialUpdate, GithubSettingUpdate, PreferencesRead, PreferencesUpdate, SettingsStatusRead, WebSearchCredentialUpdate, WebSearchSettingUpdate
 from app.services.auth import require_owner_mutation
 from app.services.runtime_settings import (
     get_settings_status,
+    get_preferences,
     remove_ai_credential,
     remove_github_credential,
     set_ai_credential,
     set_github_credential,
     update_ai_settings,
     update_github_enabled,
+    update_preferences,
     update_web_search_enabled,
     set_web_search_credential,
     remove_web_search_credential,
 )
 
 router = APIRouter(prefix="/settings", tags=["settings"])
+
+
+@router.get("/preferences", response_model=PreferencesRead)
+def preferences(response: Response, db: Session = Depends(get_db)) -> PreferencesRead:
+    response.headers["Cache-Control"] = "private, max-age=60"
+    return get_preferences(db)
+
+
+@router.patch("/preferences", response_model=PreferencesRead)
+def patch_preferences(
+    payload: PreferencesUpdate,
+    response: Response,
+    db: Session = Depends(get_db),
+    _owner: str = Depends(require_owner_mutation),
+) -> PreferencesRead:
+    response.headers["Cache-Control"] = "no-store"
+    return update_preferences(db, payload)
 
 
 @router.get("/status", response_model=SettingsStatusRead)

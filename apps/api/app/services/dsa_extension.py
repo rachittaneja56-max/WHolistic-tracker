@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import func, select
@@ -28,9 +28,18 @@ def hash_secret(secret: str) -> str:
     return hashlib.sha256(f"{pepper}:{secret}".encode()).hexdigest()
 
 
+def _tenant_user_id(db: Session) -> UUID:
+    user_id = db.info.get('user_id')
+    if not isinstance(user_id, UUID):
+        raise RuntimeError('Tenant context is required for extension mutations')
+    return user_id
+
+
 def create_pairing_code(db: Session) -> tuple[str, datetime]:
     now = _now()
+    user_id = _tenant_user_id(db)
     db.query(IntegrationClient).filter(
+        IntegrationClient.user_id == user_id,
         IntegrationClient.kind == "pairing_code",
         IntegrationClient.revoked_at.is_(None),
     ).update({"revoked_at": now})
@@ -40,6 +49,7 @@ def create_pairing_code(db: Session) -> tuple[str, datetime]:
     db.add(
         IntegrationClient(
             id=uuid4(),
+            user_id=user_id,
             kind="pairing_code",
             secret_hash=hash_secret(code),
             scope=EXTENSION_SCOPE,
@@ -64,6 +74,9 @@ def exchange_pairing_code(db: Session, code: str, extension_name: str | None) ->
     )
     if pairing is None or pairing.expires_at is None or pairing.expires_at <= now:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pairing code is invalid or expired")
+    # The public exchange is authenticated by the one-time secret. Restore the
+    # tenant context from the locked pairing row before creating the token.
+    db.info['user_id'] = pairing.user_id
     pairing.revoked_at = now
     raw_token = f"pdkg_dsa_{secrets.token_urlsafe(32)}"
     db.add(
@@ -73,6 +86,7 @@ def exchange_pairing_code(db: Session, code: str, extension_name: str | None) ->
             secret_hash=hash_secret(raw_token),
             scope=EXTENSION_SCOPE,
             expires_at=None,
+            user_id=pairing.user_id,
             client_metadata={"name": extension_name or "Browser extension"},
         )
     )
@@ -82,9 +96,11 @@ def exchange_pairing_code(db: Session, code: str, extension_name: str | None) ->
 
 def revoke_extension_tokens(db: Session) -> int:
     now = _now()
+    user_id = _tenant_user_id(db)
     count = (
         db.query(IntegrationClient)
         .filter(
+            IntegrationClient.user_id == user_id,
             IntegrationClient.kind == "extension_token",
             IntegrationClient.revoked_at.is_(None),
         )
@@ -117,8 +133,10 @@ def require_extension_token(request: Request, db: Session = Depends(get_db)) -> 
 
 
 def extension_status(db: Session) -> tuple[bool, datetime | None, int]:
+    user_id = _tenant_user_id(db)
     clients = db.scalars(
         select(IntegrationClient).where(
+            IntegrationClient.user_id == user_id,
             IntegrationClient.kind == "extension_token",
             IntegrationClient.revoked_at.is_(None),
         )
@@ -126,6 +144,7 @@ def extension_status(db: Session) -> tuple[bool, datetime | None, int]:
     last_used = max((item.last_used_at for item in clients if item.last_used_at), default=None)
     imported = db.scalar(
         select(func.count()).select_from(Entity).where(
+            Entity.user_id == user_id,
             Entity.type == "dsa_problem",
             Entity.entity_metadata["integration"]["platform"].astext == "leetcode",
         )
@@ -142,11 +161,14 @@ def _iso(value: datetime | None) -> str | None:
 
 
 def upsert_extension_record(db: Session, record: ExtensionImportRecord) -> tuple[str, str]:
+    user_id = _tenant_user_id(db)
     key = f"leetcode:{record.external_problem_id}"
     entity = next(
         (
             item
-            for item in db.scalars(select(Entity).where(Entity.type == "dsa_problem")).all()
+            for item in db.scalars(
+                select(Entity).where(Entity.user_id == user_id, Entity.type == "dsa_problem")
+            ).all()
             if ((item.entity_metadata or {}).get("integration") or {}).get("external_key") == key
         ),
         None,
@@ -156,6 +178,7 @@ def upsert_extension_record(db: Session, record: ExtensionImportRecord) -> tuple
     if entity is None:
         entity = Entity(
             id=uuid4(),
+            user_id=user_id,
             type="dsa_problem",
             title=record.title,
             content=record.tracker_notes or "",
@@ -215,6 +238,8 @@ def upsert_extension_record(db: Session, record: ExtensionImportRecord) -> tuple
     if any(integration.get(field) != value for field, value in comparable.items()):
         changed = True
     integration.update(provider_fields)
+    integration['capture_status'] = record.capture_status
+    integration['capture_errors'] = record.capture_errors
     metadata["integration"] = integration
     entity.entity_metadata = metadata
     db.flush()

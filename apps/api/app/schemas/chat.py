@@ -18,6 +18,7 @@ class GraphChatCitationRead(BaseModel):
     entity_id: UUID
     title: str = Field(min_length=1, max_length=200)
     reason_used: str = Field(min_length=1, max_length=240)
+    evidence_excerpt: str = Field(min_length=1, max_length=400)
 
 
 class GraphChatResponse(BaseModel):

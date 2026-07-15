@@ -85,24 +85,24 @@ function TaskList({ tasks, subjectId }: { tasks: Entity[]; subjectId: string }) 
   }), [tasks])
 
   return <Card className="overflow-hidden">
-    <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-zinc-800 p-4">
-      <div><CardTitle className="text-sm">Assignments & assessments</CardTitle><p className="mt-1 text-xs text-zinc-600">Work ordered by urgency</p></div>
+    <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border p-4">
+      <div><CardTitle className="text-sm">Assignments & assessments</CardTitle><p className="mt-1 text-xs text-muted-foreground">Work ordered by urgency</p></div>
       <Button asChild size="sm" variant="outline"><Link to={`/capture?type=task&parent_id=${subjectId}&academic_kind=assignment`}><Plus className="mr-1.5 h-3.5 w-3.5" />Add</Link></Button>
     </CardHeader>
     {sorted.length ? <div>
-      <div className="hidden grid-cols-[minmax(190px,1fr)_100px_120px_90px] gap-3 border-b border-zinc-800 bg-zinc-950/70 px-4 py-2 text-[10px] uppercase tracking-wider text-zinc-600 sm:grid"><span>Work</span><span>Type</span><span>Due</span><span>Status</span></div>
+      <div className="hidden grid-cols-[minmax(190px,1fr)_100px_120px_90px] gap-3 border-b border-border bg-background/70 px-4 py-2 text-[10px] uppercase tracking-wider text-muted-foreground sm:grid"><span>Work</span><span>Type</span><span>Due</span><span>Status</span></div>
       {sorted.map((task) => {
         const dueDate = entityDueDate(task)
         const dueDays = daysUntil(dueDate)
         const estimate = metadataNumber(task, "estimated_minutes", "duration_minutes")
-        return <Link key={task.id} to={`/knowledge/entities/${task.id}`} className="grid gap-2 border-b border-zinc-800/80 px-4 py-2.5 transition-colors last:border-b-0 hover:bg-zinc-950 sm:grid-cols-[minmax(190px,1fr)_100px_120px_90px] sm:items-center sm:gap-3">
-          <div className="min-w-0"><p className={cn("truncate text-sm font-medium", taskIsDone(task) ? "text-zinc-500 line-through" : "text-zinc-100")}>{task.title ?? "Untitled work"}</p>{estimate !== null ? <p className="mt-0.5 text-[10px] text-zinc-600">{formatMinutes(estimate)} estimated</p> : null}</div>
+        return <Link key={task.id} to={`/knowledge/entities/${task.id}`} className="grid gap-2 border-b border-border/80 px-4 py-2.5 transition-colors last:border-b-0 hover:bg-background sm:grid-cols-[minmax(190px,1fr)_100px_120px_90px] sm:items-center sm:gap-3">
+          <div className="min-w-0"><p className={cn("truncate text-sm font-medium", taskIsDone(task) ? "text-muted-foreground line-through" : "text-foreground")}>{task.title ?? "Untitled work"}</p>{estimate !== null ? <p className="mt-0.5 text-[10px] text-muted-foreground">{formatMinutes(estimate)} estimated</p> : null}</div>
           <div><Badge variant={badgeVariantForTask(task)} className="py-0.5 capitalize">{taskKind(task)}</Badge></div>
-          <div><p className={cn("text-xs", dueDays !== null && dueDays < 0 && !taskIsDone(task) ? "text-red-300" : dueDays !== null && dueDays <= 3 && !taskIsDone(task) ? "text-amber-300" : "text-zinc-400")}>{relativeDeadline(dueDate)}</p>{dueDate ? <p className="mt-0.5 text-[10px] text-zinc-600">{formatCompactDate(dueDate, true)}</p> : null}</div>
-          <span className="text-xs capitalize text-zinc-500">{taskStatus(task).split("_").join(" ")}</span>
+          <div><p className={cn("text-xs", dueDays !== null && dueDays < 0 && !taskIsDone(task) ? "text-danger" : dueDays !== null && dueDays <= 3 && !taskIsDone(task) ? "text-warning" : "text-secondary")}>{relativeDeadline(dueDate)}</p>{dueDate ? <p className="mt-0.5 text-[10px] text-muted-foreground">{formatCompactDate(dueDate, true)}</p> : null}</div>
+          <span className="text-xs capitalize text-muted-foreground">{taskStatus(task).split("_").join(" ")}</span>
         </Link>
       })}
-    </div> : <CardContent className="p-6 text-center"><ListChecks className="mx-auto h-5 w-5 text-zinc-700" /><p className="mt-2 text-sm text-zinc-400">No academic work captured.</p><p className="mt-1 text-xs text-zinc-600">Add an assignment, quiz, or exam to see deadlines here.</p></CardContent>}
+    </div> : <CardContent className="p-6 text-center"><ListChecks className="mx-auto h-5 w-5 text-muted-foreground" /><p className="mt-2 text-sm text-secondary">No academic work captured.</p><p className="mt-1 text-xs text-muted-foreground">Add an assignment, quiz, or exam to see deadlines here.</p></CardContent>}
   </Card>
 }
 
@@ -115,64 +115,64 @@ function TopicTable({ topics, dueReviews, subjectId }: { topics: Entity[]; dueRe
   }), [reviewsById, topics])
 
   return <Card className="overflow-hidden">
-    <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-zinc-800 p-4">
-      <div><CardTitle className="text-sm">Syllabus & mastery</CardTitle><p className="mt-1 text-xs text-zinc-600">Reviews and weak areas surface first</p></div>
+    <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border p-4">
+      <div><CardTitle className="text-sm">Syllabus & mastery</CardTitle><p className="mt-1 text-xs text-muted-foreground">Reviews and weak areas surface first</p></div>
       <Button asChild size="sm" variant="outline"><Link to={`/capture?type=subject_topic&parent_id=${subjectId}`}><Plus className="mr-1.5 h-3.5 w-3.5" />Topic</Link></Button>
     </CardHeader>
     {sorted.length ? <>
-      <div className="divide-y divide-zinc-800/80 md:hidden">
+      <div className="divide-y divide-border/80 md:hidden">
         {sorted.map((topic) => {
           const due = reviewsById.get(topic.id)
           const progress = topicProgress(topic)
           const mastery = confidencePercent(topic.confidence_score)
           const weight = metadataNumber(topic, "exam_weightage", "exam_weight")
-          return <article key={topic.id} className="space-y-3 bg-zinc-950/40 p-4">
+          return <article key={topic.id} className="space-y-3 bg-background/40 p-4">
             <div className="flex items-start justify-between gap-3">
-              <Link to={`/knowledge/entities/${topic.id}`} className="inline-flex min-h-11 min-w-0 flex-1 items-center rounded-md text-sm font-medium text-zinc-200 hover:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">{topic.title ?? "Untitled topic"}</Link>
-              {due ? <Link to="/knowledge/recall" className="inline-flex min-h-11 shrink-0 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><Badge variant="warning" className="py-0.5">Due now</Badge></Link> : <span className="inline-flex min-h-11 shrink-0 items-center text-xs text-zinc-600">Review clear</span>}
+              <Link to={`/knowledge/entities/${topic.id}`} className="inline-flex min-h-11 min-w-0 flex-1 items-center rounded-md text-sm font-medium text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">{topic.title ?? "Untitled topic"}</Link>
+              {due ? <Link to="/knowledge/recall" className="inline-flex min-h-11 shrink-0 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><Badge variant="warning" className="py-0.5">Due now</Badge></Link> : <span className="inline-flex min-h-11 shrink-0 items-center text-xs text-muted-foreground">Review clear</span>}
             </div>
-            <dl className="grid grid-cols-2 gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-3">
-              <div><dt className="text-[10px] uppercase tracking-wider text-zinc-600">Weight</dt><dd className="mt-1 font-mono text-xs text-zinc-300">{weight === null ? "--" : `${Math.round(weight)}%`}</dd></div>
-              <div><dt className="text-[10px] uppercase tracking-wider text-zinc-600">Last studied</dt><dd className="mt-1 text-xs text-zinc-300">{topic.last_revisited_at ? formatCompactDate(topic.last_revisited_at) : "Never"}</dd></div>
+            <dl className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-background p-3">
+              <div><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Weight</dt><dd className="mt-1 font-mono text-xs text-secondary">{weight === null ? "--" : `${Math.round(weight)}%`}</dd></div>
+              <div><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Last studied</dt><dd className="mt-1 text-xs text-secondary">{topic.last_revisited_at ? formatCompactDate(topic.last_revisited_at) : "Never"}</dd></div>
             </dl>
             <div className="space-y-3">
-              <div><div className="mb-1.5 flex items-center justify-between text-xs"><span className="text-zinc-500">Progress</span><span className="font-mono text-zinc-300">{Math.round(progress)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-blue-500" style={{ width: `${progress}%` }} /></div></div>
-              <div><div className="mb-1.5 flex items-center justify-between text-xs"><span className="text-zinc-500">Mastery</span><span className={cn("font-mono", mastery < 50 ? "text-amber-300" : "text-zinc-300")}>{Math.round(mastery)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-zinc-800"><div className={cn("h-full rounded-full", mastery < 50 ? "bg-amber-500" : "bg-teal-500")} style={{ width: `${mastery}%` }} /></div></div>
+              <div><div className="mb-1.5 flex items-center justify-between text-xs"><span className="text-muted-foreground">Progress</span><span className="font-mono text-secondary">{Math.round(progress)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-surface-subtle"><div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} /></div></div>
+              <div><div className="mb-1.5 flex items-center justify-between text-xs"><span className="text-muted-foreground">Mastery</span><span className={cn("font-mono", mastery < 50 ? "text-warning" : "text-secondary")}>{Math.round(mastery)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-surface-subtle"><div className={cn("h-full rounded-full", mastery < 50 ? "bg-warning" : "bg-teal-500")} style={{ width: `${mastery}%` }} /></div></div>
             </div>
           </article>
         })}
       </div>
       <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[760px] table-fixed border-collapse">
-      <thead className="border-b border-zinc-800 bg-zinc-950/70 text-left text-[10px] uppercase tracking-wider text-zinc-600"><tr><th className="w-[34%] px-4 py-2">Topic</th><th className="w-[10%] px-3 py-2">Weight</th><th className="w-[14%] px-3 py-2">Progress</th><th className="w-[14%] px-3 py-2">Mastery</th><th className="w-[15%] px-3 py-2">Last studied</th><th className="w-[13%] px-3 py-2">Review</th></tr></thead>
+      <thead className="border-b border-border bg-background/70 text-left text-[10px] uppercase tracking-wider text-muted-foreground"><tr><th className="w-[34%] px-4 py-2">Topic</th><th className="w-[10%] px-3 py-2">Weight</th><th className="w-[14%] px-3 py-2">Progress</th><th className="w-[14%] px-3 py-2">Mastery</th><th className="w-[15%] px-3 py-2">Last studied</th><th className="w-[13%] px-3 py-2">Review</th></tr></thead>
       <tbody>{sorted.map((topic) => {
         const due = reviewsById.get(topic.id)
         const progress = topicProgress(topic)
         const mastery = confidencePercent(topic.confidence_score)
         const weight = metadataNumber(topic, "exam_weightage", "exam_weight")
-        return <tr key={topic.id} className="h-12 border-b border-zinc-800/80 last:border-b-0 hover:bg-zinc-950">
-          <td className="px-4 py-2"><Link to={`/knowledge/entities/${topic.id}`} className="block truncate rounded-sm text-sm font-medium text-zinc-200 hover:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">{topic.title ?? "Untitled topic"}</Link></td>
-          <td className="px-3 py-2 font-mono text-xs text-zinc-500">{weight === null ? "—" : `${Math.round(weight)}%`}</td>
-          <td className="px-3 py-2"><div className="flex items-center gap-2"><div className="h-1.5 w-12 overflow-hidden rounded-full bg-zinc-800"><div className="h-full bg-blue-500" style={{ width: `${progress}%` }} /></div><span className="font-mono text-[10px] text-zinc-500">{Math.round(progress)}%</span></div></td>
-          <td className="px-3 py-2"><div className="flex items-center gap-2"><div className="h-1.5 w-12 overflow-hidden rounded-full bg-zinc-800"><div className={cn("h-full", mastery < 50 ? "bg-amber-500" : "bg-teal-500")} style={{ width: `${mastery}%` }} /></div><span className={cn("font-mono text-[10px]", mastery < 50 ? "text-amber-300" : "text-zinc-500")}>{Math.round(mastery)}%</span></div></td>
-          <td className="px-3 py-2 text-xs text-zinc-500">{topic.last_revisited_at ? formatCompactDate(topic.last_revisited_at) : "Never"}</td>
-          <td className="px-3 py-2">{due ? <Link to="/knowledge/recall" className="inline-flex rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><Badge variant="warning" className="py-0.5">Due now</Badge></Link> : <span className="text-xs text-zinc-600">Clear</span>}</td>
+        return <tr key={topic.id} className="h-12 border-b border-border/80 last:border-b-0 hover:bg-background">
+          <td className="px-4 py-2"><Link to={`/knowledge/entities/${topic.id}`} className="block truncate rounded-sm text-sm font-medium text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">{topic.title ?? "Untitled topic"}</Link></td>
+          <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{weight === null ? "—" : `${Math.round(weight)}%`}</td>
+          <td className="px-3 py-2"><div className="flex items-center gap-2"><div className="h-1.5 w-12 overflow-hidden rounded-full bg-surface-subtle"><div className="h-full bg-primary" style={{ width: `${progress}%` }} /></div><span className="font-mono text-[10px] text-muted-foreground">{Math.round(progress)}%</span></div></td>
+          <td className="px-3 py-2"><div className="flex items-center gap-2"><div className="h-1.5 w-12 overflow-hidden rounded-full bg-surface-subtle"><div className={cn("h-full", mastery < 50 ? "bg-warning" : "bg-teal-500")} style={{ width: `${mastery}%` }} /></div><span className={cn("font-mono text-[10px]", mastery < 50 ? "text-warning" : "text-muted-foreground")}>{Math.round(mastery)}%</span></div></td>
+          <td className="px-3 py-2 text-xs text-muted-foreground">{topic.last_revisited_at ? formatCompactDate(topic.last_revisited_at) : "Never"}</td>
+          <td className="px-3 py-2">{due ? <Link to="/knowledge/recall" className="inline-flex rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><Badge variant="warning" className="py-0.5">Due now</Badge></Link> : <span className="text-xs text-muted-foreground">Clear</span>}</td>
         </tr>
       })}</tbody>
-    </table></div></> : <CardContent className="p-6 text-center"><BookOpen className="mx-auto h-5 w-5 text-zinc-700" /><p className="mt-2 text-sm text-zinc-400">No syllabus topics yet.</p><Button asChild size="sm" variant="outline" className="mt-3"><Link to={`/capture?type=subject_topic&parent_id=${subjectId}`}>Add first topic</Link></Button></CardContent>}
+    </table></div></> : <CardContent className="p-6 text-center"><BookOpen className="mx-auto h-5 w-5 text-muted-foreground" /><p className="mt-2 text-sm text-secondary">No syllabus topics yet.</p><Button asChild size="sm" variant="outline" className="mt-3"><Link to={`/capture?type=subject_topic&parent_id=${subjectId}`}>Add first topic</Link></Button></CardContent>}
   </Card>
 }
 
 function RecentActivity({ sessions }: { sessions: SessionRecord[] }) {
   return <Card>
-    <CardHeader className="border-b border-zinc-800 p-4"><CardTitle className="flex items-center gap-2 text-sm"><History className="h-4 w-4 text-zinc-500" />Recent study & activity</CardTitle></CardHeader>
+    <CardHeader className="border-b border-border p-4"><CardTitle className="flex items-center gap-2 text-sm"><History className="h-4 w-4 text-muted-foreground" />Recent study & activity</CardTitle></CardHeader>
     <CardContent className="p-0">{sessions.length ? sessions.slice(0, 10).map((session, index) => {
       const duration = typeof session.meta.duration_minutes === "number" ? session.meta.duration_minutes : null
-      return <div key={session.id} className="flex items-center gap-3 border-b border-zinc-800/80 px-4 py-2.5 last:border-b-0">
-        <span className={cn("h-2 w-2 shrink-0 rounded-full", index === 0 ? "bg-blue-400" : "bg-zinc-700")} />
-        <p className="min-w-0 flex-1 truncate text-xs text-zinc-300">{activityLabel(session.action)}{duration !== null ? <span className="ml-2 font-mono text-zinc-500">{formatMinutes(duration)}</span> : null}</p>
-        <time className="shrink-0 text-[10px] text-zinc-600" dateTime={session.date ?? undefined}>{session.date ? formatCompactDate(session.date, true) : "No date"}</time>
+      return <div key={session.id} className="flex items-center gap-3 border-b border-border/80 px-4 py-2.5 last:border-b-0">
+        <span className={cn("h-2 w-2 shrink-0 rounded-full", index === 0 ? "bg-primary" : "bg-border-strong")} />
+        <p className="min-w-0 flex-1 truncate text-xs text-secondary">{activityLabel(session.action)}{duration !== null ? <span className="ml-2 font-mono text-muted-foreground">{formatMinutes(duration)}</span> : null}</p>
+        <time className="shrink-0 text-[10px] text-muted-foreground" dateTime={session.date ?? undefined}>{session.date ? formatCompactDate(session.date, true) : "No date"}</time>
       </div>
-    }) : <p className="p-5 text-sm text-zinc-500">No study activity recorded yet.</p>}</CardContent>
+    }) : <p className="p-5 text-sm text-muted-foreground">No study activity recorded yet.</p>}</CardContent>
   </Card>
 }
 
@@ -281,7 +281,7 @@ export function SubjectDetailPage() {
   const studyCompletion = summary.planned_minutes_7d > 0 ? summary.studied_minutes_7d / summary.planned_minutes_7d * 100 : 0
 
   return <div className="space-y-5">
-    <Link to="/trackers/subjects" className="inline-flex items-center gap-1.5 rounded-sm text-xs text-zinc-500 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><ArrowLeft className="h-3.5 w-3.5" />All subjects</Link>
+    <Link to="/trackers/subjects" className="inline-flex items-center gap-1.5 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><ArrowLeft className="h-3.5 w-3.5" />All subjects</Link>
     <div className="border-l-4 pl-4" style={{ borderLeftColor: subjectColor(overview.subject) }}>
       <PageHeader
         title={overview.subject.title ?? "Untitled subject"}
@@ -291,7 +291,7 @@ export function SubjectDetailPage() {
       <div className="-mt-3 flex flex-wrap gap-1.5"><Badge className="capitalize">{subjectStatus(overview.subject)}</Badge>{metadataString(overview.subject, "priority") ? <Badge variant={metadataString(overview.subject, "priority") === "high" ? "warning" : "default"} className="capitalize">{metadataString(overview.subject, "priority")} priority</Badge> : null}{deadline && daysUntil(deadline) !== null && (daysUntil(deadline) ?? 99) <= 7 ? <Badge variant={(daysUntil(deadline) ?? 0) < 0 ? "danger" : "warning"}>{relativeDeadline(deadline)}</Badge> : null}</div>
     </div>
 
-    <section aria-label="Subject summary" className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-zinc-800 bg-zinc-800 sm:grid-cols-3 xl:grid-cols-6">
+    <section aria-label="Subject summary" className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-surface-subtle sm:grid-cols-3 xl:grid-cols-6">
       {[
         ["Syllabus", `${Math.round(clampPercent(summary.progress_percent))}%`, `${summary.completed_topic_count}/${summary.topic_count} topics`],
         ["Mastery", `${Math.round(confidencePercent(summary.mastery_score))}%`, weakTopics.length ? `${weakTopics.length} weak` : "On track"],
@@ -299,7 +299,7 @@ export function SubjectDetailPage() {
         ["Reviews", summary.due_review_count, summary.due_review_count ? "Due now" : "Clear"],
         ["Current grade", summary.grade_percent === null ? "—" : `${Math.round(summary.grade_percent)}%`, summary.grade_percent === null ? "Not tracked" : "Recorded work"],
         ["Study · 7d", formatMinutes(summary.studied_minutes_7d), `${formatMinutes(summary.planned_minutes_7d)} planned`],
-      ].map(([label, value, note]) => <div key={String(label)} className="bg-zinc-950 px-4 py-3"><p className="text-[11px] text-zinc-500">{label}</p><p className={cn("mt-1 font-mono text-xl font-medium text-zinc-100", label === "Open work" && summary.overdue_task_count > 0 && "text-red-300", label === "Reviews" && summary.due_review_count > 0 && "text-amber-300")}>{value}</p><p className="mt-0.5 text-[10px] text-zinc-600">{note}</p></div>)}
+      ].map(([label, value, note]) => <div key={String(label)} className="bg-background px-4 py-3"><p className="text-[11px] text-muted-foreground">{label}</p><p className={cn("mt-1 font-mono text-xl font-medium text-foreground", label === "Open work" && summary.overdue_task_count > 0 && "text-danger", label === "Reviews" && summary.due_review_count > 0 && "text-warning")}>{value}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{note}</p></div>)}
     </section>
 
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.75fr)]">
@@ -311,36 +311,36 @@ export function SubjectDetailPage() {
 
       <aside className="space-y-4">
         <Card>
-          <CardHeader className="border-b border-zinc-800 p-4"><CardTitle className="flex items-center gap-2 text-sm"><Timer className="h-4 w-4 text-violet-400" />Study plan</CardTitle></CardHeader>
+          <CardHeader className="border-b border-border p-4"><CardTitle className="flex items-center gap-2 text-sm"><Timer className="h-4 w-4 text-primary" />Study plan</CardTitle></CardHeader>
           <CardContent className="space-y-4 p-4">
-            <div><div className="flex items-end justify-between gap-3"><div><p className="font-mono text-lg text-zinc-100">{formatMinutes(summary.studied_minutes_7d)}</p><p className="text-[10px] text-zinc-600">studied this week</p></div><p className="text-xs text-zinc-500">of {formatMinutes(summary.planned_minutes_7d)} planned</p></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-violet-500" style={{ width: `${clampPercent(studyCompletion)}%` }} /></div></div>
-            <fieldset><legend className="mb-2 text-xs text-zinc-500">Session duration</legend><div className="flex flex-wrap gap-1.5">{[15, 25, 45, 60].map((minutes) => <button key={minutes} type="button" aria-pressed={duration === minutes} onClick={() => setDuration(minutes)} className={cn("h-8 rounded-md border px-2.5 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500", duration === minutes ? "border-violet-500/50 bg-violet-500/10 text-violet-200" : "border-zinc-800 bg-zinc-950 text-zinc-500 hover:text-zinc-200")}>{minutes}m</button>)}</div><Button className="mt-2 w-full bg-violet-600 hover:bg-violet-500" size="sm" disabled={loggingStudy || planningStudy} onClick={() => void logStudy()}><Clock3 className="mr-1.5 h-3.5 w-3.5" />{loggingStudy ? "Logging…" : `Log ${duration} minutes now`}</Button></fieldset>
-            <fieldset className="border-t border-zinc-800 pt-3"><legend className="px-1 text-xs text-zinc-500">Plan a study block</legend><div className="mt-2 flex gap-2"><label htmlFor="study-plan-at" className="sr-only">Study block date and time</label><Input id="study-plan-at" type="datetime-local" className="h-8 min-w-0 text-xs" value={planAt} onChange={(event) => setPlanAt(event.target.value)} /><Button size="sm" variant="outline" disabled={!planAt || planningStudy || loggingStudy} onClick={() => void planStudy()}>{planningStudy ? "Planning…" : "Plan"}</Button></div></fieldset>
-            <div className="border-t border-zinc-800 pt-3"><p className="mb-2 text-xs font-medium text-zinc-300">Next best topics</p>{weakTopics.length ? <ol className="space-y-1">{weakTopics.slice(0, 5).map((topic, index) => <li key={topic.id}><Link to={`/knowledge/entities/${topic.id}`} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><span className="font-mono text-[10px] text-zinc-600">{index + 1}</span><span className="min-w-0 flex-1 truncate text-zinc-300">{topic.title ?? "Untitled topic"}</span><span className="font-mono text-[10px] text-amber-300">{Math.round(confidencePercent(topic.confidence_score))}%</span></Link></li>)}</ol> : <div className="flex items-center gap-2 rounded-md bg-teal-500/5 p-2 text-xs text-teal-300"><CheckCircle2 className="h-4 w-4" />No weak topics detected.</div>}</div>
+            <div><div className="flex items-end justify-between gap-3"><div><p className="font-mono text-lg text-foreground">{formatMinutes(summary.studied_minutes_7d)}</p><p className="text-[10px] text-muted-foreground">studied this week</p></div><p className="text-xs text-muted-foreground">of {formatMinutes(summary.planned_minutes_7d)} planned</p></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-subtle"><div className="h-full rounded-full bg-primary" style={{ width: `${clampPercent(studyCompletion)}%` }} /></div></div>
+            <fieldset><legend className="mb-2 text-xs text-muted-foreground">Session duration</legend><div className="flex flex-wrap gap-1.5">{[15, 25, 45, 60].map((minutes) => <button key={minutes} type="button" aria-pressed={duration === minutes} onClick={() => setDuration(minutes)} className={cn("h-8 rounded-md border px-2.5 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary", duration === minutes ? "border-primary/50 bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:text-foreground")}>{minutes}m</button>)}</div><Button className="mt-2 w-full" size="sm" disabled={loggingStudy || planningStudy} onClick={() => void logStudy()}><Clock3 className="mr-1.5 h-3.5 w-3.5" />{loggingStudy ? "Logging…" : `Log ${duration} minutes now`}</Button></fieldset>
+            <fieldset className="border-t border-border pt-3"><legend className="px-1 text-xs text-muted-foreground">Plan a study block</legend><div className="mt-2 flex gap-2"><label htmlFor="study-plan-at" className="sr-only">Study block date and time</label><Input id="study-plan-at" type="datetime-local" className="h-8 min-w-0 text-xs" value={planAt} onChange={(event) => setPlanAt(event.target.value)} /><Button size="sm" variant="outline" disabled={!planAt || planningStudy || loggingStudy} onClick={() => void planStudy()}>{planningStudy ? "Planning…" : "Plan"}</Button></div></fieldset>
+            <div className="border-t border-border pt-3"><p className="mb-2 text-xs font-medium text-secondary">Next best topics</p>{weakTopics.length ? <ol className="space-y-1">{weakTopics.slice(0, 5).map((topic, index) => <li key={topic.id}><Link to={`/knowledge/entities/${topic.id}`} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><span className="font-mono text-[10px] text-muted-foreground">{index + 1}</span><span className="min-w-0 flex-1 truncate text-secondary">{topic.title ?? "Untitled topic"}</span><span className="font-mono text-[10px] text-warning">{Math.round(confidencePercent(topic.confidence_score))}%</span></Link></li>)}</ol> : <div className="flex items-center gap-2 rounded-md bg-teal-500/5 p-2 text-xs text-teal-300"><CheckCircle2 className="h-4 w-4" />No weak topics detected.</div>}</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-zinc-800 p-4"><CardTitle className="flex items-center gap-2 text-sm"><RotateCcw className="h-4 w-4 text-amber-400" />Reviews due</CardTitle>{dueReviews.length ? <Badge variant="warning" className="py-0.5">{dueReviews.length}</Badge> : null}</CardHeader>
-          <CardContent className="p-0">{dueReviews.length ? dueReviews.slice(0, 6).map((item) => <Link key={item.entity.id} to="/knowledge/recall" className="flex items-center gap-3 border-b border-zinc-800/80 px-4 py-2.5 last:border-b-0 hover:bg-zinc-950"><span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" /><span className="min-w-0 flex-1 truncate text-xs text-zinc-300">{item.entity.title ?? "Untitled topic"}</span><span className="font-mono text-[10px] text-amber-300">{item.due_score.toFixed(1)}</span></Link>) : <div className="flex items-center gap-2 p-4 text-xs text-teal-300"><CheckCircle2 className="h-4 w-4" />Review queue is clear.</div>}</CardContent>
+          <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border p-4"><CardTitle className="flex items-center gap-2 text-sm"><RotateCcw className="h-4 w-4 text-warning" />Reviews due</CardTitle>{dueReviews.length ? <Badge variant="warning" className="py-0.5">{dueReviews.length}</Badge> : null}</CardHeader>
+          <CardContent className="p-0">{dueReviews.length ? dueReviews.slice(0, 6).map((item) => <Link key={item.entity.id} to="/knowledge/recall" className="flex items-center gap-3 border-b border-border/80 px-4 py-2.5 last:border-b-0 hover:bg-background"><span className="h-2 w-2 shrink-0 rounded-full bg-warning" /><span className="min-w-0 flex-1 truncate text-xs text-secondary">{item.entity.title ?? "Untitled topic"}</span><span className="font-mono text-[10px] text-warning">{item.due_score.toFixed(1)}</span></Link>) : <div className="flex items-center gap-2 p-4 text-xs text-teal-300"><CheckCircle2 className="h-4 w-4" />Review queue is clear.</div>}</CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="border-b border-zinc-800 p-4"><CardTitle className="flex items-center gap-2 text-sm"><CalendarClock className="h-4 w-4 text-blue-400" />Quick capture</CardTitle></CardHeader>
+          <CardHeader className="border-b border-border p-4"><CardTitle className="flex items-center gap-2 text-sm"><CalendarClock className="h-4 w-4 text-primary" />Quick capture</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-2 p-3">
-            <Link to={`/capture?type=task&parent_id=${subjectId}&academic_kind=assignment`} className="rounded-md border border-zinc-800 bg-zinc-950 p-2.5 text-xs text-zinc-300 hover:border-blue-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><FileText className="mb-2 h-4 w-4 text-blue-400" />Assignment</Link>
-            <Link to={`/capture?type=task&parent_id=${subjectId}&academic_kind=exam`} className="rounded-md border border-zinc-800 bg-zinc-950 p-2.5 text-xs text-zinc-300 hover:border-red-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><GraduationCap className="mb-2 h-4 w-4 text-red-400" />Exam</Link>
-            <Link to={`/capture?type=subject_topic&parent_id=${subjectId}`} className="rounded-md border border-zinc-800 bg-zinc-950 p-2.5 text-xs text-zinc-300 hover:border-teal-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><BookOpen className="mb-2 h-4 w-4 text-teal-400" />Topic</Link>
-            <Link to="/knowledge/recall" className="rounded-md border border-zinc-800 bg-zinc-950 p-2.5 text-xs text-zinc-300 hover:border-amber-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><RotateCcw className="mb-2 h-4 w-4 text-amber-400" />Start review</Link>
+            <Link to={`/capture?type=task&parent_id=${subjectId}&academic_kind=assignment`} className="rounded-md border border-border bg-background p-2.5 text-xs text-secondary hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><FileText className="mb-2 h-4 w-4 text-primary" />Assignment</Link>
+            <Link to={`/capture?type=task&parent_id=${subjectId}&academic_kind=exam`} className="rounded-md border border-border bg-background p-2.5 text-xs text-secondary hover:border-danger/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><GraduationCap className="mb-2 h-4 w-4 text-danger" />Exam</Link>
+            <Link to={`/capture?type=subject_topic&parent_id=${subjectId}`} className="rounded-md border border-border bg-background p-2.5 text-xs text-secondary hover:border-teal-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><BookOpen className="mb-2 h-4 w-4 text-teal-400" />Topic</Link>
+            <Link to="/knowledge/recall" className="rounded-md border border-border bg-background p-2.5 text-xs text-secondary hover:border-warning/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><RotateCcw className="mb-2 h-4 w-4 text-warning" />Start review</Link>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-zinc-800 p-4"><CardTitle className="text-sm">Resources & connections</CardTitle><span className="font-mono text-[10px] text-zinc-600">{linked.length}</span></CardHeader>
-          <CardContent className="p-0">{linked.length ? linked.slice(0, 8).map((entity) => <Link key={entity.id} to={`/knowledge/entities/${entity.id}`} className="flex items-center gap-2 border-b border-zinc-800/80 px-4 py-2.5 text-xs last:border-b-0 hover:bg-zinc-950"><span className="min-w-0 flex-1 truncate text-zinc-300">{entity.title ?? "Untitled resource"}</span><Badge className="py-0.5">{entity.type}</Badge><ExternalLink className="h-3 w-3 text-zinc-700" /></Link>) : <p className="p-4 text-xs text-zinc-600">No linked notes, concepts, or problems yet.</p>}</CardContent>
+          <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border p-4"><CardTitle className="text-sm">Resources & connections</CardTitle><span className="font-mono text-[10px] text-muted-foreground">{linked.length}</span></CardHeader>
+          <CardContent className="p-0">{linked.length ? linked.slice(0, 8).map((entity) => <Link key={entity.id} to={`/knowledge/entities/${entity.id}`} className="flex items-center gap-2 border-b border-border/80 px-4 py-2.5 text-xs last:border-b-0 hover:bg-background"><span className="min-w-0 flex-1 truncate text-secondary">{entity.title ?? "Untitled resource"}</span><Badge className="py-0.5">{entity.type}</Badge><ExternalLink className="h-3 w-3 text-muted-foreground" /></Link>) : <p className="p-4 text-xs text-muted-foreground">No linked notes, concepts, or problems yet.</p>}</CardContent>
         </Card>
 
-        {summary.overdue_task_count > 0 ? <div className="flex gap-2 rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-300"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />Resolve {summary.overdue_task_count} overdue {summary.overdue_task_count === 1 ? "item" : "items"} before adding more study load.</div> : null}
+        {summary.overdue_task_count > 0 ? <div className="flex gap-2 rounded-lg border border-danger/30 bg-danger/5 p-3 text-xs text-danger"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />Resolve {summary.overdue_task_count} overdue {summary.overdue_task_count === 1 ? "item" : "items"} before adding more study load.</div> : null}
       </aside>
     </div>
   </div>

@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 AiProviderName = Literal["openai", "gemini", "mistral"]
 AiModelMode = Literal["auto", "fast", "smart"]
 GithubCredentialName = Literal["access_token", "webhook_secret"]
+ThemePreference = Literal["system", "light", "dark"]
 
 
 class AiModelUpdate(BaseModel):
@@ -82,7 +83,37 @@ class WebSearchStatusRead(BaseModel):
     api_key_configured: bool
 
 
+class AiEgressDisclosureRead(BaseModel):
+    provider: AiProviderName = "openai"
+    destination: str = "api.openai.com"
+    data_categories: list[str] = Field(
+        default_factory=lambda: [
+            "user questions and learning answers",
+            "task-specific titles, content, and code excerpts",
+            "allowlisted metadata",
+            "feature-specific GitHub, LeetCode, or web-result excerpts",
+        ]
+    )
+    ai_exclude_supported: bool = True
+    review_before_write: bool = True
+
+
 class SettingsStatusRead(BaseModel):
     ai: AiStatusRead
     github: GithubStatusRead
     web_search: WebSearchStatusRead
+    ai_egress: AiEgressDisclosureRead = Field(default_factory=AiEgressDisclosureRead)
+
+
+class PreferencesRead(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    theme: ThemePreference = "system"
+    onboarding_completed: bool = False
+    learning_focuses: list[str] = Field(default_factory=list, max_length=12)
+
+
+class PreferencesUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    theme: ThemePreference | None = None
+    onboarding_completed: bool | None = None
+    learning_focuses: list[str] | None = Field(default=None, max_length=12)

@@ -81,21 +81,21 @@ function SortButton({ label, sortKey, activeKey, direction, onSort }: {
   const Icon = active ? (direction === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown
   return <button
     type="button"
-    className="inline-flex items-center gap-1 rounded-sm py-1 text-left hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+    className="inline-flex items-center gap-1 rounded-sm py-1 text-left hover:text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     onClick={() => onSort(sortKey)}
   >
-    {label}<Icon className={cn("h-3 w-3", active ? "text-blue-400" : "text-zinc-700")} />
+    {label}<Icon className={cn("h-3 w-3", active ? "text-primary" : "text-muted-foreground")} />
   </button>
 }
 
 function ProgressCell({ value, tone = "blue" }: { value: number; tone?: "blue" | "teal" }) {
   const progress = clampPercent(value)
   return <div className="min-w-[84px]">
-    <div className="mb-1 flex items-center justify-between gap-2 font-mono text-[11px] text-zinc-400">
+    <div className="mb-1 flex items-center justify-between gap-2 font-mono text-[11px] text-secondary">
       <span>{Math.round(progress)}%</span>
     </div>
-    <div className="h-1 overflow-hidden rounded-full bg-zinc-800">
-      <div className={cn("h-full rounded-full", tone === "teal" ? "bg-teal-500" : "bg-blue-500")} style={{ width: `${progress}%` }} />
+    <div className="h-1 overflow-hidden rounded-full bg-surface-subtle">
+      <div className={cn("h-full rounded-full", tone === "teal" ? "bg-teal-500" : "bg-primary")} style={{ width: `${progress}%` }} />
     </div>
   </div>
 }
@@ -103,18 +103,18 @@ function ProgressCell({ value, tone = "blue" }: { value: number; tone?: "blue" |
 function SubjectMobileRow({ row }: { row: SubjectTrackerSummary }) {
   const subject = row.subject
   const deadlineDays = daysUntil(row.next_deadline)
-  return <article className="border-b border-zinc-800 p-3 last:border-b-0">
+  return <article className="border-b border-border p-3 last:border-b-0">
     <div className="flex items-start justify-between gap-3">
-      <Link to={`/trackers/subjects/${subject.id}`} className="min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+      <Link to={`/trackers/subjects/${subject.id}`} className="min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
         <div className="flex min-w-0 items-center gap-2">
           <span className="h-3 w-1 shrink-0 rounded-full" style={{ backgroundColor: subjectColor(subject) }} />
-          <span className="truncate text-sm font-medium text-zinc-100">{subject.title ?? "Untitled subject"}</span>
+          <span className="truncate text-sm font-medium text-foreground">{subject.title ?? "Untitled subject"}</span>
         </div>
-        <p className="ml-3 mt-1 truncate text-[11px] text-zinc-600">{subjectCourseLabel(subject) ?? subjectStatus(subject)}</p>
+        <p className="ml-3 mt-1 truncate text-[11px] text-muted-foreground">{subjectCourseLabel(subject) ?? subjectStatus(subject)}</p>
       </Link>
       <div className="text-right">
-        <p className={cn("whitespace-nowrap text-xs font-medium", deadlineDays !== null && deadlineDays < 0 ? "text-red-300" : deadlineDays !== null && deadlineDays <= 7 ? "text-amber-300" : "text-zinc-300")}>{relativeDeadline(row.next_deadline)}</p>
-        {row.next_deadline ? <p className="mt-0.5 text-[10px] text-zinc-600">next deadline</p> : null}
+        <p className={cn("whitespace-nowrap text-xs font-medium", deadlineDays !== null && deadlineDays < 0 ? "text-danger" : deadlineDays !== null && deadlineDays <= 7 ? "text-warning" : "text-secondary")}>{relativeDeadline(row.next_deadline)}</p>
+        {row.next_deadline ? <p className="mt-0.5 text-[10px] text-muted-foreground">next deadline</p> : null}
       </div>
     </div>
     <div className="mt-3 grid grid-cols-4 gap-2 text-center">
@@ -123,10 +123,10 @@ function SubjectMobileRow({ row }: { row: SubjectTrackerSummary }) {
         ["Progress", `${Math.round(clampPercent(row.progress_percent))}%`],
         ["Mastery", `${Math.round(confidencePercent(row.mastery_score))}%`],
         ["Reviews", row.due_review_count],
-      ].map(([label, value]) => <div key={label} className="rounded-md bg-zinc-900 px-1.5 py-2"><p className="font-mono text-xs text-zinc-200">{value}</p><p className="mt-0.5 text-[10px] text-zinc-600">{label}</p></div>)}
+      ].map(([label, value]) => <div key={label} className="rounded-md bg-surface px-1.5 py-2"><p className="font-mono text-xs text-foreground">{value}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{label}</p></div>)}
     </div>
     <div className="mt-3 flex items-center justify-between gap-2">
-      <p className="text-[11px] text-zinc-500">{formatMinutes(row.studied_minutes_7d)} / {formatMinutes(row.planned_minutes_7d)} this week</p>
+      <p className="text-[11px] text-muted-foreground">{formatMinutes(row.studied_minutes_7d)} / {formatMinutes(row.planned_minutes_7d)} this week</p>
       <div className="flex gap-1">
         <Button asChild size="sm" variant="ghost"><Link to={`/capture?type=task&parent_id=${subject.id}`}><Plus className="mr-1 h-3.5 w-3.5" />Task</Link></Button>
         <Button asChild size="sm" variant="ghost"><Link to={`/trackers/subjects/${subject.id}`}>Open<ChevronRight className="ml-1 h-3.5 w-3.5" /></Link></Button>
@@ -220,7 +220,7 @@ export function UpgradedSubjectsPage() {
       actions={<Button asChild><Link to="/capture?type=subject_topic"><Plus className="mr-2 h-4 w-4" />Add subject</Link></Button>}
     />
 
-    {!loading && !error && rows.length > 0 ? <section aria-label="Subject workload summary" className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-zinc-800 bg-zinc-800 sm:grid-cols-3 xl:grid-cols-6">
+    {!loading && !error && rows.length > 0 ? <section aria-label="Subject workload summary" className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-surface-subtle sm:grid-cols-3 xl:grid-cols-6">
       {[
         ["Active subjects", totals.active, null],
         ["Open tasks", totals.open, null],
@@ -228,17 +228,17 @@ export function UpgradedSubjectsPage() {
         ["Reviews due", totals.reviews, totals.reviews > 0 ? "warning" : null],
         ["Planned / 7d", formatMinutes(totals.planned), null],
         ["Studied / 7d", formatMinutes(totals.studied), null],
-      ].map(([label, value, tone]) => <div key={String(label)} className="bg-zinc-950 px-4 py-3">
-        <p className="text-[11px] text-zinc-500">{label}</p>
-        <p className={cn("mt-1 font-mono text-xl font-medium text-zinc-100", tone === "danger" && "text-red-300", tone === "warning" && "text-amber-300")}>{value}</p>
+      ].map(([label, value, tone]) => <div key={String(label)} className="bg-background px-4 py-3">
+        <p className="text-[11px] text-muted-foreground">{label}</p>
+        <p className={cn("mt-1 font-mono text-xl font-medium text-foreground", tone === "danger" && "text-danger", tone === "warning" && "text-warning")}>{value}</p>
       </div>)}
     </section> : null}
 
-    {!loading && !error && rows.length > 0 ? <section aria-label="Subject filters" className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+    {!loading && !error && rows.length > 0 ? <section aria-label="Subject filters" className="rounded-xl border border-border bg-surface/40 p-3">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="relative w-full xl:max-w-sm">
           <label htmlFor="subject-search" className="sr-only">Search subjects</label>
-          <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-zinc-600" />
+          <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input id="subject-search" className="h-9 pl-9" placeholder="Search subjects, codes, or tags" value={query} onChange={(event) => setParam("q", event.target.value)} />
         </div>
         <div className="flex gap-1.5 overflow-x-auto pb-1 xl:pb-0">
@@ -247,8 +247,8 @@ export function UpgradedSubjectsPage() {
             key={item.value}
             aria-pressed={filter === item.value}
             onClick={() => setParam("filter", item.value, "all")}
-            className={cn("inline-flex h-8 shrink-0 items-center gap-2 rounded-md border px-2.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500", filter === item.value ? "border-blue-500/40 bg-blue-500/10 text-blue-200" : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200")}
-          >{item.label}<span className="font-mono text-[10px] text-zinc-500">{filterCounts[item.value]}</span></button>)}
+            className={cn("inline-flex h-8 shrink-0 items-center gap-2 rounded-md border px-2.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary", filter === item.value ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-background text-secondary hover:text-foreground")}
+          >{item.label}<span className="font-mono text-[10px] text-muted-foreground">{filterCounts[item.value]}</span></button>)}
         </div>
       </div>
     </section> : null}
@@ -257,10 +257,10 @@ export function UpgradedSubjectsPage() {
     {!loading && error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
     {!loading && !error && rows.length === 0 ? <EmptyState title="No subjects yet" description="Add a subject to start tracking deadlines, topics, and study time." action={<Button asChild><Link to="/capture?type=subject_topic">Add your first subject</Link></Button>} /> : null}
 
-    {!loading && !error && rows.length > 0 ? <section className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950" aria-label="Subjects">
+    {!loading && !error && rows.length > 0 ? <section className="overflow-hidden rounded-xl border border-border bg-background" aria-label="Subjects">
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[1040px] table-fixed border-collapse">
-          <thead className="border-b border-zinc-800 bg-zinc-900/70 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+          <thead className="border-b border-border bg-surface/70 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="w-[25%] px-3 py-1.5"><SortButton label="Subject" sortKey="subject" activeKey={sortKey} direction={direction} onSort={setSort} /></th>
               <th className="w-[13%] px-3 py-1.5"><SortButton label="Next deadline" sortKey="deadline" activeKey={sortKey} direction={direction} onSort={setSort} /></th>
@@ -278,31 +278,31 @@ export function UpgradedSubjectsPage() {
               const subject = row.subject
               const deadlineDays = daysUntil(row.next_deadline)
               const studyProgress = row.planned_minutes_7d > 0 ? row.studied_minutes_7d / row.planned_minutes_7d * 100 : 0
-              return <tr key={subject.id} className="h-[52px] border-b border-zinc-800/80 transition-colors last:border-b-0 hover:bg-zinc-900/60">
+              return <tr key={subject.id} className="h-[52px] border-b border-border/80 transition-colors last:border-b-0 hover:bg-surface/60">
                 <td className="px-3 py-1.5">
-                  <Link to={`/trackers/subjects/${subject.id}`} className="group flex min-w-0 items-center gap-2.5 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                  <Link to={`/trackers/subjects/${subject.id}`} className="group flex min-w-0 items-center gap-2.5 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
                     <span className="h-7 w-1 shrink-0 rounded-full" style={{ backgroundColor: subjectColor(subject) }} />
-                    <span className="min-w-0"><span className="block truncate text-sm font-medium text-zinc-100 group-hover:text-blue-300">{subject.title ?? "Untitled subject"}</span><span className="block truncate text-[10px] text-zinc-600">{subjectCourseLabel(subject) ?? subjectStatus(subject)}</span></span>
+                    <span className="min-w-0"><span className="block truncate text-sm font-medium text-foreground group-hover:text-primary">{subject.title ?? "Untitled subject"}</span><span className="block truncate text-[10px] text-muted-foreground">{subjectCourseLabel(subject) ?? subjectStatus(subject)}</span></span>
                   </Link>
                 </td>
-                <td className="px-3 py-1.5"><p className={cn("text-xs font-medium", deadlineDays !== null && deadlineDays < 0 ? "text-red-300" : deadlineDays !== null && deadlineDays <= 7 ? "text-amber-300" : "text-zinc-300")}>{relativeDeadline(row.next_deadline)}</p>{row.next_deadline ? <p className="mt-0.5 text-[10px] text-zinc-600">{metadataString(subject, "next_deadline_label") ?? "Upcoming"}</p> : null}</td>
-                <td className="px-3 py-1.5"><span className="font-mono text-sm text-zinc-200">{row.open_task_count}</span>{row.overdue_task_count > 0 ? <span className="ml-1 text-[10px] text-red-300">{row.overdue_task_count} late</span> : null}</td>
-                <td className="px-3 py-1.5"><ProgressCell value={row.progress_percent} /><p className="mt-0.5 text-[9px] text-zinc-600">{row.completed_topic_count}/{row.topic_count} topics</p></td>
+                <td className="px-3 py-1.5"><p className={cn("text-xs font-medium", deadlineDays !== null && deadlineDays < 0 ? "text-danger" : deadlineDays !== null && deadlineDays <= 7 ? "text-warning" : "text-secondary")}>{relativeDeadline(row.next_deadline)}</p>{row.next_deadline ? <p className="mt-0.5 text-[10px] text-muted-foreground">{metadataString(subject, "next_deadline_label") ?? "Upcoming"}</p> : null}</td>
+                <td className="px-3 py-1.5"><span className="font-mono text-sm text-foreground">{row.open_task_count}</span>{row.overdue_task_count > 0 ? <span className="ml-1 text-[10px] text-danger">{row.overdue_task_count} late</span> : null}</td>
+                <td className="px-3 py-1.5"><ProgressCell value={row.progress_percent} /><p className="mt-0.5 text-[9px] text-muted-foreground">{row.completed_topic_count}/{row.topic_count} topics</p></td>
                 <td className="px-3 py-1.5"><ProgressCell value={confidencePercent(row.mastery_score)} tone="teal" /></td>
-                <td className="px-3 py-1.5">{row.due_review_count > 0 ? <Badge variant="warning" className="py-0.5">{row.due_review_count} due</Badge> : <span className="text-xs text-zinc-600">Clear</span>}</td>
-                <td className="px-3 py-1.5 font-mono text-xs text-zinc-300">{row.grade_percent === null ? "\u2014" : `${Math.round(row.grade_percent)}%`}</td>
-                <td className="px-3 py-1.5"><p className="font-mono text-[11px] text-zinc-300">{formatMinutes(row.studied_minutes_7d)} <span className="text-zinc-600">/ {formatMinutes(row.planned_minutes_7d)}</span></p><div className="mt-1 h-1 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-violet-500" style={{ width: `${clampPercent(studyProgress)}%` }} /></div></td>
-                <td className="px-3 py-1.5"><div className="flex justify-end gap-0.5"><Link className="rounded-md p-1.5 text-zinc-600 hover:bg-zinc-800 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" to={`/capture?type=task&parent_id=${subject.id}`} aria-label={`Add task to ${subject.title ?? "subject"}`} title="Add task"><Plus className="h-3.5 w-3.5" /></Link><Link className="rounded-md p-1.5 text-zinc-600 hover:bg-zinc-800 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" to={`/trackers/subjects/${subject.id}`} aria-label={`Open ${subject.title ?? "subject"}`}><ChevronRight className="h-3.5 w-3.5" /></Link></div></td>
+                <td className="px-3 py-1.5">{row.due_review_count > 0 ? <Badge variant="warning" className="py-0.5">{row.due_review_count} due</Badge> : <span className="text-xs text-muted-foreground">Clear</span>}</td>
+                <td className="px-3 py-1.5 font-mono text-xs text-secondary">{row.grade_percent === null ? "\u2014" : `${Math.round(row.grade_percent)}%`}</td>
+                <td className="px-3 py-1.5"><p className="font-mono text-[11px] text-secondary">{formatMinutes(row.studied_minutes_7d)} <span className="text-muted-foreground">/ {formatMinutes(row.planned_minutes_7d)}</span></p><div className="mt-1 h-1 overflow-hidden rounded-full bg-surface-subtle"><div className="h-full rounded-full bg-primary" style={{ width: `${clampPercent(studyProgress)}%` }} /></div></td>
+                <td className="px-3 py-1.5"><div className="flex justify-end gap-0.5"><Link className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-subtle hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" to={`/capture?type=task&parent_id=${subject.id}`} aria-label={`Add task to ${subject.title ?? "subject"}`} title="Add task"><Plus className="h-3.5 w-3.5" /></Link><Link className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-subtle hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" to={`/trackers/subjects/${subject.id}`} aria-label={`Open ${subject.title ?? "subject"}`}><ChevronRight className="h-3.5 w-3.5" /></Link></div></td>
               </tr>
             })}
           </tbody>
         </table>
       </div>
       <div className="md:hidden">{visibleRows.map((row) => <SubjectMobileRow key={row.subject.id} row={row} />)}</div>
-      {visibleRows.length === 0 ? <div className="px-4 py-14 text-center"><BookOpen className="mx-auto h-6 w-6 text-zinc-700" /><p className="mt-3 text-sm text-zinc-300">No subjects match this view.</p><button type="button" className="mt-2 text-xs text-blue-400 hover:underline" onClick={() => setSearchParams({}, { replace: true })}>Clear filters and search</button></div> : null}
-      {visibleRows.length > 0 ? <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-800 bg-zinc-900/30 px-3 py-2 text-[11px] text-zinc-600"><span aria-live="polite">Showing {visibleRows.length} of {rows.length} subjects</span><span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" />Planned: next 7 days · studied: previous 7 days</span></footer> : null}
+      {visibleRows.length === 0 ? <div className="px-4 py-14 text-center"><BookOpen className="mx-auto h-6 w-6 text-muted-foreground" /><p className="mt-3 text-sm text-secondary">No subjects match this view.</p><button type="button" className="mt-2 text-xs text-primary hover:underline" onClick={() => setSearchParams({}, { replace: true })}>Clear filters and search</button></div> : null}
+      {visibleRows.length > 0 ? <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-surface/30 px-3 py-2 text-[11px] text-muted-foreground"><span aria-live="polite">Showing {visibleRows.length} of {rows.length} subjects</span><span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" />Planned: next 7 days · studied: previous 7 days</span></footer> : null}
     </section> : null}
 
-    {!loading && !error && totals.overdue > 0 ? <div className="flex items-center gap-2 text-xs text-red-300"><AlertTriangle className="h-3.5 w-3.5" />{totals.overdue} overdue {totals.overdue === 1 ? "task needs" : "tasks need"} attention.</div> : null}
+    {!loading && !error && totals.overdue > 0 ? <div className="flex items-center gap-2 text-xs text-danger"><AlertTriangle className="h-3.5 w-3.5" />{totals.overdue} overdue {totals.overdue === 1 ? "task needs" : "tasks need"} attention.</div> : null}
   </div>
 }

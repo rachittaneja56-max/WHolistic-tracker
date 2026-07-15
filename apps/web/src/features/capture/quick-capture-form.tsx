@@ -79,7 +79,7 @@ export function QuickCaptureForm({ draft, availableEntities, onDraftChange, onCr
   }
 
   return <div className="space-y-4">
-    {lastCreated ? <div role="status" className="flex flex-col gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100 sm:flex-row sm:items-center sm:justify-between">
+    {lastCreated ? <div role="status" className="flex flex-col gap-3 rounded-xl border border-success/30 bg-success/10 px-4 py-3 text-sm text-success sm:flex-row sm:items-center sm:justify-between">
       <span className="flex min-w-0 items-center gap-2"><CheckCircle2 className="h-4 w-4 shrink-0" /><span className="truncate">Saved {lastCreated.title ?? "capture"}</span></span>
       <Button asChild size="sm" variant="outline"><Link to={`/knowledge/entities/${lastCreated.id}`}>View entity</Link></Button>
     </div> : null}
@@ -94,7 +94,7 @@ export function QuickCaptureForm({ draft, availableEntities, onDraftChange, onCr
       <CardContent>
         <form className="space-y-5" onSubmit={submit} noValidate>
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-zinc-200">Capture as</legend>
+            <legend className="text-sm font-medium text-foreground">Capture as</legend>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {typeOptions.map((option) => {
                 const Icon = option.icon
@@ -123,16 +123,16 @@ export function QuickCaptureForm({ draft, availableEntities, onDraftChange, onCr
               onChange={(event) => update({ content: event.target.value })}
               placeholder="Paste a link, write a note, record an idea, or describe a task…"
             />
-            <p className="text-xs text-zinc-500">If the title is empty, the first non-empty line becomes the title.</p>
+            <p className="text-xs text-muted-foreground">If the title is empty, the first non-empty line becomes the title.</p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="quick-title">Title <span className="text-zinc-600">(optional)</span></Label>
+              <Label htmlFor="quick-title">Title <span className="text-muted-foreground">(optional)</span></Label>
               <Input id="quick-title" value={draft.title} onChange={(event) => update({ title: event.target.value })} placeholder="Derived automatically when blank" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="quick-tags">Tags <span className="text-zinc-600">(optional)</span></Label>
+              <Label htmlFor="quick-tags">Tags <span className="text-muted-foreground">(optional)</span></Label>
               <Input id="quick-tags" value={draft.tags} onChange={(event) => update({ tags: event.target.value })} placeholder="fastapi, reading, follow-up" />
             </div>
           </div>
@@ -143,13 +143,13 @@ export function QuickCaptureForm({ draft, availableEntities, onDraftChange, onCr
               <SelectTrigger aria-invalid={Boolean(error && !draft.parentId)}><SelectValue placeholder="Choose a project, milestone, subject, or topic" /></SelectTrigger>
               <SelectContent>{taskParents.map((entity) => <SelectItem key={entity.id} value={entity.id}>{entity.title ?? "Untitled"} · {entity.type}</SelectItem>)}</SelectContent>
             </Select>
-            {!taskParents.length ? <p className="text-xs text-amber-300">Create a project, milestone, subject, or topic in Advanced capture before adding a task.</p> : null}
+            {!taskParents.length ? <p className="text-xs text-warning">Create a project, milestone, subject, or topic in Advanced capture before adding a task.</p> : null}
           </div> : null}
 
-          {error ? <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-sm text-red-300">{error}</p> : null}
+          {error ? <p role="alert" className="rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p> : null}
 
-          <div className="sticky bottom-0 z-10 -mx-2 flex items-center justify-between gap-3 border-t border-zinc-800 bg-zinc-900/95 px-2 pb-[env(safe-area-inset-bottom)] pt-3 backdrop-blur">
-            <p className="hidden text-xs text-zinc-500 sm:block">Nothing is saved until you tap the button.</p>
+          <div className="sticky bottom-0 z-10 -mx-2 flex items-center justify-between gap-3 border-t border-border bg-surface/95 px-2 pb-[env(safe-area-inset-bottom)] pt-3 backdrop-blur">
+            <p className="hidden text-xs text-muted-foreground sm:block">Nothing is saved until you tap the button.</p>
             <Button type="submit" className="w-full sm:ml-auto sm:w-auto" disabled={isSubmitting}>
               {isSubmitting ? "Saving…" : "Save capture"}
             </Button>

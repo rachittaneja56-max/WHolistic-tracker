@@ -1,15 +1,54 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
+    color-scheme: light;
+    --canvas: 248 250 252;
+    --surface: 255 255 255;
+    --surface-subtle: 241 245 249;
+    --border: 226 232 240;
+    --border-strong: 203 213 225;
+    --text: 15 23 42;
+    --text-secondary: 51 65 85;
+    --text-muted: 71 85 105;
+    --primary: 37 99 235;
+    --primary-strong: 29 78 216;
+    --primary-foreground: 255 255 255;
+    --success: 4 120 87;
+    --success-foreground: 4 120 87;
+    --warning: 180 83 9;
+    --warning-foreground: 180 83 9;
+    --danger: 220 38 38;
+    --danger-foreground: 185 28 28;
+  }
+
+  :root.dark {
     color-scheme: dark;
+    --canvas: 8 13 24;
+    --surface: 17 24 39;
+    --surface-subtle: 23 32 51;
+    --border: 37 48 71;
+    --border-strong: 51 65 85;
+    --text: 248 250 252;
+    --text-secondary: 203 213 225;
+    --text-muted: 148 163 184;
+    --primary: 96 165 250;
+    --primary-strong: 59 130 246;
+    --primary-foreground: 8 13 24;
+    --success: 52 211 153;
+    --success-foreground: 110 231 183;
+    --warning: 251 191 36;
+    --warning-foreground: 252 211 77;
+    --danger: 248 113 113;
+    --danger-foreground: 252 165 165;
   }
 
   html {
     min-height: 100%;
     scroll-behavior: smooth;
+    background: rgb(var(--canvas));
   }
 
   * {
@@ -19,18 +58,42 @@
   body {
     min-height: 100dvh;
     overflow-x: hidden;
-    @apply bg-zinc-950 font-sans text-zinc-300 antialiased;
+    @apply bg-background font-sans text-secondary antialiased;
   }
 
   #root {
     min-height: 100dvh;
   }
+
+  ::selection {
+    background: rgb(var(--primary) / 0.2);
+  }
+
+  :focus-visible {
+    scroll-margin: 6rem;
+  }
+}
+
+.skip-link {
+  position: fixed;
+  left: 1rem;
+  top: 1rem;
+  z-index: 100;
+  transform: translateY(-200%);
+  border-radius: 0.5rem;
+  background: rgb(var(--primary));
+  color: rgb(var(--primary-foreground));
+  padding: 0.65rem 1rem;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
 }
 
 .landing-grid {
   background-image:
-    linear-gradient(rgba(63, 63, 70, 0.18) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(63, 63, 70, 0.18) 1px, transparent 1px);
+    linear-gradient(rgb(var(--border) / 0.58) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--border) / 0.58) 1px, transparent 1px);
   background-size: 42px 42px;
   mask-image: linear-gradient(to bottom, black 15%, transparent 100%);
 }
@@ -40,22 +103,8 @@
 }
 
 @keyframes landing-float {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
-  .landing-float {
-    animation: none;
-  }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
 
 .kg-rich-editor .bn-container,
@@ -64,8 +113,8 @@
 .kg-rich-editor .bn-formatting-toolbar,
 .kg-rich-editor .bn-link-toolbar,
 .kg-rich-editor .bn-suggestion-menu {
-  background-color: #18181b;
-  color: #d4d4d8;
+  background-color: rgb(var(--surface));
+  color: rgb(var(--text));
 }
 
 .kg-rich-editor .bn-container {
@@ -81,30 +130,30 @@
 .kg-rich-editor .bn-formatting-toolbar,
 .kg-rich-editor .bn-link-toolbar,
 .kg-rich-editor .bn-suggestion-menu {
-  border: 1px solid #27272a;
+  border: 1px solid rgb(var(--border));
   box-shadow: none;
 }
 
 .kg-rich-editor .bn-editor [data-placeholder]::before {
-  color: #71717a;
+  color: rgb(var(--text-muted));
 }
 
 .kg-excalidraw .excalidraw {
-  --color-primary: #3b82f6;
-  --color-primary-darker: #2563eb;
-  --default-bg-color: #18181b;
-  --sidebar-border-color: #27272a;
-  --button-gray-1: #18181b;
-  --button-gray-2: #27272a;
-  --button-gray-3: #3f3f46;
-  --button-special-active-bg-color: #1d4ed8;
-  --button-special-border-color: #3b82f6;
-  --dialog-border-color: #27272a;
-  --popup-bg-color: #18181b;
-  --popup-secondary-bg-color: #09090b;
-  --text-primary-color: #f4f4f5;
-  --text-secondary-color: #a1a1aa;
-  background-color: #18181b;
+  --color-primary: rgb(var(--primary));
+  --color-primary-darker: rgb(var(--primary-strong));
+  --default-bg-color: rgb(var(--surface));
+  --sidebar-border-color: rgb(var(--border));
+  --button-gray-1: rgb(var(--surface));
+  --button-gray-2: rgb(var(--surface-subtle));
+  --button-gray-3: rgb(var(--border-strong));
+  --button-special-active-bg-color: rgb(var(--primary-strong));
+  --button-special-border-color: rgb(var(--primary));
+  --dialog-border-color: rgb(var(--border));
+  --popup-bg-color: rgb(var(--surface));
+  --popup-secondary-bg-color: rgb(var(--canvas));
+  --text-primary-color: rgb(var(--text));
+  --text-secondary-color: rgb(var(--text-muted));
+  background-color: rgb(var(--surface));
 }
 
 .kg-excalidraw .Island,
@@ -114,4 +163,15 @@
 .kg-excalidraw .layer-ui__wrapper__top-right,
 .kg-excalidraw .sidebar {
   box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+  .landing-float { animation: none; }
 }

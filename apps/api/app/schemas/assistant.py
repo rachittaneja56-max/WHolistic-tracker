@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.recall import RecallGradeResponse
+from app.schemas.recall import RecallGradePreviewResponse, RecallGradeResponse
 
 AssistantPayloadKind = Literal["answer", "questions", "proposal", "recall_due", "execution_result", "recall_result", "system_error"]
 
@@ -100,3 +100,7 @@ class AssistantRecallRequest(BaseModel):
 class AssistantRecallRead(BaseModel):
     grade: RecallGradeResponse
     message: AssistantMessageRead
+
+
+class AssistantRecallPreviewRead(BaseModel):
+    grade: RecallGradePreviewResponse

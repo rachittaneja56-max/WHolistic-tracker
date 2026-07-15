@@ -14,26 +14,26 @@ type HeatmapGridProps = {
 }
 
 function getCellClasses(accent: HeatmapGridProps["accent"], intensity: number) {
-  const base = "h-5 w-5 rounded-sm border border-zinc-800"
+  const base = "h-5 w-5 rounded-sm border border-border"
   if (intensity <= 0) {
-    return `${base} bg-zinc-950`
+    return `${base} bg-background`
   }
   if (accent === "blue") {
     if (intensity < 0.34) {
-      return `${base} bg-blue-500/15`
+      return `${base} bg-primary/15`
     }
     if (intensity < 0.67) {
-      return `${base} bg-blue-500/30`
+      return `${base} bg-primary/30`
     }
-    return `${base} bg-blue-500/50`
+    return `${base} bg-primary/50`
   }
   if (intensity < 0.34) {
-    return `${base} bg-amber-500/15`
+    return `${base} bg-warning/15`
   }
   if (intensity < 0.67) {
-    return `${base} bg-amber-500/30`
+    return `${base} bg-warning/30`
   }
-  return `${base} bg-amber-500/50`
+  return `${base} bg-warning/50`
 }
 
 export function HeatmapGrid({ title, description, cells, accent, valueLabel }: HeatmapGridProps) {
@@ -42,8 +42,8 @@ export function HeatmapGrid({ title, description, cells, accent, valueLabel }: H
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-sm font-medium text-zinc-100">{title}</p>
-        <p className="mt-1 text-sm text-zinc-500">{description}</p>
+        <p className="text-sm font-medium text-foreground">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       </div>
 
       <div className="grid grid-cols-7 gap-2 sm:grid-cols-12 lg:grid-cols-14 xl:grid-cols-21">
@@ -61,14 +61,14 @@ export function HeatmapGrid({ title, description, cells, accent, valueLabel }: H
         })}
       </div>
 
-      <div className="flex items-center justify-between gap-4 text-xs text-zinc-500">
+      <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
         <span className="font-mono">0</span>
         <div className="flex items-center gap-2 font-mono">
           <span>low</span>
-          <div className="h-3 w-3 rounded-sm border border-zinc-800 bg-zinc-950" />
-          <div className={cn("h-3 w-3 rounded-sm border border-zinc-800", accent === "blue" ? "bg-blue-500/15" : "bg-amber-500/15")} />
-          <div className={cn("h-3 w-3 rounded-sm border border-zinc-800", accent === "blue" ? "bg-blue-500/30" : "bg-amber-500/30")} />
-          <div className={cn("h-3 w-3 rounded-sm border border-zinc-800", accent === "blue" ? "bg-blue-500/50" : "bg-amber-500/50")} />
+          <div className="h-3 w-3 rounded-sm border border-border bg-background" />
+          <div className={cn("h-3 w-3 rounded-sm border border-border", accent === "blue" ? "bg-primary/15" : "bg-warning/15")} />
+          <div className={cn("h-3 w-3 rounded-sm border border-border", accent === "blue" ? "bg-primary/30" : "bg-warning/30")} />
+          <div className={cn("h-3 w-3 rounded-sm border border-border", accent === "blue" ? "bg-primary/50" : "bg-warning/50")} />
           <span>high</span>
         </div>
         <span className="font-mono">max {maxValue}</span>

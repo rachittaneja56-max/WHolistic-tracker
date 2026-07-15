@@ -50,8 +50,8 @@ export function EntityPropertiesEditor({ entity, onSaved }: { entity: Entity; on
     }
   }
 
-  return <div className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-    <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-zinc-100">Editable properties</p><p className="text-xs text-zinc-500">Changes are saved to the same entity used by the tracker.</p></div><Badge>{entity.type ?? "entity"}</Badge></div>
+  return <div className="space-y-4 rounded-lg border border-border bg-background p-4">
+    <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-foreground">Editable properties</p><p className="text-xs text-muted-foreground">Changes are saved to the same entity used by the tracker.</p></div><Badge>{entity.type ?? "entity"}</Badge></div>
     <div className="grid gap-4 md:grid-cols-2">
       <div className="space-y-2"><Label>Title</Label><Input value={title} onChange={(event) => setTitle(event.target.value)} /></div>
       <div className="space-y-2"><Label>Tags</Label><Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="Comma-separated tags" /></div>
@@ -85,7 +85,11 @@ export function EntityPropertiesEditor({ entity, onSaved }: { entity: Entity; on
         <div className="space-y-2"><Label>Study sessions planned</Label><Input type="number" min="0" value={value({ ...entity, metadata }, "study_sessions_planned", "0")} onChange={(event) => setField("study_sessions_planned", Number(event.target.value))} /></div>
         <div className="space-y-2 md:col-span-2"><Label>Syllabus units</Label><Input value={Array.isArray(metadata.syllabus_units) ? metadata.syllabus_units.join(", ") : ""} onChange={(event) => setField("syllabus_units", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} /></div>
       </> : null}
+      <label className="flex cursor-pointer gap-3 rounded-lg border border-border p-4 md:col-span-2">
+        <input type="checkbox" checked={metadata.ai_exclude === true} onChange={(event) => setField("ai_exclude", event.target.checked)} className="mt-1 h-4 w-4 accent-primary" />
+        <span><span className="text-sm font-medium text-foreground">Exclude from AI</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">Keep this item out of AI prompts, retrieval, grading, and suggestions.</span></span>
+      </label>
     </div>
-    <div className="flex items-center gap-3"><Button type="button" onClick={() => void save()} disabled={saving || !title.trim()}>{saving ? "Saving..." : "Save properties"}</Button>{error ? <p className="text-sm text-red-300">{error}</p> : null}</div>
+    <div className="flex items-center gap-3"><Button type="button" onClick={() => void save()} disabled={saving || !title.trim()}>{saving ? "Saving..." : "Save properties"}</Button>{error ? <p className="text-sm text-danger">{error}</p> : null}</div>
   </div>
 }

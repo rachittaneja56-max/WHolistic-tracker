@@ -13,6 +13,7 @@ import { EntityDeleteControl } from "@/features/entities/components/entity-delet
 import { EntityEditor } from "@/features/entities/components/entity-editor"
 import { EntityPropertiesEditor } from "@/features/entities/components/entity-properties-editor"
 import type { EntitiesLayoutContext } from "@/features/entities/layout-context"
+import { useModalFocus } from "@/hooks/use-modal-focus"
 import {
   createLink,
   deleteLink,
@@ -136,6 +137,7 @@ export function EntityDetailPage() {
   const [embeddingActionError, setEmbeddingActionError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [linkActionError, setLinkActionError] = useState<string | null>(null)
+  const { dialogRef, onDialogKeyDown } = useModalFocus(Boolean(selectedTarget), closeLinkModal)
 
   useEffect(() => {
     if (!entityId) {
@@ -420,10 +422,10 @@ export function EntityDetailPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-zinc-100">Loading entity</CardTitle>
+          <CardTitle className="text-foreground">Loading entity</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-zinc-500">Fetching the entity detail from the API...</p>
+          <p className="text-sm text-muted-foreground">Fetching the entity detail from the API...</p>
         </CardContent>
       </Card>
     )
@@ -433,10 +435,10 @@ export function EntityDetailPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-zinc-100">Unable to load entity</CardTitle>
+          <CardTitle className="text-foreground">Unable to load entity</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-red-300">{error}</p>
+          <p className="text-sm text-danger">{error}</p>
           <Button asChild variant="outline">
             <Link to="/">Back to dashboard</Link>
           </Button>
@@ -471,7 +473,7 @@ export function EntityDetailPage() {
           <CardHeader>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <CardTitle className="text-zinc-100">{getEditorTitle(entity)}</CardTitle>
+                <CardTitle className="text-foreground">{getEditorTitle(entity)}</CardTitle>
                 <CardDescription>{getEditorDescription(entity)}</CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-3">
@@ -489,14 +491,14 @@ export function EntityDetailPage() {
               onChange={setDraftContent}
               resetKey={`${entity.id}:${entity.content ?? ""}`}
             />
-            <p className="text-sm text-zinc-500">Unsaved drafts for this entity are kept locally until you save or discard them by matching the stored content again.</p>
-            {saveError ? <p className="text-sm text-red-300">{saveError}</p> : null}
+            <p className="text-sm text-muted-foreground">Unsaved drafts for this entity are kept locally until you save or discard them by matching the stored content again.</p>
+            {saveError ? <p className="text-sm text-danger">{saveError}</p> : null}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-zinc-100">Create a connection</CardTitle>
+            <CardTitle className="text-foreground">Create a connection</CardTitle>
             <CardDescription>Search all saved entities by title, type, or tag. Semantic suggestions remain available below when embeddings exist.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -507,16 +509,16 @@ export function EntityDetailPage() {
               onChange={(event) => setTargetQuery(event.target.value)}
               placeholder="Search entities, types, or tags"
             />
-            {isEntitiesLoading ? <p className="text-sm text-zinc-500">Loading entities...</p> : null}
+            {isEntitiesLoading ? <p className="text-sm text-muted-foreground">Loading entities...</p> : null}
             {!isEntitiesLoading && targetQuery.trim() && manualTargets.length === 0 ? (
-              <p className="text-sm text-zinc-500">No unconnected entities match this search.</p>
+              <p className="text-sm text-muted-foreground">No unconnected entities match this search.</p>
             ) : null}
-            {!targetQuery.trim() ? <p className="text-sm text-zinc-500">Start typing to choose any entity; an embedding is not required.</p> : null}
+            {!targetQuery.trim() ? <p className="text-sm text-muted-foreground">Start typing to choose any entity; an embedding is not required.</p> : null}
             {manualTargets.map((target) => (
-              <div key={target.id} className="flex flex-col gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div key={target.id} className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-zinc-100">{target.title ?? "Untitled entity"}</p>
-                  <p className="mt-1 text-xs text-zinc-500">{target.type ?? "unknown"}{target.tags.length ? ` · ${target.tags.join(", ")}` : ""}</p>
+                  <p className="truncate text-sm font-medium text-foreground">{target.title ?? "Untitled entity"}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{target.type ?? "unknown"}{target.tags.length ? ` · ${target.tags.join(", ")}` : ""}</p>
                 </div>
                 <Button type="button" size="sm" onClick={() => setSelectedTarget(entityToLinkTarget(target))}>
                   Connect
@@ -528,21 +530,21 @@ export function EntityDetailPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-zinc-100">Suggested connections</CardTitle>
+            <CardTitle className="text-foreground">Suggested connections</CardTitle>
             <CardDescription>
               Similar entities. These are embedding-based candidates. You decide whether a real connection exists.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {isCandidatesLoading ? <p className="text-sm text-zinc-500">Finding embedding-based candidates...</p> : null}
-            {!isCandidatesLoading && candidateError ? <p className="text-sm text-zinc-500">{candidateError}</p> : null}
+            {isCandidatesLoading ? <p className="text-sm text-muted-foreground">Finding embedding-based candidates...</p> : null}
+            {!isCandidatesLoading && candidateError ? <p className="text-sm text-muted-foreground">{candidateError}</p> : null}
             {!isCandidatesLoading && !candidateError && linkCandidates.length === 0 ? (
-              <p className="text-sm text-zinc-500">No suggested connections are available right now.</p>
+              <p className="text-sm text-muted-foreground">No suggested connections are available right now.</p>
             ) : null}
 
             {!isCandidatesLoading && !candidateError
               ? linkCandidates.map((candidate) => (
-                  <div key={candidate.id} className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4">
+                  <div key={candidate.id} className="rounded-lg border border-border bg-surface px-4 py-4">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
@@ -551,12 +553,12 @@ export function EntityDetailPage() {
                             <Badge key={tag}>{tag}</Badge>
                           ))}
                         </div>
-                        <p className="text-sm font-medium text-zinc-100">{candidate.title ?? "Untitled entity"}</p>
-                        <p className="text-sm text-zinc-300">{candidate.preview}</p>
+                        <p className="text-sm font-medium text-foreground">{candidate.title ?? "Untitled entity"}</p>
+                        <p className="text-sm text-secondary">{candidate.preview}</p>
                       </div>
 
                       <div className="flex min-w-[220px] flex-col gap-3">
-                        <div className="space-y-1 font-mono text-xs text-zinc-500 lg:text-right">
+                        <div className="space-y-1 font-mono text-xs text-muted-foreground lg:text-right">
                           <p>similarity {formatScore(candidate.similarity)}</p>
                           <p>distance {formatScore(candidate.distance)}</p>
                         </div>
@@ -578,29 +580,29 @@ export function EntityDetailPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-zinc-100">Existing connections</CardTitle>
+            <CardTitle className="text-foreground">Existing connections</CardTitle>
             <CardDescription>Confirmed links live in the shared links table, and the explanation is the most important part.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {isConnectionsLoading ? <p className="text-sm text-zinc-500">Loading existing connections...</p> : null}
-            {!isConnectionsLoading && connectionsError ? <p className="text-sm text-zinc-500">{connectionsError}</p> : null}
+            {isConnectionsLoading ? <p className="text-sm text-muted-foreground">Loading existing connections...</p> : null}
+            {!isConnectionsLoading && connectionsError ? <p className="text-sm text-muted-foreground">{connectionsError}</p> : null}
             {!isConnectionsLoading && !connectionsError && connections.length === 0 ? (
-              <p className="text-sm text-zinc-500">No confirmed connections yet.</p>
+              <p className="text-sm text-muted-foreground">No confirmed connections yet.</p>
             ) : null}
 
             {!isConnectionsLoading && !connectionsError
               ? connections.map((connection) => (
-                  <div key={connection.link_id} className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-4">
+                  <div key={connection.link_id} className="rounded-lg border border-border bg-surface px-4 py-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <p className="text-sm font-medium text-zinc-100">{connectionStatement(entity.title, connection)}</p>
+                      <p className="text-sm font-medium text-foreground">{connectionStatement(entity.title, connection)}</p>
                       <Button type="button" size="sm" variant="destructive" onClick={() => void handleDeleteLink(connection)} disabled={deletingLinkId === connection.link_id}>
                         {deletingLinkId === connection.link_id ? "Removing..." : "Remove"}
                       </Button>
                     </div>
-                    <p className="mt-2 text-sm leading-7 text-zinc-300">{connection.explanation ?? "No explanation provided."}</p>
+                    <p className="mt-2 text-sm leading-7 text-secondary">{connection.explanation ?? "No explanation provided."}</p>
                     <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-2">
-                        <Link to={`/knowledge/entities/${connection.entity_id}`} className="text-sm font-medium text-zinc-100 hover:text-blue-400">
+                        <Link to={`/knowledge/entities/${connection.entity_id}`} className="text-sm font-medium text-foreground hover:text-primary">
                           {connection.entity_title ?? "Untitled entity"}
                         </Link>
                         <div className="flex flex-wrap gap-2">
@@ -609,10 +611,10 @@ export function EntityDetailPage() {
                             <Badge key={tag}>{tag}</Badge>
                           ))}
                         </div>
-                        <p className="text-sm text-zinc-500">{connection.entity_preview}</p>
+                        <p className="text-sm text-muted-foreground">{connection.entity_preview}</p>
                       </div>
 
-                      <div className="space-y-1 font-mono text-xs text-zinc-500 lg:text-right">
+                      <div className="space-y-1 font-mono text-xs text-muted-foreground lg:text-right">
                         <p>{connection.relation_type ?? "unknown_relation"}</p>
                         <p>{connection.direction}</p>
                         <p>{connection.status ?? "unknown_status"}</p>
@@ -627,20 +629,20 @@ export function EntityDetailPage() {
       </div>
 
       {selectedTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <Card className="w-full max-w-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !isCreatingLink) closeLinkModal() }}>
+          <Card ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="create-link-title" tabIndex={-1} onKeyDown={onDialogKeyDown} className="w-full max-w-2xl outline-none">
             <CardHeader>
-              <CardTitle>Create confirmed link</CardTitle>
+              <CardTitle id="create-link-title">Create confirmed link</CardTitle>
               <CardDescription>
-                You are confirming a real relationship between <span className="text-zinc-100">{entity.title ?? "this entity"}</span> and{" "}
-                <span className="text-zinc-100">{selectedTarget.title ?? "this candidate"}</span>.
+                You are confirming a real relationship between <span className="text-foreground">{entity.title ?? "this entity"}</span> and{" "}
+                <span className="text-foreground">{selectedTarget.title ?? "this candidate"}</span>.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Relation type</Label>
+                <Label htmlFor="link-relation-type">Relation type</Label>
                 <Select value={relationType} onValueChange={(value) => setRelationType(value as RelationType)}>
-                  <SelectTrigger>
+                  <SelectTrigger id="link-relation-type">
                     <SelectValue placeholder="Select relation type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -652,7 +654,7 @@ export function EntityDetailPage() {
                   </SelectContent>
                 </Select>
                 {relationType ? (
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-secondary">
                     {entity.title ?? "This entity"} {relationLabels[relationType]} {selectedTarget.title ?? "the selected entity"}.
                   </p>
                 ) : null}
@@ -668,7 +670,7 @@ export function EntityDetailPage() {
                 />
               </div>
 
-              {linkActionError ? <p className="text-sm text-red-300">{linkActionError}</p> : null}
+              {linkActionError ? <p className="text-sm text-danger">{linkActionError}</p> : null}
 
               <div className="flex items-center justify-end gap-3">
                 <Button type="button" variant="outline" onClick={closeLinkModal}>

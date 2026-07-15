@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import Text, case, cast, func, or_, select
+from sqlalchemy import Text, case, cast, func, select
 from sqlalchemy.orm import Session
 
 from app.api.routes.entities import serialize_entity
@@ -14,6 +14,24 @@ from app.services.auth import require_authenticated_owner
 from app.services.entity_visibility import active_entity_clause
 
 router = APIRouter(prefix="/integrations/dsa", tags=["dsa-tracker"])
+
+
+def derived_problem_status():
+    """Match the status fallback used by DSA rows in the web client."""
+    explicit_status = func.nullif(Entity.entity_metadata["status"].astext, "")
+    imported_status = case(
+        (Entity.entity_metadata["integration"]["accepted"].as_boolean().is_(True), "solved"),
+        else_="unsolved",
+    )
+    return func.coalesce(explicit_status, imported_status)
+
+
+def derived_problem_platform():
+    """Imported platform when present; otherwise the problem is manual."""
+    return func.coalesce(
+        func.nullif(Entity.entity_metadata["integration"]["platform"].astext, ""),
+        "manual",
+    )
 
 
 @router.get("/problems", response_model=DsaProblemPageRead)
@@ -29,15 +47,17 @@ def list_dsa_problems(
     db: Session = Depends(get_db),
     _owner: str = Depends(require_authenticated_owner),
 ) -> DsaProblemPageRead:
+    problem_status_expression = derived_problem_status()
+    problem_platform_expression = derived_problem_platform()
     filters = [Entity.type == "dsa_problem", active_entity_clause()]
     if search:
         filters.append(Entity.title.ilike(f"%{search.strip()}%"))
     if platform:
-        filters.append(Entity.entity_metadata["integration"]["platform"].astext == platform)
+        filters.append(problem_platform_expression == platform)
     if difficulty:
         filters.append(Entity.entity_metadata["difficulty"].astext == difficulty)
     if problem_status:
-        filters.append(Entity.entity_metadata["status"].astext == problem_status)
+        filters.append(problem_status_expression == problem_status)
     if tag:
         filters.append(Entity.tags.any(tag))
 
@@ -61,21 +81,28 @@ def list_dsa_problems(
     items = db.scalars(select(Entity).where(*filters).order_by(order, Entity.id).offset(offset).limit(limit)).all()
 
     all_filters = [Entity.type == "dsa_problem", active_entity_clause()]
-    solved = db.scalar(select(func.count()).select_from(Entity).where(
-        *all_filters,
-        or_(
-            Entity.entity_metadata["integration"]["accepted"].as_boolean().is_(True),
-            Entity.entity_metadata["status"].astext == "solved",
-        ),
-    )) or 0
+    solved = db.scalar(
+        select(func.count()).select_from(Entity).where(*all_filters, problem_status_expression == "solved")
+    ) or 0
     week_ago = datetime.now(timezone.utc) - timedelta(days=7)
-    this_week = db.scalar(select(func.count()).select_from(Entity).where(*all_filters, Entity.created_at >= week_ago)) or 0
-    review_due = db.scalar(select(func.count()).select_from(Entity).where(*all_filters, Entity.entity_metadata["status"].astext == "review")) or 0
-    platforms = db.scalar(select(func.count(func.distinct(Entity.entity_metadata["integration"]["platform"].astext))).where(*all_filters)) or 0
+    this_week = db.scalar(
+        select(func.count()).select_from(Entity).where(*all_filters, Entity.created_at >= week_ago)
+    ) or 0
+    review_due = db.scalar(
+        select(func.count()).select_from(Entity).where(*all_filters, problem_status_expression == "review")
+    ) or 0
+    platforms = db.scalar(
+        select(func.count(func.distinct(problem_platform_expression))).select_from(Entity).where(*all_filters)
+    ) or 0
     return DsaProblemPageRead(
         items=[serialize_entity(item) for item in items],
         total=total,
         limit=limit,
         offset=offset,
-        stats=DsaProblemStatsRead(solved=solved, this_week=this_week, review_due=review_due, platforms=platforms),
+        stats=DsaProblemStatsRead(
+            solved=solved,
+            this_week=this_week,
+            review_due=review_due,
+            platforms=platforms,
+        ),
     )

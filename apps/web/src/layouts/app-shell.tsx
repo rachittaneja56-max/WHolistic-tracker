@@ -35,17 +35,17 @@ const navigationItems = [
 
 export function AppShell({ children, entities, activeEntityId, isEntitiesLoading, entitiesError, onRetry }: AppShellProps) {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-300">
+    <div className="min-h-screen bg-background text-secondary">
       <div className="grid min-h-screen lg:grid-cols-[320px_1fr]">
-        <aside className="border-b border-zinc-800 bg-zinc-900 lg:border-b-0 lg:border-r">
-          <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
-            <Link to="/" className="flex items-center gap-3 text-zinc-100">
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-2">
-                <Brain className="h-4 w-4 text-blue-400" />
+        <aside className="border-b border-border bg-surface lg:border-b-0 lg:border-r">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <Link to="/" className="flex items-center gap-3 text-foreground">
+              <div className="rounded-lg border border-border bg-background p-2">
+                <Brain className="h-4 w-4 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-zinc-100">Personal Dev KG</p>
-                <p className="font-mono text-xs text-zinc-500">Phase 5 weekly sensemaking</p>
+                <p className="text-sm font-semibold text-foreground">Personal Dev KG</p>
+                <p className="font-mono text-xs text-muted-foreground">Phase 5 weekly sensemaking</p>
               </div>
             </Link>
           </div>
@@ -61,12 +61,12 @@ export function AppShell({ children, entities, activeEntityId, isEntitiesLoading
                     end={item.to === "/"}
                     className={({ isActive }) =>
                       cn(
-                        "flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300 transition-colors hover:border-zinc-700 hover:text-zinc-100",
-                        isActive && "border-blue-500/50 text-zinc-100",
+                        "flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 text-sm text-secondary transition-colors hover:border-border-strong hover:text-foreground",
+                        isActive && "border-primary/50 text-foreground",
                       )
                     }
                   >
-                    <Icon className="h-4 w-4 text-zinc-500" />
+                    <Icon className="h-4 w-4 text-muted-foreground" />
                     <span>{item.label}</span>
                   </NavLink>
                 )
@@ -87,13 +87,13 @@ export function AppShell({ children, entities, activeEntityId, isEntitiesLoading
         </aside>
 
         <div className="flex min-h-screen flex-col">
-          <header className="border-b border-zinc-800 bg-zinc-900 px-6 py-4">
+          <header className="border-b border-border bg-surface px-6 py-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-lg font-semibold text-zinc-100">Knowledge graph workspace</p>
-                <p className="text-sm text-zinc-500">Daily guidance, weekly digests, taxonomy gaps, and graph-scoped answers stay grounded in your own entities, links, reviews, and sessions.</p>
+                <p className="text-lg font-semibold text-foreground">Knowledge graph workspace</p>
+                <p className="text-sm text-muted-foreground">Daily guidance, weekly digests, taxonomy gaps, and graph-scoped answers stay grounded in your own entities, links, reviews, and sessions.</p>
               </div>
-              <div className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-xs text-zinc-500">
+              <div className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
                 Embeddings retrieve, agents suggest, users confirm
               </div>
             </div>

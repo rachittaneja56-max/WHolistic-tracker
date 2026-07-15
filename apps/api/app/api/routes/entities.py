@@ -23,7 +23,7 @@ from app.schemas.deletion import EntityDeleteRequest, EntityDeletionImpactRead, 
 from app.services.confidence import mark_entity_revisited
 from app.services.embeddings import get_similar_entities, update_entity_embedding
 from app.services.auth import require_authenticated_owner, require_owner_mutation
-from app.services.entity_visibility import active_entity_clause, archived_entity_clause, is_entity_deleted
+from app.services.entity_visibility import active_entity_clause, is_entity_deleted
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/entities", tags=["entities"])
@@ -205,13 +205,6 @@ def list_entities(
 
     entities = db.scalars(query).all()
     return [serialize_entity(entity) for entity in entities]
-@router.get("/archived", response_model=list[EntityRead])
-def list_archived_entities(limit: int = Query(default=200, ge=1, le=500), db: Session = Depends(get_db), _owner: str = Depends(require_authenticated_owner)) -> list[EntityRead]:
-    entities = db.scalars(select(Entity).where(archived_entity_clause()).order_by(Entity.created_at.desc()).limit(limit).execution_options(include_deleted=True)).all()
-    return [serialize_entity(entity) for entity in entities]
-
-
-
 
 @router.post("", response_model=EntityRead, status_code=status.HTTP_201_CREATED)
 def create_entity(payload: EntityCreate, db: Session = Depends(get_db)) -> EntityRead:
@@ -488,24 +481,25 @@ def delete_entity(entity_id: uuid.UUID, payload: EntityDeleteRequest | None = No
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Type the exact entity title to confirm permanent deletion")
 
     entity_ids = get_entity_tree_ids(db, entity.id)
+    user_id = db.info.get("user_id")
+    if user_id is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Tenant context is required")
     serialized_entity = serialize_entity(entity)
     deleted_at = datetime.now(timezone.utc).isoformat()
-    db.execute(delete(Link).where(or_(Link.from_id.in_(entity_ids), Link.to_id.in_(entity_ids))))
-    db.execute(delete(ActivitySession).where(ActivitySession.entity_id.in_(entity_ids)))
-    db.execute(delete(Review).where(Review.entity_id.in_(entity_ids)))
-    db.execute(delete(ComprehensionCheck).where(ComprehensionCheck.entity_id.in_(entity_ids)))
-    db.execute(delete(Entity).where(Entity.id.in_(entity_ids)))
+    db.execute(
+        delete(Link).where(
+            Link.user_id == user_id,
+            or_(Link.from_id.in_(entity_ids), Link.to_id.in_(entity_ids)),
+        )
+    )
+    db.execute(delete(ActivitySession).where(ActivitySession.user_id == user_id, ActivitySession.entity_id.in_(entity_ids)))
+    db.execute(delete(Review).where(Review.user_id == user_id, Review.entity_id.in_(entity_ids)))
+    db.execute(
+        delete(ComprehensionCheck).where(
+            ComprehensionCheck.user_id == user_id,
+            ComprehensionCheck.entity_id.in_(entity_ids),
+        )
+    )
+    db.execute(delete(Entity).where(Entity.user_id == user_id, Entity.id.in_(entity_ids)))
     db.commit()
     return EntityDeletionResultRead(entity=serialized_entity, deleted_at=deleted_at)
-
-@router.post("/{entity_id}/restore", response_model=EntityRead)
-def restore_entity(entity_id: uuid.UUID, db: Session = Depends(get_db), _owner: str = Depends(require_owner_mutation)) -> EntityRead:
-    entity = get_any_entity_or_404(db, entity_id)
-    metadata = dict(entity.entity_metadata or {})
-    metadata.pop("deleted_at", None)
-    metadata.pop("deleted_by", None)
-    entity.entity_metadata = metadata
-    record_session(db, entity_id=entity.id, action="restored", meta={"entity_title": entity.title, "entity_type": entity.type})
-    db.commit()
-    db.refresh(entity)
-    return serialize_entity(entity)

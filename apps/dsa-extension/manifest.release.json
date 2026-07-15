@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Personal Dev KG — LeetCode Importer",
+  "version": "1.1.0",
+  "description": "Explicitly capture LeetCode problems, accepted code, and notes into Personal Dev KG.",
+  "permissions": ["activeTab", "alarms", "scripting", "storage"],
+  "host_permissions": [
+    "https://leetcode.com/*",
+    "https://api.kg.example.com/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_title": "Personal Dev KG LeetCode Importer",
+    "default_popup": "popup.html"
+  }
+}

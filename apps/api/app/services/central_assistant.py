@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.services.provider import OpenAIProvider
 from app.agents.services.recall import get_due_recall_items, grade_recall_answer
+from app.agents.utils.context import entity_prompt_data, is_ai_excluded, serialize_untrusted_context
 from app.agents.utils.prompts import build_system_prompt
 from app.api.activity import record_session
 from app.api.routes.entities import serialize_entity
@@ -35,6 +36,11 @@ logger = logging.getLogger(__name__)
 ALLOWED_ACTIONS = {"create_entity", "update_entity", "log_shipping"}
 ALLOWED_ENTITY_TYPES = {"dsa_problem", "note", "til", "project", "milestone", "task"}
 ALLOWED_CONTENT_TYPES = {"markdown", "blocks", "code"}
+ALLOWED_STATUSES = {
+    "backlog", "ready", "todo", "in_progress", "blocked", "in_review",
+    "done", "cancelled", "submitted", "planned", "active", "paused",
+    "completed", "archived", "attempted", "solved",
+}
 PROPOSAL_TTL = timedelta(minutes=30)
 
 EXTRACTION_SCHEMA = {
@@ -101,7 +107,6 @@ def serialize_message(message: AssistantMessage) -> AssistantMessageRead:
 def create_thread(db: Session, title: str = "New conversation") -> AssistantThread:
     thread = AssistantThread(id=uuid4(), title=title[:120], updated_at=_now())
     db.add(thread)
-    db.flush()
     return thread
 
 
@@ -163,7 +168,17 @@ def _model_json(provider: OpenAIProvider, *, stage: str, messages: list[dict[str
 
 
 def extract_intent(provider: OpenAIProvider, history: list[dict[str, str]]) -> dict[str, object]:
-    messages = [{"role": "system", "content": build_system_prompt("central_assistant_extract.md")}, *history]
+    messages = [
+        {"role": "system", "content": build_system_prompt("central_assistant_extract.md")},
+        {
+            "role": "user",
+            "content": serialize_untrusted_context(
+                "assistant",
+                provenance="assistant_conversation_history",
+                data={"history": history},
+            ),
+        },
+    ]
     for attempt in range(2):
         try:
             return _model_json(provider, stage="extract", messages=messages, schema=EXTRACTION_SCHEMA, model=provider.fast_model)
@@ -194,15 +209,10 @@ def resolve_context(db: Session, extraction: dict[str, object]) -> tuple[list[di
     context = []
     allowed_ids: set[str] = set()
     for entity in entities:
+        if is_ai_excluded(entity):
+            continue
         allowed_ids.add(str(entity.id))
-        context.append({
-            "id": str(entity.id),
-            "type": entity.type,
-            "title": entity.title,
-            "content": (entity.content or "")[:1200],
-            "tags": entity.tags or [],
-            "metadata": entity.entity_metadata or {},
-        })
+        context.append(entity_prompt_data("assistant", entity, content_chars=1200))
     return context, allowed_ids
 
 
@@ -215,6 +225,19 @@ def _snapshot(entity: Entity) -> str:
         "parent_id": str(entity.parent_id) if entity.parent_id else None,
     }, sort_keys=True, ensure_ascii=True)
     return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _action_before(entity: Entity | None) -> dict[str, Any] | None:
+    if entity is None:
+        return None
+    metadata = entity.entity_metadata or {}
+    return {
+        "title": entity.title,
+        "content": entity.content,
+        "tags": list(entity.tags or []),
+        "status": metadata.get("status"),
+        "difficulty": metadata.get("difficulty"),
+    }
 
 
 def sanitize_actions(db: Session, raw_actions: object, allowed_ids: set[str]) -> list[dict[str, Any]]:
@@ -244,6 +267,12 @@ def sanitize_actions(db: Session, raw_actions: object, allowed_ids: set[str]) ->
         if action_type == "update_entity" and target is None:
             continue
         tags = list(dict.fromkeys(str(item).strip()[:80] for item in raw.get("tags", []) if str(item).strip()))[:50]
+        raw_url = str(raw.get("url") or "").strip()[:500] or None
+        if raw_url:
+            parsed_url = urlparse(raw_url)
+            if parsed_url.scheme != "https" or not parsed_url.hostname or parsed_url.username or parsed_url.password:
+                raw_url = None
+        raw_status = str(raw.get("status") or "").strip()[:40] or None
         results.append({
             "id": str(raw.get("id") or uuid4()),
             "action_type": action_type,
@@ -255,10 +284,11 @@ def sanitize_actions(db: Session, raw_actions: object, allowed_ids: set[str]) ->
             "content_type": raw.get("content_type") if raw.get("content_type") in ALLOWED_CONTENT_TYPES else "markdown",
             "tags": tags,
             "difficulty": raw.get("difficulty") if raw.get("difficulty") in {"easy", "medium", "hard"} else None,
-            "status": str(raw.get("status") or "").strip()[:40] or None,
-            "url": str(raw.get("url") or "").strip()[:500] or None,
+            "status": raw_status if raw_status in ALLOWED_STATUSES else None,
+            "url": raw_url,
             "solution_code": str(raw.get("solution_code") or "")[:12000] or None,
             "summary": str(raw.get("summary") or "Proposed change").strip()[:400],
+            "before": _action_before(target),
             "_snapshot": _snapshot(target) if target else None,
         })
     return results
@@ -307,7 +337,7 @@ def _attach_proposal_payload(
     }
 
 
-def run_turn(db: Session, provider: OpenAIProvider, *, thread_id: UUID | None, message: str, current_path: str, page_context: dict[str, Any] | None = None) -> AssistantTurnRead:
+def _run_turn(db: Session, provider: OpenAIProvider, *, thread_id: UUID | None, message: str, current_path: str, page_context: dict[str, Any] | None = None) -> AssistantTurnRead:
     thread = db.get(AssistantThread, thread_id) if thread_id else None
     if thread is None:
         thread = create_thread(db, message.strip()[:80] or "New conversation")
@@ -315,15 +345,14 @@ def run_turn(db: Session, provider: OpenAIProvider, *, thread_id: UUID | None, m
         thread.title = message.strip()[:80] or thread.title
     resolved_page_context = _resolve_page_context(db, current_path, page_context)
     user_message = AssistantMessage(id=uuid4(), thread_id=thread.id, role="user", content=message.strip(), model_stage=None, payload={"current_path": current_path, "page_context": resolved_page_context})
-    db.add(user_message)
     thread.updated_at = _now()
-    db.flush()
-    history = _history(db, thread.id)
+    history = [*_history(db, thread.id)[-9:], {"role": "user", "content": user_message.content[:2000]}]
     extraction = extract_intent(provider, history)
 
     if extraction.get("intent") == "run_recall":
         assistant_text, payload = _recall_payload(db)
         assistant_message = AssistantMessage(id=uuid4(), thread_id=thread.id, role="assistant", content=assistant_text, model_stage="deterministic", payload=payload)
+        db.add(user_message)
         db.add(assistant_message)
         db.commit()
         db.refresh(thread); db.refresh(user_message); db.refresh(assistant_message)
@@ -335,12 +364,23 @@ def run_turn(db: Session, provider: OpenAIProvider, *, thread_id: UUID | None, m
         missing = requested - identified
         assistant_text = f"I still need {missing} problem name{'s' if missing != 1 else ''} or LeetCode link{'s' if missing != 1 else ''}. Send one per line; I won’t create placeholders."
         assistant_message = AssistantMessage(id=uuid4(), thread_id=thread.id, role="assistant", content=assistant_text, model_stage="deterministic", payload={"kind": "questions", "questions": [assistant_text], "extraction": extraction})
+        db.add(user_message)
         db.add(assistant_message); db.commit()
         db.refresh(thread); db.refresh(user_message); db.refresh(assistant_message)
         return AssistantTurnRead(thread=serialize_thread(thread), user_message=serialize_message(user_message), assistant_message=serialize_message(assistant_message))
 
     context, allowed_ids = resolve_context(db, extraction)
-    planning_input = json.dumps({"latest_message": message, "page_context": resolved_page_context, "extraction": extraction, "resolved_context": context, "allowed_actions": sorted(ALLOWED_ACTIONS)}, ensure_ascii=True)
+    planning_input = serialize_untrusted_context(
+        "assistant",
+        provenance="user_request_and_personal_graph_context",
+        data={
+            "latest_message": message,
+            "page_context": resolved_page_context,
+            "extraction": extraction,
+            "resolved_context": context,
+            "allowed_actions": sorted(ALLOWED_ACTIONS),
+        },
+    )
     plan = _model_json(provider, stage="plan", messages=[
         {"role": "system", "content": build_system_prompt("central_assistant_plan.md")},
         {"role": "user", "content": planning_input},
@@ -350,6 +390,7 @@ def run_turn(db: Session, provider: OpenAIProvider, *, thread_id: UUID | None, m
     assistant_text = str(plan.get("assistant_text") or "Tell me a little more about what you want to capture.").strip()[:2400]
     payload: dict[str, Any] = {"kind": "proposal" if actions else "questions" if questions else "answer", "questions": questions, "actions": actions}
     assistant_message = AssistantMessage(id=uuid4(), thread_id=thread.id, role="assistant", content=assistant_text, model_stage="smart", payload=payload)
+    db.add(user_message)
     db.add(assistant_message); db.flush()
     proposal = None
     if actions:
@@ -359,6 +400,14 @@ def run_turn(db: Session, provider: OpenAIProvider, *, thread_id: UUID | None, m
     db.commit()
     db.refresh(thread); db.refresh(user_message); db.refresh(assistant_message)
     return AssistantTurnRead(thread=serialize_thread(thread), user_message=serialize_message(user_message), assistant_message=serialize_message(assistant_message), proposal_id=proposal.id if proposal else None)
+
+
+def run_turn(db: Session, provider: OpenAIProvider, *, thread_id: UUID | None, message: str, current_path: str, page_context: dict[str, Any] | None = None) -> AssistantTurnRead:
+    try:
+        return _run_turn(db, provider, thread_id=thread_id, message=message, current_path=current_path, page_context=page_context)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def update_proposal(db: Session, proposal_id: UUID, actions: list[dict[str, Any]]) -> AssistantProposal:

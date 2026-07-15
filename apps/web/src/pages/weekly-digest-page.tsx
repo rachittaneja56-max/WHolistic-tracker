@@ -71,13 +71,13 @@ export function WeeklyDigestPage() {
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="space-y-2">
-                <label className="font-mono text-xs text-zinc-500" htmlFor="weekly-start-date">
+                <label className="font-mono text-xs text-muted-foreground" htmlFor="weekly-start-date">
                   Start date
                 </label>
                 <Input id="weekly-start-date" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="w-full sm:w-[180px]" />
               </div>
               <div className="space-y-2">
-                <label className="font-mono text-xs text-zinc-500" htmlFor="weekly-end-date">
+                <label className="font-mono text-xs text-muted-foreground" htmlFor="weekly-end-date">
                   End date
                 </label>
                 <Input id="weekly-end-date" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="w-full sm:w-[180px]" />
@@ -89,16 +89,16 @@ export function WeeklyDigestPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {error ? <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-300">{error}</p> : null}
+          {error ? <p className="rounded-lg border border-warning/20 bg-warning/5 px-4 py-3 text-sm text-warning">{error}</p> : null}
           {digest ? (
-            <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4">
+            <div className="rounded-lg border border-border bg-background px-4 py-4">
               <div className="flex flex-wrap items-center gap-3">
                 <Badge variant="blue">Weekly digest</Badge>
-                <span className="font-mono text-xs text-zinc-500">
+                <span className="font-mono text-xs text-muted-foreground">
                   {digest.range.start_date} to {digest.range.end_date}
                 </span>
               </div>
-              <p className="mt-3 text-sm leading-7 text-zinc-300">{digest.summary}</p>
+              <p className="mt-3 text-sm leading-7 text-secondary">{digest.summary}</p>
             </div>
           ) : null}
         </CardContent>
@@ -115,13 +115,13 @@ export function WeeklyDigestPage() {
               {digest.wins.length > 0 ? (
                 <div className="space-y-3">
                   {digest.wins.map((item) => (
-                    <div key={item} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-300">
+                    <div key={item} className="rounded-lg border border-border bg-background px-4 py-3 text-sm text-secondary">
                       {item}
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-zinc-500">No wins recorded for this range.</p>
+                <p className="text-sm text-muted-foreground">No wins recorded for this range.</p>
               )}
             </CardContent>
           </Card>
@@ -135,13 +135,13 @@ export function WeeklyDigestPage() {
               {digest.needs_attention.length > 0 ? (
                 <div className="space-y-3">
                   {digest.needs_attention.map((item) => (
-                    <div key={item} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-300">
+                    <div key={item} className="rounded-lg border border-border bg-background px-4 py-3 text-sm text-secondary">
                       {item}
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-zinc-500">Nothing urgent surfaced for this range.</p>
+                <p className="text-sm text-muted-foreground">Nothing urgent surfaced for this range.</p>
               )}
             </CardContent>
           </Card>
@@ -155,18 +155,18 @@ export function WeeklyDigestPage() {
               {digest.new_connections.length > 0 ? (
                 <div className="space-y-3">
                   {digest.new_connections.map((connection) => (
-                    <div key={connection.link_id} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4">
+                    <div key={connection.link_id} className="rounded-lg border border-border bg-background px-4 py-4">
                       <div className="flex flex-wrap items-center gap-2">
-                        {connection.from_title ? <span className="text-sm text-zinc-100">{connection.from_title}</span> : null}
-                        <span className="font-mono text-xs text-zinc-500">-&gt;</span>
-                        {connection.to_title ? <span className="text-sm text-zinc-100">{connection.to_title}</span> : null}
+                        {connection.from_title ? <span className="text-sm text-foreground">{connection.from_title}</span> : null}
+                        <span className="font-mono text-xs text-muted-foreground">-&gt;</span>
+                        {connection.to_title ? <span className="text-sm text-foreground">{connection.to_title}</span> : null}
                       </div>
-                      <p className="mt-3 text-sm text-zinc-300">{connection.explanation ?? "No explanation provided."}</p>
+                      <p className="mt-3 text-sm text-secondary">{connection.explanation ?? "No explanation provided."}</p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-zinc-500">No confirmed links were created in this range.</p>
+                <p className="text-sm text-muted-foreground">No confirmed links were created in this range.</p>
               )}
             </CardContent>
           </Card>
@@ -180,17 +180,17 @@ export function WeeklyDigestPage() {
               {digest.suggested_next_actions.length > 0 ? (
                 <div className="space-y-3">
                   {digest.suggested_next_actions.map((action) => (
-                    <div key={`${action.label}-${action.reason}`} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4">
+                    <div key={`${action.label}-${action.reason}`} className="rounded-lg border border-border bg-background px-4 py-4">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium text-zinc-100">{action.label}</p>
+                        <p className="text-sm font-medium text-foreground">{action.label}</p>
                         <Badge variant={getPriorityVariant(action.priority)}>{action.priority}</Badge>
                       </div>
-                      <p className="mt-2 text-sm text-zinc-300">{action.reason}</p>
+                      <p className="mt-2 text-sm text-secondary">{action.reason}</p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-zinc-500">No next actions were generated for this range.</p>
+                <p className="text-sm text-muted-foreground">No next actions were generated for this range.</p>
               )}
             </CardContent>
           </Card>
@@ -204,16 +204,16 @@ export function WeeklyDigestPage() {
               {digest.fading_topics.length > 0 ? (
                 <div className="space-y-3">
                   {digest.fading_topics.map((topic) => (
-                    <Link key={topic.entity_id} to={`/entities/${topic.entity_id}`} className="block rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4 transition-colors hover:border-blue-500/40">
+                    <Link key={topic.entity_id} to={`/entities/${topic.entity_id}`} className="block rounded-lg border border-border bg-background px-4 py-4 transition-colors hover:border-primary/40">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm text-zinc-100">{topic.title ?? "Untitled entity"}</p>
-                        <span className="font-mono text-xs text-amber-300">{topic.confidence_score.toFixed(2)}</span>
+                        <p className="text-sm text-foreground">{topic.title ?? "Untitled entity"}</p>
+                        <span className="font-mono text-xs text-warning">{topic.confidence_score.toFixed(2)}</span>
                       </div>
                     </Link>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-zinc-500">No fading topics crossed the confidence threshold.</p>
+                <p className="text-sm text-muted-foreground">No fading topics crossed the confidence threshold.</p>
               )}
             </CardContent>
           </Card>
@@ -227,17 +227,17 @@ export function WeeklyDigestPage() {
               {digest.upcoming_deadlines.length > 0 ? (
                 <div className="space-y-3">
                   {digest.upcoming_deadlines.map((deadline) => (
-                    <Link key={deadline.entity_id} to={`/entities/${deadline.entity_id}`} className="block rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-4 transition-colors hover:border-blue-500/40">
+                    <Link key={deadline.entity_id} to={`/entities/${deadline.entity_id}`} className="block rounded-lg border border-border bg-background px-4 py-4 transition-colors hover:border-primary/40">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm text-zinc-100">{deadline.title ?? "Untitled subject"}</p>
-                        <span className="font-mono text-xs text-amber-300">{deadline.date}</span>
+                        <p className="text-sm text-foreground">{deadline.title ?? "Untitled subject"}</p>
+                        <span className="font-mono text-xs text-warning">{deadline.date}</span>
                       </div>
-                      <p className="mt-2 font-mono text-xs text-zinc-500">exam_date {deadline.date}</p>
+                      <p className="mt-2 font-mono text-xs text-muted-foreground">exam_date {deadline.date}</p>
                     </Link>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-zinc-500">No upcoming deadlines are captured right now.</p>
+                <p className="text-sm text-muted-foreground">No upcoming deadlines are captured right now.</p>
               )}
             </CardContent>
           </Card>

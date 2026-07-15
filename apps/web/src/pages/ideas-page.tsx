@@ -122,7 +122,7 @@ export function IdeasPage({ sectionControl }: { sectionControl?: import("react")
             />
           </div>
 
-          {error ? <p className="text-sm text-red-300">{error}</p> : null}
+          {error ? <p className="text-sm text-danger">{error}</p> : null}
 
           <div className="flex justify-end">
             <Button type="button" onClick={() => void handleValidate()} disabled={isValidating}>
@@ -140,12 +140,12 @@ export function IdeasPage({ sectionControl }: { sectionControl?: import("react")
                 <CardTitle>Summary</CardTitle>
                 <CardDescription>Graph-based candidate review with optional web-search market context.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4 text-sm text-zinc-300">
+              <CardContent className="space-y-4 text-sm text-secondary">
                 <p>{result.idea_summary}</p>
-                <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 font-mono text-xs text-zinc-500">
+                <div className="rounded-lg border border-border bg-background px-4 py-3 font-mono text-xs text-muted-foreground">
                   graph candidates considered: {result.graph_candidates_considered}
                 </div>
-                <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-300">
+                <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm text-secondary">
                   {result.web_search_note ?? (result.web_search_configured ? "Web search configured." : "Web search not configured.")}
                 </div>
               </CardContent>
@@ -159,18 +159,18 @@ export function IdeasPage({ sectionControl }: { sectionControl?: import("react")
               <CardContent className="space-y-3">
                 {result.similar_products.length > 0 ? (
                   result.similar_products.map((product) => (
-                    <div key={`${product.name}-${product.url ?? "none"}`} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3">
-                      <p className="text-sm font-medium text-zinc-100">{product.name}</p>
-                      <p className="mt-2 text-sm text-zinc-300">{product.note}</p>
+                    <div key={`${product.name}-${product.url ?? "none"}`} className="rounded-lg border border-border bg-background px-4 py-3">
+                      <p className="text-sm font-medium text-foreground">{product.name}</p>
+                      <p className="mt-2 text-sm text-secondary">{product.note}</p>
                       {product.url ? (
-                        <a href={product.url} target="_blank" rel="noreferrer" className="mt-2 inline-block font-mono text-xs text-blue-300 hover:text-blue-200">
+                        <a href={product.url} target="_blank" rel="noreferrer" className="mt-2 inline-block font-mono text-xs text-primary hover:text-primary">
                           {product.url}
                         </a>
                       ) : null}
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-zinc-500">No similar products were returned.</p>
+                  <p className="text-sm text-muted-foreground">No similar products were returned.</p>
                 )}
               </CardContent>
             </Card>
@@ -183,13 +183,13 @@ export function IdeasPage({ sectionControl }: { sectionControl?: import("react")
               <CardContent className="space-y-3">
                 {result.your_existing_strengths.length > 0 ? (
                   result.your_existing_strengths.map((strength) => (
-                    <Link key={strength.entity_id} to={`/entities/${strength.entity_id}`} className="block rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 transition-colors hover:border-blue-500/40">
-                      <p className="text-sm font-medium text-zinc-100">{strength.title ?? "Untitled entity"}</p>
-                      <p className="mt-2 text-sm text-zinc-300">{strength.reason}</p>
+                    <Link key={strength.entity_id} to={`/entities/${strength.entity_id}`} className="block rounded-lg border border-border bg-background px-4 py-3 transition-colors hover:border-primary/40">
+                      <p className="text-sm font-medium text-foreground">{strength.title ?? "Untitled entity"}</p>
+                      <p className="mt-2 text-sm text-secondary">{strength.reason}</p>
                     </Link>
                   ))
                 ) : (
-                  <p className="text-sm text-zinc-500">No strong graph matches were identified.</p>
+                  <p className="text-sm text-muted-foreground">No strong graph matches were identified.</p>
                 )}
               </CardContent>
             </Card>
@@ -202,13 +202,13 @@ export function IdeasPage({ sectionControl }: { sectionControl?: import("react")
               <CardContent className="space-y-3">
                 {result.missing_prerequisites.length > 0 ? (
                   result.missing_prerequisites.map((item) => (
-                    <div key={item.topic} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3">
-                      <p className="text-sm font-medium text-zinc-100">{item.topic}</p>
-                      <p className="mt-2 text-sm text-zinc-300">{item.why_needed}</p>
+                    <div key={item.topic} className="rounded-lg border border-border bg-background px-4 py-3">
+                      <p className="text-sm font-medium text-foreground">{item.topic}</p>
+                      <p className="mt-2 text-sm text-secondary">{item.why_needed}</p>
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-zinc-500">No missing prerequisites were returned.</p>
+                  <p className="text-sm text-muted-foreground">No missing prerequisites were returned.</p>
                 )}
               </CardContent>
             </Card>
@@ -222,9 +222,9 @@ export function IdeasPage({ sectionControl }: { sectionControl?: import("react")
               </CardHeader>
               <CardContent className="space-y-4">
                 {result.suggested_mvp.map((milestone) => (
-                  <div key={milestone.milestone} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3">
-                    <p className="text-sm font-medium text-zinc-100">{milestone.milestone}</p>
-                    <ul className="mt-2 space-y-2 text-sm text-zinc-300">
+                  <div key={milestone.milestone} className="rounded-lg border border-border bg-background px-4 py-3">
+                    <p className="text-sm font-medium text-foreground">{milestone.milestone}</p>
+                    <ul className="mt-2 space-y-2 text-sm text-secondary">
                       {milestone.tasks.map((task) => (
                         <li key={task}>- {task}</li>
                       ))}
@@ -241,7 +241,7 @@ export function IdeasPage({ sectionControl }: { sectionControl?: import("react")
               </CardHeader>
               <CardContent className="space-y-3">
                 {result.risk_notes.map((note) => (
-                  <div key={note} className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-300">
+                  <div key={note} className="rounded-lg border border-border bg-background px-4 py-3 text-sm text-secondary">
                     {note}
                   </div>
                 ))}
@@ -265,7 +265,7 @@ export function IdeasPage({ sectionControl }: { sectionControl?: import("react")
                   <Input id="idea-tags" value={saveTags} onChange={(event) => setSaveTags(event.target.value)} placeholder="ideas, api, graph" />
                 </div>
               </div>
-              {saveError ? <p className="text-sm text-red-300">{saveError}</p> : null}
+              {saveError ? <p className="text-sm text-danger">{saveError}</p> : null}
               <div className="flex flex-wrap justify-end gap-3">
                 <Button type="button" variant="outline" onClick={() => void handleSave()} disabled={isSaving || isCreatingProject}>
                   {isSaving ? "Saving..." : "Save as Idea"}

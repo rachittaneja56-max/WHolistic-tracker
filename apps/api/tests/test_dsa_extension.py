@@ -1,10 +1,12 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
 
+from app.models.integration_client import IntegrationClient
 from app.schemas.dsa_extension import ExtensionImportBatchRequest, ExtensionImportRecord
-from app.services.dsa_extension import hash_secret, upsert_extension_record
+from app.services.dsa_extension import create_pairing_code, exchange_pairing_code, hash_secret, revoke_extension_tokens, upsert_extension_record
 
 
 class _Rows:
@@ -18,6 +20,7 @@ class _Rows:
 class _FakeDb:
     def __init__(self):
         self.entities = []
+        self.info = {"user_id": uuid4()}
 
     def scalars(self, _query):
         return _Rows(self.entities)
@@ -101,3 +104,95 @@ def test_recapture_updates_untouched_imported_code():
     entity = db.entities[0]
     upsert_extension_record(db, _record(solution_code="new accepted code"))
     assert entity.entity_metadata["solution_code"] == "new accepted code"
+
+
+class _TenantAwareFakeDb(_FakeDb):
+    def scalars(self, _query):
+        user_id = self.info["user_id"]
+        return _Rows([entity for entity in self.entities if entity.user_id == user_id])
+
+
+def test_two_users_can_import_and_update_the_same_leetcode_slug_independently():
+    db = _TenantAwareFakeDb()
+    first_user = uuid4()
+    second_user = uuid4()
+
+    db.info["user_id"] = first_user
+    assert upsert_extension_record(db, _record()) == ("imported", "created")
+    db.info["user_id"] = second_user
+    assert upsert_extension_record(db, _record()) == ("imported", "created")
+    assert len(db.entities) == 2
+
+    db.info["user_id"] = first_user
+    upsert_extension_record(db, _record(solution_code="first user's update"))
+
+    first = next(entity for entity in db.entities if entity.user_id == first_user)
+    second = next(entity for entity in db.entities if entity.user_id == second_user)
+    assert first.entity_metadata["solution_code"] == "first user's update"
+    assert second.entity_metadata["solution_code"] == "return a + b"
+
+
+class _MutationQuery:
+    def __init__(self):
+        self.criteria = []
+
+    def filter(self, *criteria):
+        self.criteria.extend(criteria)
+        return self
+
+    def update(self, _values):
+        return 1
+
+
+class _MutationDb:
+    def __init__(self, user_id, pairing=None):
+        self.info = {"user_id": user_id} if user_id is not None else {}
+        self.query_result = _MutationQuery()
+        self.pairing = pairing
+        self.added = []
+
+    def query(self, model):
+        assert model is IntegrationClient
+        return self.query_result
+
+    def scalar(self, _query):
+        return self.pairing
+
+    def add(self, value):
+        self.added.append(value)
+
+    def commit(self):
+        return None
+
+
+def test_pairing_and_revocation_bulk_updates_include_current_user():
+    user_id = uuid4()
+    db = _MutationDb(user_id)
+
+    create_pairing_code(db)
+    revoke_extension_tokens(db)
+
+    compiled = " ".join(str(item) for item in db.query_result.criteria)
+    assert compiled.count("integration_clients.user_id") == 2
+    assert db.added[0].user_id == user_id
+
+
+def test_public_exchange_restores_pairing_owner_before_token_write():
+    user_id = uuid4()
+    pairing = IntegrationClient(
+        id=uuid4(),
+        user_id=user_id,
+        kind="pairing_code",
+        secret_hash=hash_secret("ABCD2345"),
+        scope="dsa:import",
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+        client_metadata={},
+    )
+    db = _MutationDb(None, pairing=pairing)
+
+    token = exchange_pairing_code(db, "ABCD2345", "Test extension")
+
+    assert token.startswith("pdkg_dsa_")
+    assert db.info["user_id"] == user_id
+    assert db.added[0].user_id == user_id
+    assert pairing.revoked_at is not None

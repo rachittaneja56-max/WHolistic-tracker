@@ -46,8 +46,8 @@ function healthVariant(health: ProjectHealth): "default" | "success" | "warning"
   return "default"
 }
 
-function StatCard({ label, value, icon: Icon, tone = "text-zinc-400" }: { label: string; value: number; icon: typeof FolderKanban; tone?: string }) {
-  return <Card><CardContent className="flex items-center justify-between p-5"><div><p className="text-2xl font-semibold text-zinc-100">{value}</p><p className="text-sm text-zinc-500">{label}</p></div><Icon className={`h-5 w-5 ${tone}`} /></CardContent></Card>
+function StatCard({ label, value, icon: Icon, tone = "text-secondary" }: { label: string; value: number; icon: typeof FolderKanban; tone?: string }) {
+  return <Card><CardContent className="flex items-center justify-between p-5"><div><p className="text-2xl font-semibold text-foreground">{value}</p><p className="text-sm text-muted-foreground">{label}</p></div><Icon className={`h-5 w-5 ${tone}`} /></CardContent></Card>
 }
 
 export function ProjectsPage() {
@@ -128,18 +128,18 @@ export function ProjectsPage() {
 
   return <div className="space-y-6">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div><p className="font-mono text-xs uppercase tracking-[0.18em] text-blue-400">Delivery + learning</p><h1 className="mt-2 text-3xl font-semibold text-zinc-100">Project portfolio</h1><p className="mt-2 max-w-3xl text-sm text-zinc-400">Plan outcomes, move work, verify shipping evidence, and retain what you learned.</p></div>
+      <div><p className="font-mono text-xs uppercase tracking-[0.18em] text-primary">Delivery + learning</p><h1 className="mt-2 text-3xl font-semibold text-foreground">Project portfolio</h1><p className="mt-2 max-w-3xl text-sm text-secondary">Plan outcomes, move work, verify shipping evidence, and retain what you learned.</p></div>
       <Button type="button" onClick={() => setShowCreate((current) => !current)}><Plus className="mr-2 h-4 w-4" />New project</Button>
     </div>
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <StatCard label="Active projects" value={activeCount} icon={FolderKanban} tone="text-blue-400" />
-      <StatCard label="Need attention" value={riskCount} icon={AlertTriangle} tone="text-amber-400" />
-      <StatCard label="Blocked tasks" value={blockedCount} icon={CircleDot} tone="text-red-400" />
-      <StatCard label="Shipped this week" value={shippedCount} icon={CheckCircle2} tone="text-emerald-400" />
+      <StatCard label="Active projects" value={activeCount} icon={FolderKanban} tone="text-primary" />
+      <StatCard label="Need attention" value={riskCount} icon={AlertTriangle} tone="text-warning" />
+      <StatCard label="Blocked tasks" value={blockedCount} icon={CircleDot} tone="text-danger" />
+      <StatCard label="Shipped this week" value={shippedCount} icon={CheckCircle2} tone="text-success" />
     </div>
 
-    {showCreate ? <Card className="border-blue-500/30"><CardHeader><CardTitle>Create project</CardTitle><CardDescription>Start with the outcome. Milestones and tasks can be added inside the workspace.</CardDescription></CardHeader><CardContent><form className="space-y-4" onSubmit={(event) => void createProject(event)}>
+    {showCreate ? <Card className="border-primary/30"><CardHeader><CardTitle>Create project</CardTitle><CardDescription>Start with the outcome. Milestones and tasks can be added inside the workspace.</CardDescription></CardHeader><CardContent><form className="space-y-4" onSubmit={(event) => void createProject(event)}>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2"><Label htmlFor="project-title">Project name</Label><Input id="project-title" value={title} onChange={(event) => setTitle(event.target.value)} autoFocus /></div>
         <div className="space-y-2"><Label>Priority</Label><Select value={priority} onValueChange={(value) => setPriority(value as WorkPriority)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{priorityOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div>
@@ -153,22 +153,22 @@ export function ProjectsPage() {
     </form></CardContent></Card> : null}
 
     <Card><CardContent className="grid gap-3 p-4 lg:grid-cols-[1fr_180px_180px]">
-      <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-zinc-500" /><Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" placeholder="Search projects or tags" /></div>
+      <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" placeholder="Search projects or tags" /></div>
       <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem>{projectStatusOptions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select>
       <Select value={healthFilter} onValueChange={setHealthFilter}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All health</SelectItem>{["on_track", "at_risk", "stalled", "paused", "completed"].map((item) => <SelectItem key={item} value={item}>{item.replace("_", " ")}</SelectItem>)}</SelectContent></Select>
     </CardContent></Card>
 
-    {error ? <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-300">{error}</div> : null}
-    {loading ? <div className="rounded-lg border border-zinc-800 p-8 text-center text-sm text-zinc-500">Loading project health...</div> : null}
-    {!loading && !error && filtered.length === 0 ? <Card><CardContent className="flex flex-col items-center p-12 text-center"><FolderKanban className="h-9 w-9 text-zinc-600" /><p className="mt-4 font-medium text-zinc-200">No projects match this view</p><p className="mt-1 text-sm text-zinc-500">Create a project or adjust the filters.</p><Button className="mt-5" onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />Create project</Button></CardContent></Card> : null}
+    {error ? <div className="rounded-lg border border-danger/30 bg-danger/5 p-4 text-sm text-danger">{error}</div> : null}
+    {loading ? <div className="rounded-lg border border-border p-8 text-center text-sm text-muted-foreground">Loading project health...</div> : null}
+    {!loading && !error && filtered.length === 0 ? <Card><CardContent className="flex flex-col items-center p-12 text-center"><FolderKanban className="h-9 w-9 text-muted-foreground" /><p className="mt-4 font-medium text-foreground">No projects match this view</p><p className="mt-1 text-sm text-muted-foreground">Create a project or adjust the filters.</p><Button className="mt-5" onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />Create project</Button></CardContent></Card> : null}
 
     <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-      {filtered.map((row) => <Link key={row.project.id} to={`/trackers/projects/${row.project.id}`} className="group rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><Card className="h-full transition-colors group-hover:border-zinc-700"><CardHeader>
+      {filtered.map((row) => <Link key={row.project.id} to={`/trackers/projects/${row.project.id}`} className="group rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><Card className="h-full transition-colors group-hover:border-border-strong"><CardHeader>
         <div className="flex items-start justify-between gap-3"><div className="min-w-0"><CardTitle className="truncate">{row.project.title ?? "Untitled project"}</CardTitle><CardDescription className="mt-2 line-clamp-2">{metaString(row, "objective", row.project.content || "No objective yet.")}</CardDescription></div><Badge variant={healthVariant(row.health)}>{healthLabel(row.health)}</Badge></div>
       </CardHeader><CardContent className="space-y-4">
-        <div><div className="mb-2 flex items-center justify-between text-xs"><span className="text-zinc-500">Progress</span><span className="font-mono text-zinc-300">{row.progress_percent}%</span></div><div className="h-2 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-blue-500" style={{ width: `${row.progress_percent}%` }} /></div></div>
-        <div className="grid grid-cols-3 gap-2 text-center"><div className="rounded-md bg-zinc-950 p-2"><p className="font-mono text-sm text-zinc-200">{row.open_task_count}</p><p className="text-[11px] text-zinc-600">open</p></div><div className="rounded-md bg-zinc-950 p-2"><p className="font-mono text-sm text-amber-300">{row.blocked_task_count}</p><p className="text-[11px] text-zinc-600">blocked</p></div><div className="rounded-md bg-zinc-950 p-2"><p className="font-mono text-sm text-emerald-300">{row.shipped_this_week}</p><p className="text-[11px] text-zinc-600">shipped</p></div></div>
-        <div className="space-y-2 border-t border-zinc-800 pt-3 text-xs text-zinc-500"><div className="flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5" /><span>{dateLabel(row.next_deadline)}</span></div><div className="flex items-center gap-2"><CircleDot className="h-3.5 w-3.5" /><span className="truncate">{row.current_milestone?.title ?? "No active milestone"}</span></div>{metaString(row, "status") === "archived" ? <div className="flex items-center gap-2"><Archive className="h-3.5 w-3.5" />Archived</div> : null}</div>
+        <div><div className="mb-2 flex items-center justify-between text-xs"><span className="text-muted-foreground">Progress</span><span className="font-mono text-secondary">{row.progress_percent}%</span></div><div className="h-2 overflow-hidden rounded-full bg-surface-subtle"><div className="h-full rounded-full bg-primary" style={{ width: `${row.progress_percent}%` }} /></div></div>
+        <div className="grid grid-cols-3 gap-2 text-center"><div className="rounded-md bg-background p-2"><p className="font-mono text-sm text-foreground">{row.open_task_count}</p><p className="text-[11px] text-muted-foreground">open</p></div><div className="rounded-md bg-background p-2"><p className="font-mono text-sm text-warning">{row.blocked_task_count}</p><p className="text-[11px] text-muted-foreground">blocked</p></div><div className="rounded-md bg-background p-2"><p className="font-mono text-sm text-success">{row.shipped_this_week}</p><p className="text-[11px] text-muted-foreground">shipped</p></div></div>
+        <div className="space-y-2 border-t border-border pt-3 text-xs text-muted-foreground"><div className="flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5" /><span>{dateLabel(row.next_deadline)}</span></div><div className="flex items-center gap-2"><CircleDot className="h-3.5 w-3.5" /><span className="truncate">{row.current_milestone?.title ?? "No active milestone"}</span></div>{metaString(row, "status") === "archived" ? <div className="flex items-center gap-2"><Archive className="h-3.5 w-3.5" />Archived</div> : null}</div>
       </CardContent></Card></Link>)}
     </div>
   </div>

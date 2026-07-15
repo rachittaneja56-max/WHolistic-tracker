@@ -21,14 +21,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  applyAssistantRecall,
   cancelAssistantProposal,
   executeAssistantProposal,
-  gradeAssistantRecall,
+  previewAssistantRecall,
+  recordProductEvent,
   updateAssistantProposal,
   type AssistantAction,
   type AssistantMessage,
   type AssistantProposalStatus,
   type AssistantRecallItem,
+  type RecallGradePreview,
   type RecallGradeResult,
 } from "@/lib/api"
 
@@ -64,33 +67,33 @@ function CopyButton({ value, label = "Copy" }: { value: string; label?: string }
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1500)
   }
-  return <button type="button" onClick={() => void copy()} className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[10px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200" aria-label={label}>
+  return <button type="button" onClick={() => void copy()} className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[10px] text-muted-foreground hover:bg-surface-subtle hover:text-foreground" aria-label={label}>
     {copied ? <Check className="h-3 w-3" /> : <Clipboard className="h-3 w-3" />}{copied ? "Copied" : label}
   </button>
 }
 
 function MarkdownResponse({ children }: { children: string }) {
-  return <div className="min-w-0 break-words text-sm leading-6 text-zinc-300">
+  return <div className="min-w-0 break-words text-sm leading-6 text-secondary">
     <ReactMarkdown
       components={{
-        h1: ({ children: value }) => <h2 className="mb-2 mt-4 text-lg font-semibold text-zinc-100 first:mt-0">{value}</h2>,
-        h2: ({ children: value }) => <h3 className="mb-2 mt-4 text-base font-semibold text-zinc-100 first:mt-0">{value}</h3>,
-        h3: ({ children: value }) => <h4 className="mb-1.5 mt-3 text-sm font-semibold text-zinc-100">{value}</h4>,
+        h1: ({ children: value }) => <h2 className="mb-2 mt-4 text-lg font-semibold text-foreground first:mt-0">{value}</h2>,
+        h2: ({ children: value }) => <h3 className="mb-2 mt-4 text-base font-semibold text-foreground first:mt-0">{value}</h3>,
+        h3: ({ children: value }) => <h4 className="mb-1.5 mt-3 text-sm font-semibold text-foreground">{value}</h4>,
         p: ({ children: value }) => <p className="my-2 first:mt-0 last:mb-0">{value}</p>,
         ul: ({ children: value }) => <ul className="my-2 list-disc space-y-1 pl-5">{value}</ul>,
         ol: ({ children: value }) => <ol className="my-2 list-decimal space-y-1 pl-5">{value}</ol>,
-        a: ({ href, children: value }) => <a href={href} target="_blank" rel="noreferrer" className="break-all text-blue-300 underline decoration-blue-500/40 underline-offset-2 hover:text-blue-200">{value}</a>,
-        blockquote: ({ children: value }) => <blockquote className="my-3 border-l-2 border-blue-500/50 pl-3 text-zinc-400">{value}</blockquote>,
+        a: ({ href, children: value }) => <a href={href} target="_blank" rel="noreferrer" className="break-all text-primary underline decoration-primary/40 underline-offset-2 hover:text-primary">{value}</a>,
+        blockquote: ({ children: value }) => <blockquote className="my-3 border-l-2 border-primary/50 pl-3 text-secondary">{value}</blockquote>,
         pre: ({ children: value }) => {
           const code = textFromNode(value).replace(/\n$/, "")
-          return <div className="group relative my-3 min-w-0 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950">
+          return <div className="group relative my-3 min-w-0 overflow-hidden rounded-lg border border-border bg-background">
             <div className="absolute right-1.5 top-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"><CopyButton value={code} label="Copy code" /></div>
-            <pre className="max-w-full overflow-x-auto p-3 pr-20 font-mono text-xs leading-5 text-zinc-300">{value}</pre>
+            <pre className="max-w-full overflow-x-auto p-3 pr-20 font-mono text-xs leading-5 text-secondary">{value}</pre>
           </div>
         },
         code: ({ children: value, className }) => className
           ? <code className={className}>{value}</code>
-          : <code className="break-all rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-xs text-blue-200">{value}</code>,
+          : <code className="break-all rounded bg-surface-subtle px-1.5 py-0.5 font-mono text-xs text-primary">{value}</code>,
       }}
     >{children}</ReactMarkdown>
   </div>
@@ -109,12 +112,30 @@ const actionLabels: Record<AssistantAction["action_type"], string> = {
   log_shipping: "Log shipped work",
 }
 
+function ActionDiff({ action }: { action: AssistantAction }) {
+  const before = action.before
+  const beforeTitle = action.action_type === "create_entity" ? "No item exists" : before?.title || "Current title unavailable"
+  const beforeContent = action.action_type === "create_entity"
+    ? "This action creates a new item."
+    : action.action_type === "log_shipping"
+      ? "The project entity stays unchanged."
+      : before?.content || "No current content"
+  const afterTitle = action.action_type === "log_shipping" ? before?.title || action.title || "Matched project" : action.title || before?.title || "Untitled item"
+  const afterContent = action.action_type === "log_shipping"
+    ? action.content || action.summary
+    : action.content ?? before?.content ?? "No content"
+  return <div className="mt-3 grid gap-2 sm:grid-cols-2">
+    <div className="rounded-md border border-border bg-surface p-3"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Before</p><p className="mt-2 truncate text-xs font-medium text-foreground">{beforeTitle}</p><p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{beforeContent}</p></div>
+    <div className="rounded-md border border-primary/25 bg-primary/5 p-3"><p className="text-[10px] font-semibold uppercase tracking-wider text-primary">After</p><p className="mt-2 truncate text-xs font-medium text-foreground">{afterTitle}</p><p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-secondary">{afterContent}</p></div>
+  </div>
+}
+
 function QuestionsCard({ questions, onUseText }: { questions: string[]; onUseText: (text: string) => void }) {
   if (!questions.length) return null
   const answerTemplate = questions.map((question, index) => `${index + 1}. ${question}\n   `).join("\n")
-  return <section className="mt-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
-    <div className="flex items-center gap-2"><Badge variant="blue">Clarification</Badge><span className="text-xs text-zinc-500">{questions.length} question{questions.length === 1 ? "" : "s"}</span></div>
-    <ol className="mt-3 space-y-3">{questions.map((question, index) => <li key={`${index}-${question}`} className="flex gap-3 text-sm text-zinc-200"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/10 font-mono text-xs text-blue-300">{index + 1}</span><span className="pt-0.5 leading-5">{question}</span></li>)}</ol>
+  return <section className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
+    <div className="flex items-center gap-2"><Badge variant="blue">Clarification</Badge><span className="text-xs text-muted-foreground">{questions.length} question{questions.length === 1 ? "" : "s"}</span></div>
+    <ol className="mt-3 space-y-3">{questions.map((question, index) => <li key={`${index}-${question}`} className="flex gap-3 text-sm text-foreground"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-xs text-primary">{index + 1}</span><span className="pt-0.5 leading-5">{question}</span></li>)}</ol>
     <Button size="sm" variant="outline" className="mt-4" onClick={() => onUseText(answerTemplate)}>Answer these</Button>
   </section>
 }
@@ -125,7 +146,7 @@ function ProposalCard({ message, onPersistedMessage }: Pick<ResponseProps, "mess
   const initialActions = Array.isArray(payload.actions) ? payload.actions as AssistantAction[] : []
   const initialStatus = typeof payload.proposal_status === "string" ? payload.proposal_status as AssistantProposalStatus : "pending"
   const [actions, setActions] = useState(initialActions)
-  const [selected, setSelected] = useState(() => new Set(initialActions.map((item) => item.id)))
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [status, setStatus] = useState<AssistantProposalStatus>(initialStatus)
   const [busy, setBusy] = useState(false)
   const [expanded, setExpanded] = useState(initialActions.length <= 3)
@@ -165,6 +186,7 @@ function ProposalCard({ message, onPersistedMessage }: Pick<ResponseProps, "mess
       const result = await executeAssistantProposal(activeProposalId, { idempotency_key: executionKey, action_ids: [...selected] })
       setResults(result.results)
       setStatus("executed")
+      void recordProductEvent("ai_proposal_accepted", { action_count: result.results.length, feature: "assistant" }).catch(() => undefined)
       if (result.message) onPersistedMessage(result.message)
     } catch (nextError) {
       setStatus("failed")
@@ -172,23 +194,24 @@ function ProposalCard({ message, onPersistedMessage }: Pick<ResponseProps, "mess
     } finally { setBusy(false) }
   }
 
-  return <section className="mt-4 overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950/70">
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 p-4">
-      <div><div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-blue-400" /><h3 className="text-sm font-medium text-zinc-100">Proposed changes</h3><Badge variant={statusVariant(status)}>{status}</Badge></div><p className="mt-1 text-xs text-zinc-500">Review every selected action before anything is written.</p></div>
+  return <section className="mt-4 overflow-hidden rounded-xl border border-border-strong bg-background/70">
+    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
+      <div><div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /><h3 className="text-sm font-medium text-foreground">Proposed changes</h3><Badge variant={statusVariant(status)}>{status}</Badge><Badge>{selected.size} of {actions.length} selected</Badge></div><p className="mt-1 text-xs text-muted-foreground">Review every selected action before anything is written.</p></div>
       {!terminal ? <div className="flex gap-1"><Button size="sm" variant="ghost" disabled={busy} onClick={() => chooseAll(true)}>Select all</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => chooseAll(false)}>None</Button></div> : null}
     </header>
     <div className="space-y-2 p-3">
-      {(expanded ? actions : actions.slice(0, 2)).map((action) => <div key={action.id} className={`rounded-lg border p-3 ${selected.has(action.id) ? "border-blue-500/30 bg-blue-500/5" : "border-zinc-800 bg-zinc-950 opacity-60"}`}>
+      {(expanded ? actions : actions.slice(0, 2)).map((action) => <div key={action.id} className={`rounded-lg border p-3 ${selected.has(action.id) ? "border-primary/30 bg-primary/5" : "border-border bg-background opacity-60"}`}>
         <div className="flex items-start gap-3">
-          <input aria-label={`Select ${actionLabels[action.action_type]}`} type="checkbox" className="mt-1 h-4 w-4 accent-blue-500" checked={selected.has(action.id)} disabled={locked} onChange={(event) => setSelected((current) => { const next = new Set(current); event.target.checked ? next.add(action.id) : next.delete(action.id); return next })} />
-          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium text-zinc-100">{actionLabels[action.action_type]}</span>{action.entity_type ? <Badge>{action.entity_type.replace(/_/g, " ")}</Badge> : null}</div><p className="mt-1 text-xs leading-5 text-zinc-400">{action.summary}</p></div>
+          <input aria-label={`Select ${actionLabels[action.action_type]}`} type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={selected.has(action.id)} disabled={locked} onChange={(event) => setSelected((current) => { const next = new Set(current); event.target.checked ? next.add(action.id) : next.delete(action.id); return next })} />
+          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium text-foreground">{actionLabels[action.action_type]}</span>{action.entity_type ? <Badge>{action.entity_type.replace(/_/g, " ")}</Badge> : null}</div><p className="mt-1 text-xs leading-5 text-secondary">{action.summary}</p></div>
         </div>
-        {action.title !== null ? <div className="mt-3"><Label htmlFor={`title-${action.id}`} className="text-xs text-zinc-500">Title</Label><Input id={`title-${action.id}`} className="mt-1 h-9 text-sm" value={action.title} disabled={locked} onChange={(event) => edit(action.id, "title", event.target.value)} /></div> : null}
-        {action.content !== null ? <div className="mt-3"><Label htmlFor={`content-${action.id}`} className="text-xs text-zinc-500">Content</Label><Textarea id={`content-${action.id}`} className="mt-1 min-h-24 text-sm" value={action.content} disabled={locked} onChange={(event) => edit(action.id, "content", event.target.value)} /></div> : null}
+        <ActionDiff action={action} />
+        {action.title !== null ? <div className="mt-3"><Label htmlFor={`title-${action.id}`} className="text-xs text-muted-foreground">Title</Label><Input id={`title-${action.id}`} className="mt-1 h-9 text-sm" value={action.title} disabled={locked} onChange={(event) => edit(action.id, "title", event.target.value)} /></div> : null}
+        {action.content !== null ? <div className="mt-3"><Label htmlFor={`content-${action.id}`} className="text-xs text-muted-foreground">Content</Label><Textarea id={`content-${action.id}`} className="mt-1 min-h-24 text-sm" value={action.content} disabled={locked} onChange={(event) => edit(action.id, "content", event.target.value)} /></div> : null}
       </div>)}
       {actions.length > 3 ? <Button size="sm" variant="ghost" className="w-full" onClick={() => setExpanded((current) => !current)}>{expanded ? <ChevronUp className="mr-2 h-4 w-4" /> : <ChevronDown className="mr-2 h-4 w-4" />}{expanded ? "Show less" : `Show all ${actions.length} actions`}</Button> : null}
-      {results.length ? <div className="space-y-2 rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">{results.map((result) => <Link key={result.entity_id} to={`/knowledge/entities/${result.entity_id}`} className="flex items-center justify-between gap-3 text-sm text-blue-200 hover:text-blue-100"><span className="truncate">{result.title || "Open entity"}</span><ExternalLink className="h-3.5 w-3.5 shrink-0" /></Link>)}</div> : null}
-      {error ? <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-xs text-red-300"><p>{error}</p><p className="mt-1 text-red-200/70">Review the selected fields, then try applying the proposal again.</p></div> : null}
+      {results.length ? <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">{results.map((result) => <Link key={result.entity_id} to={`/knowledge/entities/${result.entity_id}`} className="flex items-center justify-between gap-3 text-sm text-primary hover:text-primary-foreground"><span className="truncate">{result.title || "Open entity"}</span><ExternalLink className="h-3.5 w-3.5 shrink-0" /></Link>)}</div> : null}
+      {error ? <div className="rounded-lg border border-danger/20 bg-danger/5 p-3 text-xs text-danger"><p>{error}</p><p className="mt-1 text-danger/70">Review the selected fields, then try applying the proposal again.</p></div> : null}
       {!terminal ? <div className="flex justify-end gap-2 pt-1"><Button size="sm" variant="outline" disabled={busy} onClick={() => void cancel()}><X className="mr-2 h-3.5 w-3.5" />Cancel</Button><Button size="sm" disabled={busy || selected.size === 0} onClick={() => void execute()}>{busy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : status === "failed" ? <RotateCcw className="mr-2 h-3.5 w-3.5" /> : <Check className="mr-2 h-3.5 w-3.5" />}{busy ? "Applying..." : status === "failed" ? `Retry ${selected.size} selected` : `Apply ${selected.size} selected`}</Button></div> : null}
     </div>
   </section>
@@ -200,48 +223,95 @@ function RecallCard({ message, onPersistedMessage }: Pick<ResponseProps, "messag
   const [selected, setSelected] = useState<AssistantRecallItem | null>(null)
   const [answer, setAnswer] = useState("")
   const [score, setScore] = useState("")
+  const [preview, setPreview] = useState<RecallGradePreview | null>(null)
+  const [confirmedScore, setConfirmedScore] = useState("")
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<RecallGradeResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   if (!items.length) return null
 
-  async function submit() {
-    if (!selected || !answer.trim()) return
-    const parsedScore = score ? Number(score) : undefined
-    if (parsedScore !== undefined && (!Number.isInteger(parsedScore) || parsedScore < 1 || parsedScore > 5)) {
-      setError("Self-score must be a whole number from 1 to 5.")
-      return
-    }
-    setBusy(true); setError(null)
-    try {
-      const response = await gradeAssistantRecall({
-        entity_id: selected.entity.id,
-        answer: answer.trim(),
-        thread_id: message.thread_id,
-        source_message_id: message.id,
-        ...(parsedScore ? { self_score: parsedScore } : {}),
-      })
-      const grade = "grade" in response ? response.grade : response as unknown as RecallGradeResult
-      setResult(grade)
-      if ("message" in response && response.message) onPersistedMessage(response.message)
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to grade recall.")
-    } finally { setBusy(false) }
+  function choose(item: AssistantRecallItem | null) {
+    setSelected(item)
+    setAnswer("")
+    setScore("")
+    setPreview(null)
+    setConfirmedScore("")
+    setResult(null)
+    setError(null)
   }
 
-  return <section className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
-    <div className="flex items-center gap-2"><RotateCcw className="h-4 w-4 text-amber-300" /><h3 className="text-sm font-medium text-zinc-100">Recall session</h3><Badge variant="warning">{items.length} due</Badge></div>
-    {!selected ? <div className="mt-3 grid gap-2">{items.map((item) => <button type="button" key={item.entity.id} onClick={() => { setSelected(item); setResult(null) }} className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-left hover:border-amber-500/30"><p className="text-sm font-medium text-zinc-100">{item.entity.title || "Untitled entity"}</p><p className="mt-1 text-xs text-zinc-500">{item.due_reasons.join(" / ")}</p></button>)}</div> : result ? <div className="mt-3 rounded-lg border border-blue-500/20 bg-blue-500/5 p-4">
-      <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-blue-300" /><span className="font-mono text-sm text-blue-200">{result.recalled_score}/5</span></div>
-      <p className="mt-2 text-sm leading-6 text-zinc-300">{result.feedback}</p>
-      {result.missed_points.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-zinc-400">{result.missed_points.map((point) => <li key={point}>{point}</li>)}</ul> : null}
-      <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => { setSelected(null); setAnswer(""); setScore(""); setResult(null) }}>Choose another</Button><Button asChild size="sm" variant="ghost"><Link to={`/knowledge/entities/${selected.entity.id}`}>Open note</Link></Button></div>
-    </div> : <div className="mt-3 space-y-3 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-      <div><p className="text-sm font-medium text-zinc-100">Explain {selected.entity.title || "this note"} from memory</p><p className="mt-1 text-xs text-zinc-500">{selected.due_reasons.join(" / ")}</p></div>
+  async function previewGrade() {
+    if (!selected || !answer.trim()) return
+    const parsedScore = Number(score)
+    if (!Number.isInteger(parsedScore) || parsedScore < 1 || parsedScore > 5) {
+      setError("Choose a provisional score from 1 to 5. You can override it after the preview.")
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const response = await previewAssistantRecall({
+        entity_id: selected.entity.id,
+        answer: answer.trim(),
+        self_score: parsedScore,
+        thread_id: message.thread_id,
+        source_message_id: message.id,
+      })
+      setPreview(response.grade)
+      setConfirmedScore(String(response.grade.suggested_score))
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Unable to preview recall.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function applyGrade() {
+    if (!selected || !preview) return
+    const parsedScore = Number(confirmedScore)
+    if (!Number.isInteger(parsedScore) || parsedScore < 1 || parsedScore > 5) {
+      setError("Confirmed score must be a whole number from 1 to 5.")
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const response = await applyAssistantRecall({
+        entity_id: selected.entity.id,
+        answer: answer.trim(),
+        self_score: parsedScore,
+        thread_id: message.thread_id,
+        source_message_id: message.id,
+      })
+      setResult(response.grade)
+      if (response.message) onPersistedMessage(response.message)
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Unable to apply the confirmed recall score.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <section className="mt-4 rounded-xl border border-warning/20 bg-warning/5 p-4">
+    <div className="flex items-center gap-2"><RotateCcw className="h-4 w-4 text-warning" /><h3 className="text-sm font-medium text-foreground">Recall session</h3><Badge variant="warning">{items.length} due</Badge></div>
+    {!selected ? <div className="mt-3 grid gap-2">{items.map((item) => <button type="button" key={item.entity.id} onClick={() => choose(item)} className="rounded-lg border border-border bg-background p-3 text-left hover:border-warning/30"><p className="text-sm font-medium text-foreground">{item.entity.title || "Untitled entity"}</p><p className="mt-1 text-xs text-muted-foreground">{item.due_reasons.join(" / ")}</p></button>)}</div> : result ? <div className="mt-3 rounded-lg border border-success/20 bg-success/5 p-4">
+      <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-success" /><span className="font-mono text-sm text-success">{result.recalled_score}/5 confirmed</span></div>
+      <p className="mt-2 text-sm leading-6 text-secondary">{result.feedback}</p>
+      {result.missed_points.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-secondary">{result.missed_points.map((point) => <li key={point}>{point}</li>)}</ul> : null}
+      <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => choose(null)}>Choose another</Button><Button asChild size="sm" variant="ghost"><Link to={`/knowledge/entities/${selected.entity.id}`}>Open note</Link></Button></div>
+    </div> : preview ? <div className="mt-3 space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
+      <div className="flex flex-wrap items-center gap-2"><Badge variant="blue">Advisory preview</Badge><Badge>{preview.used_fallback ? "Fallback" : "AI suggestion"}</Badge></div>
+      <p className="text-sm leading-6 text-secondary">{preview.feedback}</p>
+      {preview.missed_points.length ? <ul className="list-disc space-y-1 pl-5 text-xs text-secondary">{preview.missed_points.map((point) => <li key={point}>{point}</li>)}</ul> : null}
+      <div><Label htmlFor={`recall-confirmed-${message.id}`}>Score to apply</Label><Input id={`recall-confirmed-${message.id}`} type="number" min="1" max="5" value={confirmedScore} onChange={(event) => setConfirmedScore(event.target.value)} className="mt-1 max-w-40" /><p className="mt-1 text-xs text-muted-foreground">Suggested {preview.suggested_score}/5. Only your confirmed value changes confidence.</p></div>
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
+      <div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => { setPreview(null); setConfirmedScore("") }}>Edit answer</Button><Button size="sm" disabled={busy || !confirmedScore} onClick={() => void applyGrade()}>{busy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-2 h-3.5 w-3.5" />}{busy ? "Applying..." : "Apply confirmed score"}</Button></div>
+    </div> : <div className="mt-3 space-y-3 rounded-lg border border-border bg-background p-4">
+      <div><p className="text-sm font-medium text-foreground">Explain {selected.entity.title || "this note"} from memory</p><p className="mt-1 text-xs text-muted-foreground">{selected.due_reasons.join(" / ")}</p></div>
       <div><Label htmlFor={`recall-answer-${message.id}`}>Your answer</Label><Textarea id={`recall-answer-${message.id}`} value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Write what you remember without opening the note..." className="mt-1 min-h-32" /></div>
-      <div><Label htmlFor={`recall-score-${message.id}`}>Self-score (optional)</Label><Input id={`recall-score-${message.id}`} type="number" min="1" max="5" value={score} onChange={(event) => setScore(event.target.value)} placeholder="1 to 5" className="mt-1 max-w-40" /></div>
-      {error ? <p className="text-xs text-red-300">{error}</p> : null}
-      <div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => setSelected(null)}>Back</Button><Button size="sm" disabled={busy || !answer.trim()} onClick={() => void submit()}>{busy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}{busy ? "Grading..." : "Submit recall"}</Button></div>
+      <div><Label htmlFor={`recall-score-${message.id}`}>Provisional score</Label><Input id={`recall-score-${message.id}`} type="number" min="1" max="5" value={score} onChange={(event) => setScore(event.target.value)} placeholder="1 to 5" className="mt-1 max-w-40" /><p className="mt-1 text-xs text-muted-foreground">Used only to make the preview resilient; you confirm or override it next.</p></div>
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
+      <div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => choose(null)}>Back</Button><Button size="sm" disabled={busy || !answer.trim() || !score} onClick={() => void previewGrade()}>{busy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}{busy ? "Previewing..." : "Preview grade"}</Button></div>
     </div>}
   </section>
 }
@@ -252,10 +322,10 @@ function ResultCard({ message }: { message: AssistantMessage }) {
   if (kind !== "execution_result" && kind !== "recall_result") return null
   const results = Array.isArray(payload.results) ? payload.results.map(asRecord) : []
   const grade = asRecord(payload.grade)
-  return <section className="mt-3 rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
-    <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-blue-300" /><span className="text-sm font-medium text-zinc-100">{kind === "execution_result" ? "Changes applied" : "Recall complete"}</span></div>
-    {results.length ? <div className="mt-3 space-y-2">{results.map((item, index) => typeof item.entity_id === "string" ? <Link key={String(item.action_id ?? index)} to={`/knowledge/entities/${item.entity_id}`} className="flex items-center justify-between text-sm text-blue-200 hover:text-blue-100"><span>{typeof item.title === "string" ? item.title : "Open entity"}</span><ExternalLink className="h-3.5 w-3.5" /></Link> : null)}</div> : null}
-    {kind === "recall_result" && typeof grade.recalled_score === "number" ? <div className="mt-3"><p className="font-mono text-sm text-blue-200">{grade.recalled_score}/5</p>{typeof grade.feedback === "string" ? <p className="mt-1 text-sm leading-6 text-zinc-300">{grade.feedback}</p> : null}</div> : null}
+  return <section className="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+    <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary" /><span className="text-sm font-medium text-foreground">{kind === "execution_result" ? "Changes applied" : "Recall complete"}</span></div>
+    {results.length ? <div className="mt-3 space-y-2">{results.map((item, index) => typeof item.entity_id === "string" ? <Link key={String(item.action_id ?? index)} to={`/knowledge/entities/${item.entity_id}`} className="flex items-center justify-between text-sm text-primary hover:text-primary-foreground"><span>{typeof item.title === "string" ? item.title : "Open entity"}</span><ExternalLink className="h-3.5 w-3.5" /></Link> : null)}</div> : null}
+    {kind === "recall_result" && typeof grade.recalled_score === "number" ? <div className="mt-3"><p className="font-mono text-sm text-primary">{grade.recalled_score}/5</p>{typeof grade.feedback === "string" ? <p className="mt-1 text-sm leading-6 text-secondary">{grade.feedback}</p> : null}</div> : null}
   </section>
 }
 
@@ -265,11 +335,11 @@ export function AssistantResponse({ message, onUseText, onPersistedMessage, onRe
   const questions = Array.isArray(payload.questions) ? payload.questions.filter((item): item is string => typeof item === "string") : []
   const timestamp = useMemo(() => new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(message.created_at)), [message.created_at])
   if (message.role === "user") {
-    return <article className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-blue-600 px-4 py-3 text-sm leading-6 text-white"><p className="whitespace-pre-wrap break-words">{message.content}</p><p className="mt-1 text-right font-mono text-[10px] text-blue-100/70">{timestamp}</p></article>
+    return <article className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-primary-strong px-4 py-3 text-sm leading-6 text-primary-foreground"><p className="whitespace-pre-wrap break-words">{message.content}</p><p className="mt-1 text-right font-mono text-[10px] text-primary-foreground/70">{timestamp}</p></article>
   }
-  return <article className={`group min-w-0 max-w-3xl rounded-2xl rounded-bl-md border p-4 ${kind === "system_error" ? "border-red-500/30 bg-red-500/5" : "border-zinc-800 bg-zinc-900"}`}>
+  return <article className={`group min-w-0 max-w-3xl rounded-2xl rounded-bl-md border p-4 ${kind === "system_error" ? "border-danger/30 bg-danger/5" : "border-border bg-surface"}`}>
     <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0 flex-1">{kind === "system_error" ? <div className="mb-2 flex items-center gap-2 text-sm text-red-300"><AlertCircle className="h-4 w-4" />Assistant error</div> : null}<MarkdownResponse>{message.content}</MarkdownResponse></div>
+      <div className="min-w-0 flex-1">{kind === "system_error" ? <div className="mb-2 flex items-center gap-2 text-sm text-danger"><AlertCircle className="h-4 w-4" />Assistant error</div> : null}<MarkdownResponse>{message.content}</MarkdownResponse></div>
       <CopyButton value={message.content} label="Copy response" />
     </div>
     {kind === "questions" ? <QuestionsCard questions={questions} onUseText={onUseText} /> : null}
@@ -277,6 +347,6 @@ export function AssistantResponse({ message, onUseText, onPersistedMessage, onRe
     {kind === "recall_due" ? <RecallCard message={message} onPersistedMessage={onPersistedMessage} /> : null}
     <ResultCard message={message} />
     {kind === "system_error" && onRetry ? <Button size="sm" variant="outline" className="mt-3" onClick={onRetry}><RotateCcw className="mr-2 h-3.5 w-3.5" />Retry</Button> : null}
-    <footer className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[10px] text-zinc-600"><span>{timestamp}</span>{message.model_stage ? <><span aria-hidden="true">/</span><span>{message.model_stage}</span></> : null}</footer>
+    <footer className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[10px] text-muted-foreground"><span>{timestamp}</span>{message.model_stage ? <><span aria-hidden="true">/</span><span>{message.model_stage}</span></> : null}</footer>
   </article>
 }

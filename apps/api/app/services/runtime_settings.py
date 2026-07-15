@@ -5,21 +5,26 @@ import hashlib
 import secrets
 from datetime import datetime, timezone
 from typing import Literal
+from uuid import UUID
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.db.session import SessionLocal
 from app.models.app_setting import AppSetting
 from app.schemas.settings import (
     AiCredentialUpdate,
+    AiEgressDisclosureRead,
     AiProviderName,
     AiProviderStatusRead,
     AiSettingUpdate,
     AiStatusRead,
     GithubCredentialName,
     GithubStatusRead,
+    PreferencesRead,
+    PreferencesUpdate,
     SettingsStatusRead,
     WebSearchStatusRead,
 )
@@ -27,6 +32,7 @@ from app.schemas.settings import (
 AI_SETTING_KEY = "ai"
 GITHUB_SETTING_KEY = "github"
 WEB_SEARCH_SETTING_KEY = "web_search"
+PREFERENCES_SETTING_KEY = "preferences"
 PROVIDERS = ("openai", "gemini", "mistral")
 GITHUB_WEBHOOK_EVENTS = ["Pull requests", "Pushes", "Workflow runs", "Check runs"]
 
@@ -47,6 +53,10 @@ def _github_defaults() -> dict:
 
 def _web_search_defaults() -> dict:
     return {"enabled": False, "provider": "tavily", "keys": {}}
+
+
+def _preferences_defaults() -> dict:
+    return {"theme": "system", "onboarding_completed": False, "learning_focuses": []}
 
 
 def _row(db: Session, key: str, defaults: dict) -> AppSetting:
@@ -77,7 +87,12 @@ def _merged_value(db: Session, key: str, defaults: dict) -> dict:
 
 
 def _save(db: Session, key: str, value: dict) -> None:
-    defaults = {AI_SETTING_KEY: _ai_defaults, GITHUB_SETTING_KEY: _github_defaults, WEB_SEARCH_SETTING_KEY: _web_search_defaults}[key]()
+    defaults = {
+        AI_SETTING_KEY: _ai_defaults,
+        GITHUB_SETTING_KEY: _github_defaults,
+        WEB_SEARCH_SETTING_KEY: _web_search_defaults,
+        PREFERENCES_SETTING_KEY: _preferences_defaults,
+    }[key]()
     row = _row(db, key, defaults)
     row.value = value
     row.updated_at = datetime.now(timezone.utc)
@@ -122,6 +137,33 @@ def _github_value(db: Session) -> dict:
 
 def _web_search_value(db: Session) -> dict:
     return _merged_value(db, WEB_SEARCH_SETTING_KEY, _web_search_defaults())
+
+
+def get_preferences(db: Session) -> PreferencesRead:
+    saved = _row(db, PREFERENCES_SETTING_KEY, _preferences_defaults()).value or {}
+    return PreferencesRead(
+        theme=saved.get("theme", "system"),
+        onboarding_completed=bool(saved.get("onboarding_completed", False)),
+        learning_focuses=saved.get("learning_focuses") or [],
+    )
+
+
+def update_preferences(db: Session, payload: PreferencesUpdate) -> PreferencesRead:
+    value = get_preferences(db).model_dump()
+    changes = payload.model_dump(exclude_none=True)
+    if "learning_focuses" in changes:
+        seen: set[str] = set()
+        focuses: list[str] = []
+        for raw_value in changes["learning_focuses"]:
+            focus = raw_value.strip()
+            if not focus or len(focus) > 80 or focus.casefold() in seen:
+                continue
+            seen.add(focus.casefold())
+            focuses.append(focus)
+        changes["learning_focuses"] = focuses
+    value.update(changes)
+    _save(db, PREFERENCES_SETTING_KEY, value)
+    return PreferencesRead(**value)
 
 
 def get_ai_api_key(db: Session, provider: AiProviderName) -> str:
@@ -176,16 +218,66 @@ def remove_web_search_credential(db: Session) -> None:
     _remove_credential(db, WEB_SEARCH_SETTING_KEY, _web_search_value(db), "api_key")
 
 
-def consume_ai_request(db: Session) -> None:
-    user_id = db.info.get("user_id")
+def _usage_user_id(context: Session | UUID | None) -> UUID | None:
+    if isinstance(context, UUID):
+        return context
+    return getattr(context, "info", {}).get("user_id")
+
+
+def consume_ai_request(context: Session | UUID | None) -> None:
+    """Atomically charge one provider call in its own durable transaction."""
+    user_id = _usage_user_id(context)
     if user_id is None:
         raise ValueError("User context is required for AI requests")
-    used = db.execute(text("SELECT COALESCE((SELECT ai_requests FROM usage_daily WHERE user_id = :user_id AND date = current_date), 0)"), {"user_id": user_id}).scalar_one()
-    limit = db.execute(text("SELECT COALESCE((SELECT max_ai_requests_per_day FROM user_quotas WHERE user_id = :user_id), 200)"), {"user_id": user_id}).scalar_one()
-    if used >= limit:
-        raise ValueError("Daily AI request quota exceeded")
-    db.execute(text("INSERT INTO usage_daily (id, user_id, date, ai_requests) VALUES (gen_random_uuid(), :user_id, current_date, 1) ON CONFLICT (user_id, date) DO UPDATE SET ai_requests = usage_daily.ai_requests + 1"), {"user_id": user_id})
-    db.commit()
+    with SessionLocal.begin() as accounting_db:
+        charged = accounting_db.execute(
+            text(
+                "INSERT INTO usage_daily (id, user_id, date, ai_requests) "
+                "SELECT gen_random_uuid(), :user_id, current_date, 1 "
+                "WHERE COALESCE((SELECT max_ai_requests_per_day FROM user_quotas "
+                "WHERE user_id = :user_id), 200) > 0 "
+                "ON CONFLICT (user_id, date) DO UPDATE "
+                "SET ai_requests = usage_daily.ai_requests + 1 "
+                "WHERE usage_daily.ai_requests < COALESCE((SELECT max_ai_requests_per_day "
+                "FROM user_quotas WHERE user_id = :user_id), 200) "
+                "RETURNING ai_requests"
+            ),
+            {"user_id": user_id},
+        ).scalar_one_or_none()
+        if charged is None:
+            raise ValueError("Daily AI request quota exceeded")
+
+
+def record_ai_result(
+    context: Session | UUID | None,
+    *,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+    error: bool = False,
+) -> None:
+    """Persist provider tokens/errors without committing the caller's work."""
+    user_id = _usage_user_id(context)
+    if user_id is None:
+        return
+    with SessionLocal.begin() as accounting_db:
+        accounting_db.execute(
+            text(
+                "INSERT INTO usage_daily "
+                "(id, user_id, date, prompt_tokens, completion_tokens, errors) "
+                "VALUES (gen_random_uuid(), :user_id, current_date, :prompt_tokens, "
+                ":completion_tokens, :errors) "
+                "ON CONFLICT (user_id, date) DO UPDATE SET "
+                "prompt_tokens = usage_daily.prompt_tokens + EXCLUDED.prompt_tokens, "
+                "completion_tokens = usage_daily.completion_tokens + EXCLUDED.completion_tokens, "
+                "errors = usage_daily.errors + EXCLUDED.errors"
+            ),
+            {
+                "user_id": user_id,
+                "prompt_tokens": max(0, int(prompt_tokens)),
+                "completion_tokens": max(0, int(completion_tokens)),
+                "errors": 1 if error else 0,
+            },
+        )
 
 
 def update_github_enabled(db: Session, enabled: bool) -> None:
@@ -227,6 +319,14 @@ def get_settings_status(db: Session) -> SettingsStatusRead:
         ai=AiStatusRead(enabled=enabled, provider=active, model_mode=ai["model_mode"], openai_configured=providers["openai"].configured, providers=providers, provider_ready=ready, fast_model=selected.fast_model, smart_model=selected.smart_model, disabled_reason=reason),
         github=GithubStatusRead(enabled=github_enabled, webhook_secret_configured=webhook_configured, access_token_configured=token_configured, ready=github_ready, disabled_reason=github_reason, webhook_url=get_github_webhook_url(db), webhook_events=GITHUB_WEBHOOK_EVENTS),
         web_search=WebSearchStatusRead(enabled=bool(_web_search_value(db)["enabled"]), provider="tavily", api_key_configured=bool(get_web_search_credential(db))),
+        ai_egress=AiEgressDisclosureRead(
+            provider=active,
+            destination={
+                "openai": "api.openai.com",
+                "gemini": "generativelanguage.googleapis.com",
+                "mistral": "api.mistral.ai",
+            }[active],
+        ),
     )
 
 
