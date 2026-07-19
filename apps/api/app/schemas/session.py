@@ -20,6 +20,8 @@ SessionAction = Literal[
     "deployed",
     "milestone_completed",
     "project_shipped",
+    "focus_session",
+    "daily_plan",
 ]
 
 

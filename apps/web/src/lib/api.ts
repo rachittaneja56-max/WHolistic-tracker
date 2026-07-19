@@ -38,7 +38,8 @@ export type GuidancePriority = "low" | "medium" | "high"
 export type RecallNextAction = "review_again" | "mark_revisited" | "strengthen_note"
 export type EntityMetadata = Record<string, unknown>
 export type ThemePreference = "system" | "light" | "dark"
-export type WorkspacePreferences = { theme: ThemePreference; onboarding_completed: boolean; learning_focuses: string[] }
+export type LibrarySavedView = { id: string; name: string; query: Record<string, string | number | null> }
+export type WorkspacePreferences = { theme: ThemePreference; onboarding_completed: boolean; learning_focuses: string[]; library_saved_views: LibrarySavedView[]; library_pinned_entity_ids: string[] }
 
 export type Entity = {
   id: string
@@ -51,6 +52,7 @@ export type Entity = {
   confidence_score: number
   last_revisited_at: string | null
   created_at: string | null
+  updated_at: string | null
   metadata: EntityMetadata
   has_embedding: boolean
 }
@@ -132,7 +134,7 @@ export type GraphQuery = {
 
 
 export type AgendaFilter = "coursework" | "projects" | "dsa" | "revision"
-export type AgendaAction = "complete" | "snooze" | "reschedule" | "mark_blocked" | "open" | "start"
+export type AgendaAction = "complete" | "snooze" | "reschedule" | "mark_blocked" | "cancel" | "open" | "start"
 export type AgendaItem = {
   id: string
   kind: "task" | "assignment" | "exam" | "study" | "recall" | "comprehension" | "project"
@@ -552,6 +554,17 @@ export type EntitiesQuery = {
   limit?: number
 }
 
+export type SearchSort = "relevance" | "updated" | "created" | "confidence" | "revisited"
+export type EntitySearchQuery = {
+  q?: string; type?: EntityType; subject_id?: string; term?: string; tags?: string[]
+  min_confidence?: number; max_confidence?: number; recall_state?: "enabled" | "due" | "revisited" | "not_revisited"
+  created_after?: string; created_before?: string; updated_after?: string; updated_before?: string
+  sort?: SearchSort; cursor?: string; limit?: number
+}
+export type SearchHighlight = { start: number; end: number }
+export type EntitySearchResult = { entity: Entity; excerpt: string; highlights: SearchHighlight[]; parent: { id: string; title: string | null; type: EntityType | null; term: string | null } | null; relevance: number | null }
+export type EntitySearchResponse = { results: EntitySearchResult[]; total: number; next_cursor: string | null; search_mode: "postgresql_fts" | "portable_contains" }
+
 export type CreateEntityPayload = {
   title: string
   type: EntityType
@@ -747,6 +760,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getEntities(query?: EntitiesQuery) {
   return request<Entity[]>(`/entities${buildQueryString(query)}`)
+}
+
+export function searchEntities(query: EntitySearchQuery) {
+  const params = new URLSearchParams()
+  Object.entries(query).forEach(([key, value]) => {
+    if (Array.isArray(value)) value.filter(Boolean).forEach((item) => params.append(key, item))
+    else if (value !== undefined && value !== null && value !== "") params.set(key, String(value))
+  })
+  const suffix = params.toString() ? `?${params.toString()}` : ""
+  return request<EntitySearchResponse>(`/entities/search${suffix}`)
 }
 
 export function getPreferences() {
@@ -1122,3 +1145,17 @@ export function applyAssistantRecall(payload: { entity_id: string; answer: strin
   return request<AssistantRecallResponse>("/assistant/recall/apply", { method: "POST", body: JSON.stringify(payload) })
 }
 import { authenticatedFetch } from "@/lib/auth-client"
+
+export type FocusStatus = "running" | "paused" | "completed" | "cancelled"
+export type FocusSession = { id: string; entity_id: string; entity_title: string | null; entity_type: string | null; planned_minutes: number; actual_minutes: number; status: FocusStatus; started_at: string; paused_at: string | null; completed_at: string | null; cancelled_at: string | null; interruption_count: number; source: string; reflection: { accomplished: string; remaining: string; learned: string } | null; reflection_entity_id: string | null }
+export type StudyBlockInput = { entity_id: string; planned_minutes: number; start_at: string; source?: string }
+export type DailyPlanProposal = { day: string; available_minutes: number; already_scheduled_minutes: number; remaining_minutes: number; workload_minutes: number; is_over_capacity: boolean; blocks: StudyBlockInput[] }
+export const getActiveFocusSession = () => request<FocusSession | null>("/focus-sessions/active")
+export const startFocusSession = (payload: { entity_id: string; planned_minutes: number; source: string; planned_session_id?: string }) => request<FocusSession>("/focus-sessions", { method: "POST", body: JSON.stringify(payload) })
+export const transitionFocusSession = (id: string, action: "pause" | "resume" | "complete" | "cancel", interruption_count?: number) => request<FocusSession>(`/focus-sessions/${id}/${action}`, { method: "POST", body: JSON.stringify({ interruption_count }) })
+export const saveFocusReflection = (id: string, reflection: { accomplished: string; remaining: string; learned: string }) => request<FocusSession>(`/focus-sessions/${id}/reflection`, { method: "PUT", body: JSON.stringify(reflection) })
+export const retainFocusReflection = (id: string, entity_type: "til" | "note", title: string) => request<FocusSession>(`/focus-sessions/${id}/reflection-entity`, { method: "POST", body: JSON.stringify({ entity_type, title, confirm: true }) })
+export const proposeDailyPlan = (available_minutes: number) => request<DailyPlanProposal>("/daily-plan/propose", { method: "POST", body: JSON.stringify({ available_minutes }) })
+export const confirmDailyPlan = (available_minutes: number, blocks: StudyBlockInput[]) => request<DailyPlanProposal>("/daily-plan/confirm", { method: "POST", body: JSON.stringify({ available_minutes, blocks }) })
+export const cancelStudyBlock = (id: string) => request<void>(`/study-blocks/${id}/cancel`, { method: "POST" })
+export const rescheduleStudyBlock = (id: string, payload: StudyBlockInput) => request<StudyBlockInput>(`/study-blocks/${id}/reschedule`, { method: "POST", body: JSON.stringify(payload) })

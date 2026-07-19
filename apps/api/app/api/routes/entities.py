@@ -19,6 +19,7 @@ from app.models.review import Review
 from app.models.session import ActivitySession
 from app.schemas.embedding import EntityConnectionRead, EntityLinkCandidateRead, EntitySimilarityRead, RefreshAllEmbeddingsRead
 from app.schemas.entity import EntityCreate, EntityRead, EntityUpdate, normalize_entity_metadata
+from app.services.entity_search import search_entities
 from app.schemas.deletion import EntityDeleteRequest, EntityDeletionImpactRead, EntityDeletionResultRead
 from app.services.confidence import mark_entity_revisited
 from app.services.embeddings import get_similar_entities, update_entity_embedding
@@ -56,6 +57,7 @@ def serialize_entity(entity: Entity) -> EntityRead:
             "confidence_score": entity.confidence_score if entity.confidence_score is not None else 1.0,
             "last_revisited_at": entity.last_revisited_at,
             "created_at": entity.created_at,
+            "updated_at": entity.updated_at,
             "metadata": entity.entity_metadata or {},
             "has_embedding": entity.embedding is not None,
         }
@@ -205,6 +207,33 @@ def list_entities(
 
     entities = db.scalars(query).all()
     return [serialize_entity(entity) for entity in entities]
+
+
+@router.get("/search")
+def search_entities_route(
+    q: str = Query(default="", max_length=300),
+    entity_type: str | None = Query(default=None, alias="type"),
+    subject_id: uuid.UUID | None = Query(default=None),
+    term: str | None = Query(default=None, max_length=120),
+    tags: list[str] | None = Query(default=None),
+    min_confidence: float | None = Query(default=None, ge=0, le=1),
+    max_confidence: float | None = Query(default=None, ge=0, le=1),
+    recall_state: str | None = Query(default=None, pattern="^(enabled|due|revisited|not_revisited)$"),
+    created_after: datetime | None = Query(default=None),
+    created_before: datetime | None = Query(default=None),
+    updated_after: datetime | None = Query(default=None),
+    updated_before: datetime | None = Query(default=None),
+    sort: str = Query(default="relevance", pattern="^(relevance|updated|created|confidence|revisited)$"),
+    cursor: str | None = Query(default=None, max_length=600),
+    limit: int = Query(default=30, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    if min_confidence is not None and max_confidence is not None and min_confidence > max_confidence:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="min_confidence cannot exceed max_confidence")
+    try:
+        return search_entities(db, q=q, entity_type=entity_type, subject_id=subject_id, term=term, tags=tags or [], min_confidence=min_confidence, max_confidence=max_confidence, recall_state=recall_state, created_after=created_after, created_before=created_before, updated_after=updated_after, updated_before=updated_before, sort=sort, cursor=cursor, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 @router.post("", response_model=EntityRead, status_code=status.HTTP_201_CREATED)
 def create_entity(payload: EntityCreate, db: Session = Depends(get_db)) -> EntityRead:

@@ -142,6 +142,9 @@ def get_today_agenda(
     entity_ids = [entity.id for entity in entities]
     sessions = list(db.scalars(select(ActivitySession).where(ActivitySession.action == "study_planned").where(ActivitySession.entity_id.in_(entity_ids))).all()) if entity_ids else []
     checks = list(db.scalars(select(ComprehensionCheck).where(ComprehensionCheck.answered_at.is_(None))).all())
+    day_start = datetime.combine(range_start, time.min, tzinfo=timezone.utc)
+    capacity_rows = list(db.scalars(select(ActivitySession).where(ActivitySession.action == "daily_plan").where(ActivitySession.date >= day_start).where(ActivitySession.date < day_start + timedelta(days=1)).order_by(ActivitySession.date.desc())).all())
+    available_minutes = next((row.meta.get("available_minutes") for row in capacity_rows if isinstance((row.meta or {}).get("available_minutes"), int)), None)
     return build_agenda(
         entities=entities,
         sessions=sessions,

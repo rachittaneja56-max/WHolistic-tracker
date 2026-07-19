@@ -135,3 +135,12 @@ export const getDeletionImpact = (id: string) => request<DeletionImpact>(`/entit
 export const deleteEntity = (id: string, confirmationTitle?: string) => request<{ entity: Entity; deleted_at: string }>(`/entities/${id}`, { method: "DELETE", body: JSON.stringify({ confirmation_title: confirmationTitle ?? null }) })
 export const getSubjectTracker = () => request<SubjectTrackerSummary[]>("/subjects/tracker")
 export const getSubjectOverview = (id: string) => request<SubjectOverview>(`/subjects/${id}/overview`)
+
+export type AcademicOccurrence = { id: string; entity_id: string; subject_id: string | null; title: string; kind: string; start_at: string; end_at: string | null; estimated_minutes: number | null; cancelled: boolean }
+export type SemesterOverview = { term: string | null; active: boolean; start_date: string | null; end_date: string | null; exam_period_start: string | null; exam_period_end: string | null; break_weeks: { start_date: string; end_date: string; label?: string }[]; courses: Entity[]; total_credits: number; upcoming_assessments: Entity[]; workload: { week_start: string; planned_minutes: number; completed_minutes: number }[]; courses_needing_attention: Entity[] }
+export type GradeAssessment = { entity_id: string; title: string; weight_percent: number | null; points_earned: number | null; points_possible: number | null }
+export type GradeSummary = { current_weighted_grade: number | null; grade_on_graded_work: number | null; graded_weight: number; ungraded_weight: number; total_weight: number; target_grade: number | null; required_score_on_remaining: number | null; warnings: string[]; assessments: GradeAssessment[] }
+export const getSemesterOverview = (term?: string) => request<SemesterOverview>(`/academic/semester/overview${term ? `?term=${encodeURIComponent(term)}` : ""}`)
+export const getAcademicCalendar = (startDate: string, endDate: string, term?: string) => request<{ start_date: string; end_date: string; events: AcademicOccurrence[] }>(`/academic/calendar?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}${term ? `&term=${encodeURIComponent(term)}` : ""}`)
+export const getSubjectGrades = (subjectId: string, targetGrade?: number) => request<GradeSummary>(`/academic/subjects/${subjectId}/grades${targetGrade === undefined ? "" : `?target_grade=${targetGrade}`}`)
+export const calculateGradeScenario = (target_grade: number, assessments: GradeAssessment[]) => request<GradeSummary>("/academic/grades/scenario", { method: "POST", body: JSON.stringify({ target_grade, assessments }) })

@@ -10,6 +10,7 @@ export const navigationGroups: NavigationGroup[] = [
   ] },
   { label: "Learning", items: [
     { to: "/learn", label: "Learn overview", icon: GraduationCap, exact: true },
+    { to: "/academic", label: "Semester", icon: GraduationCap },
     { to: "/trackers/subjects", label: "Subjects", icon: Library },
     { to: "/trackers/dsa", label: "DSA practice", icon: Braces },
     { to: "/knowledge/recall", label: "Recall", icon: RotateCcw },

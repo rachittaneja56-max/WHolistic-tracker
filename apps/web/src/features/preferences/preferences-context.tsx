@@ -10,7 +10,7 @@ type PreferencesContextValue = {
   updatePreferences: (patch: Partial<WorkspacePreferences>) => Promise<WorkspacePreferences>
 }
 
-const defaults: WorkspacePreferences = { theme: "system", onboarding_completed: false, learning_focuses: [] }
+const defaults: WorkspacePreferences = { theme: "system", onboarding_completed: false, learning_focuses: [], library_saved_views: [], library_pinned_entity_ids: [] }
 const PreferencesContext = createContext<PreferencesContextValue | null>(null)
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {

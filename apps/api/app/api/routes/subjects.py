@@ -26,6 +26,7 @@ LINKED_TYPES = {"note", "til", "dsa_problem", "concept", "task"}
 SESSION_MINUTE_KEYS = {
     "study_planned": ("planned_minutes", "duration_minutes", "minutes", "estimated_minutes"),
     "study_completed": ("actual_minutes", "duration_minutes", "minutes", "studied_minutes", "estimated_minutes"),
+    "focus_session": ("actual_minutes",),
 }
 
 
@@ -191,9 +192,9 @@ def build_subject_summary(
         session_date = _as_utc(session_row.date)
         if session_row.action == "study_planned" and planned_start <= session_date <= planned_end:
             planned_minutes += _session_minutes(session_row)
-        if session_row.action == "study_completed" and studied_start <= session_date <= current_time:
+        if (session_row.action == "study_completed" or (session_row.action == "focus_session" and (session_row.meta or {}).get("status") == "completed")) and studied_start <= session_date <= current_time:
             studied_minutes += _session_minutes(session_row)
-        if session_row.action == "study_completed" and session_date <= current_time:
+        if (session_row.action == "study_completed" or (session_row.action == "focus_session" and (session_row.meta or {}).get("status") == "completed")) and session_date <= current_time:
             if last_studied_at is None or session_date > last_studied_at:
                 last_studied_at = session_date
 

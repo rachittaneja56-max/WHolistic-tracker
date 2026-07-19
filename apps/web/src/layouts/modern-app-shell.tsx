@@ -9,6 +9,7 @@ import { WebVitalsReporter } from "@/components/web-vitals-reporter"
 import { Button } from "@/components/ui/button"
 import { AssistantSettingsContext } from "@/features/assistant/assistant-settings-context"
 import { getSettingsStatus, type SettingsStatus } from "@/lib/system-api"
+import { FocusSessionDock } from "@/features/focus/focus-session-dock"
 
 const focusableSelector = [
   "a[href]",
@@ -113,6 +114,7 @@ export function ModernAppShell({ children }: { children: ReactNode; [key: string
         {!isOnline ? <div role="status" aria-live="polite" className="border-b border-warning/30 bg-warning/10 px-4 py-2 text-center text-sm text-warning">You are offline. Captures cannot be saved until the connection returns.</div> : null}
         <main id="main-content" tabIndex={-1} className="mx-auto max-w-[1480px] px-4 py-6 pb-[calc(env(safe-area-inset-bottom)+6rem)] outline-none sm:px-6 md:px-8 md:py-8 md:pb-10">{children}</main>
       </div>
+      <FocusSessionDock />
       <MobileNavigation />
     </div>
   </AssistantSettingsContext.Provider>

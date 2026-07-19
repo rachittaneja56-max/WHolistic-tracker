@@ -32,6 +32,15 @@ const flows: Array<{
 
 const topLevelSubjectValue = "__top_level_subject__"
 
+const noteTemplates: Record<string, string> = {
+  lecture: "## Key ideas\n\n- \n\n## Examples\n\n## Questions to revisit\n\n## Connections\n",
+  lab: "## Goal\n\n## Setup\n\n## Observations\n\n## Results\n\n## Fixes / follow-up\n",
+  reading: "## Source and thesis\n\n## Evidence and notes\n\n## What changed my mind\n\n## Connections\n",
+  debugging: "## Symptom\n\n## Hypothesis\n\n## Investigation\n\n## Resolution\n\n## Prevention\n",
+  "project-decision": "## Context\n\n## Options considered\n\n## Decision\n\n## Consequences and follow-up\n",
+  "exam-summary": "## Concept map\n\n## High-confidence topics\n\n## Weak areas\n\n## Revision prompts\n",
+}
+
 function flowFromQuery(value: string | null): CaptureFlow {
   if (value === "dsa_problem" || value === "practice_problem") return "practice_problem"
   if (value === "task" || value === "assignment") return "assignment"
@@ -50,10 +59,11 @@ export function CapturePage() {
   const [searchParams] = useSearchParams()
   const searchKey = searchParams.toString()
   const prefill = useMemo(() => normalizeCapturePrefill(new URLSearchParams(searchKey)), [searchKey])
+  const templateContent = noteTemplates[searchParams.get("template") ?? ""] ?? ""
   const initialFlow = flowFromQuery(searchParams.get("type"))
   const [flow, setFlow] = useState<CaptureFlow>(initialFlow)
   const [title, setTitle] = useState(prefill.title)
-  const [content, setContent] = useState(prefill.content)
+  const [content, setContent] = useState(prefill.content || templateContent)
   const [tags, setTags] = useState(prefill.tags)
   const [parentId, setParentId] = useState(prefill.parentId)
   const [academicKind, setAcademicKind] = useState<AcademicKind>(prefill.academicKind ?? "assignment")

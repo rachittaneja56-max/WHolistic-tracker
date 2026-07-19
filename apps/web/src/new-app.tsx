@@ -7,6 +7,7 @@ import { PreferencesProvider } from "@/features/preferences/preferences-context"
 import { RootLayout } from "@/layouts/root-layout"
 import { buildLoginUrl, getSafeReturnTo } from "@/lib/auth-routing"
 
+const AcademicPlanningPage = lazy(() => import("@/pages/academic-planning-page").then((module) => ({ default: module.AcademicPlanningPage })))
 const AdminPage = lazy(() => import("@/pages/admin-page").then((module) => ({ default: module.AdminPage })))
 const AllEntitiesPage = lazy(() => import("@/pages/all-entities-page").then((module) => ({ default: module.AllEntitiesPage })))
 const AnalystPage = lazy(() => import("@/pages/analyst-page").then((module) => ({ default: module.AnalystPage })))
@@ -107,6 +108,7 @@ function AppRoutes() {
         <Route path="app" element={<TodayPage />} />
         <Route path="app/insights" element={<InsightsPage />} />
         <Route path="learn" element={<LearnPage />} />
+        <Route path="academic" element={<AcademicPlanningPage />} />
         <Route path="library" element={<LibraryPage />} />
         <Route path="capture" element={<CapturePage />} />
         <Route path="trackers/dsa" element={<DsaPage />} />

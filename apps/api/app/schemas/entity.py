@@ -35,7 +35,10 @@ PROJECT_STATUS_VALUES = {"planned", "active", "paused", "completed", "archived",
 MILESTONE_STATUS_VALUES = {"planned", "active", "paused", "completed", "todo", "in_progress", "done"}
 TASK_STATUS_VALUES = {"backlog", "ready", "todo", "in_progress", "blocked", "in_review", "done", "cancelled", "submitted", "completed", "archived"}
 PRIORITY_VALUES = {"low", "medium", "high", "urgent"}
-ACADEMIC_KIND_VALUES = {"assignment", "exam", "revision", "reading", "project"}
+ACADEMIC_KIND_VALUES = {
+    "assignment", "exam", "revision", "reading", "project",
+    "lecture", "lab", "tutorial", "office_hours", "study_block",
+}
 SUBJECT_TEXT_FIELDS = ("course_code", "term", "instructor", "location")
 HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -96,6 +99,23 @@ def _normalize_optional_text(metadata: dict[str, Any], key: str) -> None:
         raise ValueError(f'metadata.{key} must be a string')
     metadata[key] = value.strip()
 
+
+def _normalize_optional_iso_date(metadata: dict[str, Any], key: str) -> None:
+    value = metadata.get(key)
+    if value in (None, ""):
+        return
+    if not isinstance(value, str):
+        raise ValueError(f"metadata.{key} must use YYYY-MM-DD")
+    normalized = value.strip()
+    try:
+        date.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ValueError(f"metadata.{key} must use YYYY-MM-DD") from exc
+    metadata[key] = normalized
+
+
+def _normalize_recurrence(metadata: dict[str, Any]) -> None:
+    _normalize_optional_text(metadata, "recurrence")
 
 def _normalize_optional_iso_datetime(metadata: dict[str, Any], key: str) -> None:
     value = metadata.get(key)
@@ -178,6 +198,33 @@ def normalize_subject_metadata(metadata: dict[str, Any] | None) -> dict[str, Any
     credits = _optional_number(normalized, 'credits', minimum=0)
     if credits is not None:
         normalized['credits'] = credits
+    for key in ("term_start_date", "term_end_date", "exam_period_start", "exam_period_end"):
+        _normalize_optional_iso_date(normalized, key)
+    term_status = normalized.get("term_status", "active")
+    if term_status not in {"active", "archived"}:
+        raise ValueError("metadata.term_status must be active or archived")
+    normalized["term_status"] = term_status
+    break_weeks = normalized.get("break_weeks", [])
+    if not isinstance(break_weeks, list):
+        raise ValueError("metadata.break_weeks must be a list")
+    validated_breaks: list[dict[str, str]] = []
+    for item in break_weeks:
+        if not isinstance(item, dict):
+            raise ValueError("metadata.break_weeks entries must be objects")
+        start, end = item.get("start_date"), item.get("end_date")
+        if not isinstance(start, str) or not isinstance(end, str):
+            raise ValueError("metadata.break_weeks entries require start_date and end_date")
+        try:
+            start_date, end_date = date.fromisoformat(start), date.fromisoformat(end)
+        except ValueError as exc:
+            raise ValueError("metadata.break_weeks dates must use YYYY-MM-DD") from exc
+        if end_date < start_date:
+            raise ValueError("metadata.break_weeks end_date must not be before start_date")
+        result = {"start_date": start, "end_date": end}
+        if isinstance(item.get("label"), str) and item["label"].strip():
+            result["label"] = item["label"].strip()
+        validated_breaks.append(result)
+    normalized["break_weeks"] = validated_breaks
 
     normalized.update(
         status=status_value,
@@ -217,7 +264,8 @@ def normalize_task_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     for key in ("blocked_reason", "acceptance_criteria", "pr_url", "branch_name"):
         _normalize_optional_text(normalized, key)
 
-    _normalize_optional_text(normalized, 'recurrence')
+    _normalize_recurrence(normalized)
+    _normalize_optional_iso_datetime(normalized, 'end_at')
     for key in ('points_earned', 'points_possible'):
         value = _optional_number(normalized, key, minimum=0)
         if value is not None:
@@ -299,5 +347,33 @@ class EntityRead(BaseModel):
     confidence_score: float = 1.0
     last_revisited_at: datetime | None
     created_at: datetime | None
+    updated_at: datetime | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     has_embedding: bool = False
+
+
+class SearchHighlightRead(BaseModel):
+    start: int = Field(ge=0)
+    end: int = Field(ge=0)
+
+
+class SearchParentContextRead(BaseModel):
+    id: UUID
+    title: str | None
+    type: str | None
+    term: str | None = None
+
+
+class EntitySearchResultRead(BaseModel):
+    entity: EntityRead
+    excerpt: str
+    highlights: list[SearchHighlightRead] = Field(default_factory=list)
+    parent: SearchParentContextRead | None = None
+    relevance: float | None = None
+
+
+class EntitySearchResponseRead(BaseModel):
+    results: list[EntitySearchResultRead] = Field(default_factory=list)
+    total: int = Field(ge=0)
+    next_cursor: str | None = None
+    search_mode: str

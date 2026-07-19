@@ -56,7 +56,7 @@ def _web_search_defaults() -> dict:
 
 
 def _preferences_defaults() -> dict:
-    return {"theme": "system", "onboarding_completed": False, "learning_focuses": []}
+    return {"theme": "system", "onboarding_completed": False, "learning_focuses": [], "library_saved_views": [], "library_pinned_entity_ids": []}
 
 
 def _row(db: Session, key: str, defaults: dict) -> AppSetting:
@@ -145,6 +145,8 @@ def get_preferences(db: Session) -> PreferencesRead:
         theme=saved.get("theme", "system"),
         onboarding_completed=bool(saved.get("onboarding_completed", False)),
         learning_focuses=saved.get("learning_focuses") or [],
+        library_saved_views=saved.get("library_saved_views") or [],
+        library_pinned_entity_ids=saved.get("library_pinned_entity_ids") or [],
     )
 
 
@@ -161,6 +163,8 @@ def update_preferences(db: Session, payload: PreferencesUpdate) -> PreferencesRe
             seen.add(focus.casefold())
             focuses.append(focus)
         changes["learning_focuses"] = focuses
+    if "library_pinned_entity_ids" in changes:
+        changes["library_pinned_entity_ids"] = list(dict.fromkeys(changes["library_pinned_entity_ids"]))
     value.update(changes)
     _save(db, PREFERENCES_SETTING_KEY, value)
     return PreferencesRead(**value)

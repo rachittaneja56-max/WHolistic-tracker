@@ -35,6 +35,9 @@ class Entity(TenantOwned, Base):
     embedding: Mapped[list[float] | None] = mapped_column(Vector(dim=384), nullable=True)
     confidence_score: Mapped[float | None] = mapped_column(Float, server_default=text("1.0"), nullable=True)
     last_revisited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), onupdate=text("now()"), nullable=True
+    )
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=text("now()"), nullable=True)
     entity_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
 

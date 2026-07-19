@@ -110,6 +110,15 @@ class PreferencesRead(BaseModel):
     theme: ThemePreference = "system"
     onboarding_completed: bool = False
     learning_focuses: list[str] = Field(default_factory=list, max_length=12)
+    library_saved_views: list["LibrarySavedView"] = Field(default_factory=list, max_length=20)
+    library_pinned_entity_ids: list[str] = Field(default_factory=list, max_length=50)
+
+
+class LibrarySavedView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=80)
+    query: dict[str, str | float | None] = Field(default_factory=dict)
 
 
 class PreferencesUpdate(BaseModel):
@@ -117,3 +126,5 @@ class PreferencesUpdate(BaseModel):
     theme: ThemePreference | None = None
     onboarding_completed: bool | None = None
     learning_focuses: list[str] | None = Field(default=None, max_length=12)
+    library_saved_views: list[LibrarySavedView] | None = Field(default=None, max_length=20)
+    library_pinned_entity_ids: list[str] | None = Field(default=None, max_length=50)

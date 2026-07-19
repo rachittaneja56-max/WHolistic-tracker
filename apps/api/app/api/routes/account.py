@@ -24,7 +24,7 @@ class AccountDeleteRequest(BaseModel):
 EXPORT_TABLES: dict[str, tuple[str, ...]] = {
     "entities": (
         "id", "type", "parent_id", "title", "content", "content_type", "tags",
-        "confidence_score", "last_revisited_at", "created_at", "metadata",
+        "confidence_score", "last_revisited_at", "created_at", "updated_at", "metadata",
     ),
     "links": ("id", "from_id", "to_id", "relation_type", "explanation", "status", "created_at"),
     "sessions": ("id", "entity_id", "action", "date", "meta"),

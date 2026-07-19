@@ -11,6 +11,7 @@ from app.models.session import ActivitySession
 from app.schemas.agenda import AgendaContextRead, AgendaItemRead, AgendaPreviewRead, TodayAgendaResponse, AgendaTotalsRead, AgendaCapacityRead
 from app.schemas.project import ProjectTrackerItemRead
 from app.services.task_statuses import is_terminal_task_status
+from app.services.academic import occurrences_for_entity
 
 PRIORITY_ORDER = {"urgent": 0, "high": 1, "medium": 2, "low": 3}
 
@@ -116,9 +117,23 @@ def study_item(session: ActivitySession, entity: Entity | None, entities: dict[U
         title=f"Study {entity.title}" if entity and entity.title else "Planned study session", description="Planned study session.",
         start_at=start_at, estimated_minutes=minutes(meta.get("duration_minutes")) or minutes(meta.get("estimated_minutes")), priority="medium", urgency=urgency,
         recommendation_reason="You planned this study block.", status="planned", destination="subject" if context and context.type == "subject_topic" else "entity",
-        destination_id=(context.id if context and context.type == "subject_topic" else entity.id if entity else None), allowed_actions=["open", "start"], filters=item_filters(entity, context),
+        destination_id=(context.id if context and context.type == "subject_topic" else entity.id if entity else None), allowed_actions=["open", "start", "reschedule", "cancel"], filters=item_filters(entity, context),
     )
 
+
+def scheduled_occurrence_item(entity: Entity, occurrence, entities: dict[UUID, Entity], now: datetime) -> AgendaItemRead:
+    context = parent_context(entity, entities)
+    urgency = "overdue" if occurrence.start_at < now else "today" if occurrence.start_at.date() == now.date() else "upcoming"
+    kind = occurrence.kind if occurrence.kind in {"lecture", "lab", "tutorial", "office_hours", "study_block"} else "study"
+    return AgendaItemRead(
+        id=occurrence.id, kind=kind, source_entity_id=entity.id, source_type="recurrence", context=context,
+        title=occurrence.title, description="Recurring academic schedule.", start_at=occurrence.start_at, deadline=None,
+        estimated_minutes=occurrence.estimated_minutes, priority="medium", urgency=urgency,
+        recommendation_reason="Part of your recurring academic timetable.", status=str((entity.entity_metadata or {}).get("status", "planned")),
+        destination="subject" if context and context.type == "subject_topic" else "entity",
+        destination_id=context.id if context and context.type == "subject_topic" else entity.id,
+        allowed_actions=["open"], filters=item_filters(entity, context),
+    )
 
 def recall_item(item: RecallDueItem, entities: dict[UUID, Entity]) -> AgendaItemRead:
     entity = item.entity
@@ -166,13 +181,13 @@ def preview(items: list[AgendaItemRead], limit: int) -> AgendaPreviewRead:
     return AgendaPreviewRead(total=len(items), items=items[:limit])
 
 
-def build_agenda(*, entities: list[Entity], sessions: list[ActivitySession], recalls: list[RecallDueItem], checks: list[ComprehensionCheck], projects: list[ProjectTrackerItemRead], start_date: date, end_date: date, now: datetime | None = None, preview_limit: int = 8) -> TodayAgendaResponse:
+def build_agenda(*, entities: list[Entity], sessions: list[ActivitySession], recalls: list[RecallDueItem], checks: list[ComprehensionCheck], projects: list[ProjectTrackerItemRead], start_date: date, end_date: date, now: datetime | None = None, preview_limit: int = 8, available_minutes: int | None = None) -> TodayAgendaResponse:
     current = as_utc(now) or datetime.now(timezone.utc)
     entity_by_id = {entity.id: entity for entity in entities}
     items: list[AgendaItemRead] = []
     items.extend(task_item(entity, entity_by_id, current) for entity in entities if entity.type == "task" and not is_terminal_task_status(str((entity.entity_metadata or {}).get("status", "backlog"))))
     items.extend(item for item in (exam_item(entity, entity_by_id, current) for entity in entities if entity.type == "subject_topic") if item is not None)
-    items.extend(study_item(session, entity_by_id.get(session.entity_id), entity_by_id, current) for session in sessions if session.action == "study_planned" and session.date is not None)
+    items.extend(study_item(session, entity_by_id.get(session.entity_id), entity_by_id, current) for session in sessions if session.action == "study_planned" and session.date is not None and (session.meta or {}).get("status", "planned") == "planned")
     items.extend(recall_item(item, entity_by_id) for item in recalls)
     items.extend(comprehension_item(check, entity_by_id) for check in checks if check.answered_at is None)
     items.extend(project_item(row, entity_by_id, current) for row in projects if row.health in {"at_risk", "stalled"})
@@ -193,6 +208,6 @@ def build_agenda(*, entities: list[Entity], sessions: list[ActivitySession], rec
     return TodayAgendaResponse(
         start_date=start_date, end_date=end_date,
         totals=AgendaTotalsRead(total_items=len(items), overdue_items=len(overdue), scheduled_items=len(scheduled), unscheduled_items=len(unscheduled), recall_items=len(recall), comprehension_items=len(comprehension), planned_minutes=planned_minutes),
-        capacity=AgendaCapacityRead(scheduled_minutes=scheduled_minutes), recommended=ordered[0] if ordered else None,
+        capacity=AgendaCapacityRead(available_minutes=available_minutes, scheduled_minutes=scheduled_minutes, is_over_capacity=available_minutes is not None and scheduled_minutes > available_minutes), recommended=ordered[0] if ordered else None,
         overdue=preview(overdue, preview_limit), today=preview(today, preview_limit), upcoming=preview(upcoming, preview_limit), unscheduled=preview(unscheduled, preview_limit), recall=preview(recall, preview_limit), comprehension=preview(comprehension, preview_limit),
     )

@@ -1,0 +1,44 @@
+import { useEffect, useMemo, useState } from "react"
+import { CalendarDays, GraduationCap, Library, Target } from "lucide-react"
+import { Link } from "react-router-dom"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { ErrorState, LoadingSkeleton } from "@/components/page-state"
+import { getAcademicCalendar, getSemesterOverview, getSubjectGrades, type AcademicOccurrence, type GradeSummary, type SemesterOverview } from "@/lib/system-api"
+
+const isoDate = (value: Date) => value.toISOString().slice(0, 10)
+const formatMinutes = (minutes: number) => minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60 ? `${minutes % 60}m` : ""}` : `${minutes}m`
+
+export function AcademicPlanningPage() {
+  const [overview, setOverview] = useState<SemesterOverview | null>(null)
+  const [events, setEvents] = useState<AcademicOccurrence[]>([])
+  const [view, setView] = useState<"week" | "month">("week")
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [gradeCourseId, setGradeCourseId] = useState("")
+  const [targetGrade, setTargetGrade] = useState("80")
+  const [grade, setGrade] = useState<GradeSummary | null>(null)
+  async function load() {
+    setLoading(true); setError(null)
+    try {
+      const semester = await getSemesterOverview()
+      const now = new Date(); const end = new Date(now)
+      end.setDate(end.getDate() + (view === "week" ? 6 : 30))
+      const calendar = await getAcademicCalendar(isoDate(now), isoDate(end), semester.term ?? undefined)
+      setOverview(semester); setEvents(calendar.events); setGradeCourseId((current) => current || semester.courses[0]?.id || "")
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Academic planning could not be loaded.") } finally { setLoading(false) }
+  }
+  useEffect(() => { void load() }, [view])
+  const eventsByDay = useMemo(() => events.reduce<Record<string, AcademicOccurrence[]>>((grouped, event) => { const key = event.start_at.slice(0, 10); (grouped[key] ??= []).push(event); return grouped }, {}), [events])
+  if (loading && !overview) return <LoadingSkeleton rows={6} />
+  if (error || !overview) return <ErrorState message={error ?? "Academic planning is unavailable."} onRetry={() => void load()} />
+  return <div className="space-y-6">
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="eyebrow">Academic planning</p><h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-foreground">{overview.term ?? "Your active semester"}</h1><p className="mt-2 text-sm text-muted-foreground">Courses, recurring timetable, assessments, study workload, and grades share the same subject and task records.</p></div><Button asChild><Link to="/capture?type=subject_topic"><GraduationCap className="mr-2 h-4 w-4" />Add course</Link></Button></header>
+    <div className="grid gap-4 md:grid-cols-3"><Card><CardHeader><CardDescription>Courses</CardDescription><CardTitle>{overview.courses.length}</CardTitle></CardHeader><CardContent className="text-xs text-muted-foreground">{overview.total_credits} total credits</CardContent></Card><Card><CardHeader><CardDescription>Term dates</CardDescription><CardTitle className="text-base">{overview.start_date ?? "Not set"} — {overview.end_date ?? "Not set"}</CardTitle></CardHeader><CardContent className="text-xs text-muted-foreground">{overview.active ? "Active term" : "Archived or not configured"}</CardContent></Card><Card><CardHeader><CardDescription>Assessments ahead</CardDescription><CardTitle>{overview.upcoming_assessments.length}</CardTitle></CardHeader><CardContent className="text-xs text-muted-foreground">Exam period: {overview.exam_period_start ?? "not set"}</CardContent></Card></div>
+    <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]"><Card><CardHeader><div className="flex items-center justify-between"><div><CardTitle>Timetable</CardTitle><CardDescription>Expanded occurrences are derived from recurring course work.</CardDescription></div><div className="flex gap-2"><Button size="sm" variant={view === "week" ? "default" : "outline"} onClick={() => setView("week")}>Week</Button><Button size="sm" variant={view === "month" ? "default" : "outline"} onClick={() => setView("month")}>Month</Button></div></div></CardHeader><CardContent className="space-y-3">{Object.entries(eventsByDay).length ? Object.entries(eventsByDay).map(([day, dayEvents]) => <section key={day} className="rounded-lg border border-border/70 p-3"><p className="mb-2 text-xs font-semibold text-muted-foreground">{day}</p>{dayEvents.map(event => <div key={event.id} className="flex items-center justify-between gap-3 border-t border-border/50 py-2 first:border-t-0"><div><p className="text-sm font-medium">{event.title}</p><p className="text-xs text-muted-foreground">{event.kind.replace("_", " ")} · {new Date(event.start_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</p></div>{event.estimated_minutes !== null ? <Badge>{formatMinutes(event.estimated_minutes)}</Badge> : null}</div>)}</section>) : <p className="text-sm text-muted-foreground">No recurring course events are scheduled in this range.</p>}</CardContent></Card><div className="space-y-6"><Card><CardHeader><CardTitle>Workload by week</CardTitle></CardHeader><CardContent className="space-y-3">{overview.workload.map(week => <div key={week.week_start}><div className="flex justify-between text-xs"><span>{week.week_start}</span><span>{formatMinutes(week.completed_minutes)} / {formatMinutes(week.planned_minutes)}</span></div><div className="mt-1 h-2 rounded-full bg-surface-subtle"><div className="h-full rounded-full bg-primary" style={{ width: `${week.planned_minutes ? Math.min(100, week.completed_minutes / week.planned_minutes * 100) : 0}%` }} /></div></div>)}</CardContent></Card><Card><CardHeader><CardTitle>Needs attention</CardTitle></CardHeader><CardContent className="space-y-2">{overview.courses_needing_attention.length ? overview.courses_needing_attention.map(course => <Link className="block rounded-lg border border-warning/30 p-3 text-sm hover:bg-surface-subtle" to={`/trackers/subjects/${course.id}`} key={course.id}>{course.title}</Link>) : <p className="text-sm text-muted-foreground">No courses need immediate attention.</p>}</CardContent></Card></div></div>
+    <Card><CardHeader><div className="flex items-center gap-2"><Target className="h-4 w-4 text-primary" /><CardTitle>Grade scenario</CardTitle></div><CardDescription>Try a target without changing saved assessment grades.</CardDescription></CardHeader><CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end"><label className="grid flex-1 gap-1 text-xs text-muted-foreground">Course<select className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground" value={gradeCourseId} onChange={(event) => { setGradeCourseId(event.target.value); setGrade(null) }}>{overview.courses.map(course => <option value={course.id} key={course.id}>{course.title}</option>)}</select></label><label className="grid gap-1 text-xs text-muted-foreground">Target %<Input className="w-28" inputMode="decimal" value={targetGrade} onChange={(event) => setTargetGrade(event.target.value)} /></label><Button disabled={!gradeCourseId} onClick={() => { const target = Number(targetGrade); if (Number.isFinite(target)) void getSubjectGrades(gradeCourseId, target).then(setGrade).catch((reason) => setError(reason instanceof Error ? reason.message : "Scenario unavailable")) }}>Calculate</Button>{grade ? <div className="text-sm text-secondary">Current: <strong>{grade.current_weighted_grade ?? "—"}%</strong> · Ungraded: <strong>{grade.ungraded_weight}%</strong> · Needed: <strong>{grade.required_score_on_remaining ?? "—"}%</strong>{grade.warnings.length ? <p className="mt-1 text-xs text-warning">{grade.warnings.join(" ")}</p> : null}</div> : null}</CardContent></Card>    <Card><CardHeader><CardTitle>Courses and upcoming assessments</CardTitle><CardDescription>Open a course to manage its assessments and use the grade scenario calculator.</CardDescription></CardHeader><CardContent className="grid gap-3 md:grid-cols-2">{overview.courses.map(course => <Link key={course.id} to={`/trackers/subjects/${course.id}`} className="rounded-lg border border-border/70 p-4 hover:bg-surface-subtle"><div className="flex items-center gap-2"><Library className="h-4 w-4 text-primary" /><p className="font-medium">{course.title}</p></div><p className="mt-2 text-xs text-muted-foreground">{String(course.metadata.course_code ?? "Course")} · {String(course.metadata.credits ?? 0)} credits</p></Link>)}</CardContent></Card>
+  </div>
+}

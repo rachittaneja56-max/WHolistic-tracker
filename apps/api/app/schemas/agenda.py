@@ -7,9 +7,9 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-AgendaKind = Literal["task", "assignment", "exam", "study", "recall", "comprehension", "project"]
+AgendaKind = Literal["task", "assignment", "exam", "study", "lecture", "lab", "tutorial", "office_hours", "study_block", "recall", "comprehension", "project"]
 AgendaDestination = Literal["entity", "project", "subject", "recall", "comprehension"]
-AgendaAction = Literal["complete", "snooze", "reschedule", "mark_blocked", "open", "start"]
+AgendaAction = Literal["complete", "snooze", "reschedule", "mark_blocked", "cancel", "open", "start"]
 AgendaFilter = Literal["coursework", "projects", "dsa", "revision"]
 
 
