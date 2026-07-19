@@ -63,22 +63,15 @@ def delete_thread(thread_id: UUID, db: Session = Depends(get_db), _owner: str = 
 @router.post("/turns", response_model=AssistantTurnRead)
 def assistant_turn(payload: AssistantTurnRequest, db: Session = Depends(get_db), _owner: str = Depends(require_owner_mutation)) -> AssistantTurnRead:
     try:
-        provider = get_ai_provider(db)
-        return run_turn(
-            db,
-            provider,
-            thread_id=payload.thread_id,
-            message=payload.message,
-            current_path=payload.current_path,
-            page_context=payload.page_context.model_dump(mode="json") if payload.page_context else None,
-        )
-    except (AgentDisabledError, MissingAPIKeyError) as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        try:
+            provider = get_ai_provider(db)
+        except (AgentDisabledError, MissingAPIKeyError):
+            provider = None
+        return run_turn(db, provider, thread_id=payload.thread_id, message=payload.message, current_path=payload.current_path, page_context=payload.page_context.model_dump(mode="json") if payload.page_context else None)
     except ProviderTimeoutError as exc:
         raise HTTPException(status_code=504, detail=str(exc)) from exc
     except (InvalidJSONError, ModelResponseError, AgentProviderError) as exc:
         raise HTTPException(status_code=502, detail="The assistant could not prepare a safe response. Your message was not applied.") from exc
-
 
 @router.patch("/proposals/{proposal_id}")
 def edit_proposal(proposal_id: UUID, payload: AssistantProposalUpdate, db: Session = Depends(get_db), _owner: str = Depends(require_owner_mutation)) -> dict:

@@ -110,6 +110,11 @@ class PreferencesRead(BaseModel):
     theme: ThemePreference = "system"
     onboarding_completed: bool = False
     learning_focuses: list[str] = Field(default_factory=list, max_length=12)
+    hidden_modules: list[str] = Field(default_factory=list, max_length=12)
+    typical_study_minutes: int = Field(default=90, ge=0, le=1440)
+    preferred_focus_minutes: int = Field(default=45, ge=5, le=240)
+    max_daily_workload_minutes: int = Field(default=240, ge=0, le=1440)
+    active_semester: str | None = Field(default=None, max_length=120)
     library_saved_views: list["LibrarySavedView"] = Field(default_factory=list, max_length=20)
     library_pinned_entity_ids: list[str] = Field(default_factory=list, max_length=50)
 
@@ -126,5 +131,10 @@ class PreferencesUpdate(BaseModel):
     theme: ThemePreference | None = None
     onboarding_completed: bool | None = None
     learning_focuses: list[str] | None = Field(default=None, max_length=12)
+    hidden_modules: list[str] | None = Field(default=None, max_length=12)
+    typical_study_minutes: int | None = Field(default=None, ge=0, le=1440)
+    preferred_focus_minutes: int | None = Field(default=None, ge=5, le=240)
+    max_daily_workload_minutes: int | None = Field(default=None, ge=0, le=1440)
+    active_semester: str | None = Field(default=None, max_length=120)
     library_saved_views: list[LibrarySavedView] | None = Field(default=None, max_length=20)
     library_pinned_entity_ids: list[str] | None = Field(default=None, max_length=50)

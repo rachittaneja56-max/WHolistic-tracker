@@ -458,6 +458,10 @@ export function EntityDetailPage() {
           <Link to="/knowledge/entities">Back to entities</Link>
         </Button>
 
+        <Button asChild variant="outline">
+          <Link to={`/agents/assistant?from=/knowledge/entities/${entity.id}&prompt=${encodeURIComponent("Quiz me on this topic")}`}>Quiz with coach</Link>
+        </Button>
+
         <EntityDetailCard
           entity={entity}
           isRefreshingEmbedding={isRefreshingEmbedding}

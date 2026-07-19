@@ -105,17 +105,28 @@ export function AssistantWorkspace({ sectionControl }: { sectionControl?: ReactN
   const aiLoading = settings === undefined
   const ready = settings?.ai.provider_ready === true
   const currentThread = threads.find((thread) => thread.id === threadId) ?? null
+  const contextualStarters = useMemo(() => {
+    const route = pageContext.route
+    if (route.startsWith("/trackers/projects")) return ["Identify the next project unblock", "Break this assignment into sessions"]
+    if (route.startsWith("/trackers/subjects")) return ["Plan revision for this exam", "Quiz me on this topic", "Break this assignment into sessions"]
+    if (route.startsWith("/trackers/dsa")) return ["Compare this DSA problem with previous mistakes"]
+    if (pageContext.entity_type === "dsa_problem") return ["Compare this DSA problem with previous mistakes"]
+    if (route.startsWith("/knowledge/entities")) return ["Quiz me on this topic"]
+    if (route.startsWith("/app")) return ["Replan today around available time"]
+    return []
+  }, [pageContext.route])
   const activity = useMemo(() => messages.filter((message) => {
     const kind = messageKind(message)
     return kind === "proposal" || kind === "recall_due" || kind === "execution_result" || kind === "recall_result" || kind === "system_error"
   }).slice().reverse(), [messages])
 
   useEffect(() => { activeThreadRef.current = threadId }, [threadId])
+  useEffect(() => { const prompt = searchParams.get("prompt")?.trim(); if (prompt) setDraft(prompt) }, [searchParams])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }) }, [messages, sending])
 
   useEffect(() => {
     const route = originRoute ?? "/"
-    const entityMatch = route.match(/^\/(?:knowledge\/entities|trackers\/subjects)\/([^/?#]+)/)
+    const entityMatch = route.match(/^\/(?:knowledge\/entities|trackers\/subjects|trackers\/projects)\/([^/?#]+)/)
     if (!entityMatch) {
       setPageContext({ route })
       return
@@ -130,10 +141,13 @@ export function AssistantWorkspace({ sectionControl }: { sectionControl?: ReactN
         entity_id: entity.id,
         ...(entity.type ? { entity_type: entity.type } : {}),
         ...(entity.title ? { entity_title: entity.title } : {}),
+        ...(route.startsWith("/trackers/projects") ? { project_id: entity.id } : {}),
+        ...(route.startsWith("/trackers/subjects") ? { subject_id: entity.id } : {}),
+        ...(entity.type === "dsa_problem" ? { dsa_problem_id: entity.id } : {}),
       })
     }).catch(() => undefined)
     return () => { live = false }
-  }, [originRoute])
+  }, [originRoute, searchParams])
 
   const loadThread = useCallback(async (nextId: string) => {
     const requestId = ++threadRequestRef.current
@@ -325,7 +339,7 @@ export function AssistantWorkspace({ sectionControl }: { sectionControl?: ReactN
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-primary/20 bg-primary/10"><Sparkles className="h-5 w-5 text-primary" /></div>
             <h2 className="mt-4 text-center text-lg font-semibold text-foreground">How can I help?</h2>
             <p className="mx-auto mt-2 max-w-md text-center text-sm leading-6 text-muted-foreground">Capture work, plan changes, explore your knowledge, or run a recall session. You approve every write.</p>
-            <div className="mt-6 grid gap-2 sm:grid-cols-2">{starters.map((starter) => <button key={starter} type="button" onClick={() => void send(starter)} disabled={!ready || sending} className="rounded-lg border border-border bg-surface px-3 py-3 text-left text-sm text-secondary hover:border-primary/30 hover:bg-primary/5 disabled:opacity-50">{starter}</button>)}</div>
+            <div className="mt-6 grid gap-2 sm:grid-cols-2">{[...contextualStarters, ...starters].map((starter) => <button key={starter} type="button" onClick={() => void send(starter)} disabled={!ready || sending} className="rounded-lg border border-border bg-surface px-3 py-3 text-left text-sm text-secondary hover:border-primary/30 hover:bg-primary/5 disabled:opacity-50">{starter}</button>)}</div>
           </div> : null}
           {!threadLoading && messages.length ? <div className="mx-auto space-y-4">{messages.map((message) => <div id={`assistant-message-${message.id}`} key={message.id}><AssistantResponse message={message} onUseText={(text) => { setDraft(text); window.setTimeout(() => composerRef.current?.focus(), 0) }} onPersistedMessage={appendPersistedMessage} onRetry={messageKind(message) === "system_error" ? () => retryMessage(message) : undefined} /></div>)}
             {sending ? <div className="flex max-w-sm items-center gap-2 rounded-2xl rounded-bl-md border border-border bg-surface px-4 py-3 text-sm text-secondary"><Loader2 className="h-4 w-4 animate-spin text-primary" />Assistant is responding...</div> : null}

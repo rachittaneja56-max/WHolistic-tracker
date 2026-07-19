@@ -22,6 +22,7 @@ from app.api.activity import record_session
 from app.api.routes.entities import serialize_entity
 from app.models.assistant import AssistantMessage, AssistantProposal, AssistantThread
 from app.models.entity import Entity
+from app.models.session import ActivitySession
 from app.schemas.assistant import (
     AssistantExecutionRead,
     AssistantMessageRead,
@@ -33,7 +34,7 @@ from app.schemas.assistant import (
 from app.schemas.entity import normalize_entity_metadata
 
 logger = logging.getLogger(__name__)
-ALLOWED_ACTIONS = {"create_entity", "update_entity", "log_shipping"}
+ALLOWED_ACTIONS = {"create_entity", "update_entity", "log_shipping", "create_study_block"}
 ALLOWED_ENTITY_TYPES = {"dsa_problem", "note", "til", "project", "milestone", "task"}
 ALLOWED_CONTENT_TYPES = {"markdown", "blocks", "code"}
 ALLOWED_STATUSES = {
@@ -74,6 +75,13 @@ ACTION_PROPERTIES = {
     "url": {"type": ["string", "null"], "maxLength": 500},
     "solution_code": {"type": ["string", "null"], "maxLength": 12000},
     "summary": {"type": "string", "minLength": 1, "maxLength": 400},
+    "why": {"type": "string", "minLength": 1, "maxLength": 600},
+    "evidence": {"type": "array", "items": {"type": "string", "maxLength": 300}, "maxItems": 8},
+    "estimated_minutes": {"type": ["integer", "null"], "minimum": 0, "maximum": 1440},
+    "proposed_changes": {"type": "array", "items": {"type": "string", "maxLength": 400}, "maxItems": 8},
+    "tradeoffs": {"type": "array", "items": {"type": "string", "maxLength": 300}, "maxItems": 8},
+    "start_at": {"type": ["string", "null"], "maxLength": 80},
+    "planned_minutes": {"type": ["integer", "null"], "minimum": 5, "maximum": 720},
 }
 PLANNING_SCHEMA = {
     "title": "central_assistant_plan",
@@ -259,12 +267,24 @@ def sanitize_actions(db: Session, raw_actions: object, allowed_ids: set[str]) ->
             continue
         if action_type == "create_entity" and (not entity_type or not str(raw.get("title") or "").strip()):
             continue
-        if action_type in {"update_entity", "log_shipping"} and not target_id:
+        if action_type in {"update_entity", "log_shipping", "create_study_block"} and not target_id:
             continue
         target = db.get(Entity, UUID(target_id)) if target_id else None
         if action_type == "log_shipping" and (target is None or target.type != "project"):
             continue
         if action_type == "update_entity" and target is None:
+            continue
+        if target is not None and is_ai_excluded(target):
+            continue
+        raw_start_at = str(raw.get("start_at") or "").strip() or None
+        if raw_start_at:
+            try:
+                parsed_start = datetime.fromisoformat(raw_start_at.replace("Z", "+00:00"))
+                raw_start_at = (parsed_start.replace(tzinfo=timezone.utc) if parsed_start.tzinfo is None else parsed_start.astimezone(timezone.utc)).isoformat()
+            except ValueError:
+                raw_start_at = None
+        planned_minutes = raw.get("planned_minutes") if isinstance(raw.get("planned_minutes"), int) and 5 <= raw.get("planned_minutes") <= 720 else None
+        if action_type == "create_study_block" and (target is None or target.type not in {"task", "subject_topic", "dsa_problem", "milestone"} or raw_start_at is None or planned_minutes is None):
             continue
         tags = list(dict.fromkeys(str(item).strip()[:80] for item in raw.get("tags", []) if str(item).strip()))[:50]
         raw_url = str(raw.get("url") or "").strip()[:500] or None
@@ -288,6 +308,13 @@ def sanitize_actions(db: Session, raw_actions: object, allowed_ids: set[str]) ->
             "url": raw_url,
             "solution_code": str(raw.get("solution_code") or "")[:12000] or None,
             "summary": str(raw.get("summary") or "Proposed change").strip()[:400],
+            "why": str(raw.get("why") or "Requested in this assistant conversation.").strip()[:600],
+            "evidence": [str(item).strip()[:300] for item in raw.get("evidence", []) if str(item).strip()][:8],
+            "estimated_minutes": raw.get("estimated_minutes") if isinstance(raw.get("estimated_minutes"), int) and 0 <= raw.get("estimated_minutes") <= 1440 else None,
+            "proposed_changes": [str(item).strip()[:400] for item in raw.get("proposed_changes", []) if str(item).strip()][:8],
+            "tradeoffs": [str(item).strip()[:300] for item in raw.get("tradeoffs", []) if str(item).strip()][:8],
+            "start_at": raw_start_at,
+            "planned_minutes": planned_minutes,
             "before": _action_before(target),
             "_snapshot": _snapshot(target) if target else None,
         })
@@ -308,20 +335,34 @@ def _recall_payload(db: Session) -> tuple[str, dict[str, Any]]:
 def _resolve_page_context(db: Session, current_path: str, page_context: dict[str, Any] | None) -> dict[str, Any]:
     route = current_path if current_path.startswith("/") else "/"
     supplied = dict(page_context or {})
-    supplied_route = str(supplied.get("route") or "").strip()
-    if supplied_route.startswith("/"):
-        route = supplied_route[:500]
+    if str(supplied.get("route") or "").startswith("/"):
+        route = str(supplied["route"])[:500]
+    keys = ("entity_id", "project_id", "milestone_id", "subject_id", "exam_id", "dsa_problem_id")
     resolved: dict[str, Any] = {"route": route}
-    raw_entity_id = supplied.get("entity_id")
-    if raw_entity_id:
+    ids: list[UUID] = []
+    for key in keys:
         try:
-            entity = db.get(Entity, UUID(str(raw_entity_id)))
+            if supplied.get(key): ids.append(UUID(str(supplied[key])))
         except (TypeError, ValueError):
-            entity = None
-        if entity is not None:
+            continue
+    if hasattr(db, "scalars"):
+        entities = db.scalars(select(Entity).where(Entity.id.in_(list(dict.fromkeys(ids))))).all() if ids else []
+    else:
+        entities = [db.get(Entity, item) for item in ids]
+    extended = any(supplied.get(key) for key in keys if key != "entity_id")
+    safe_entities: list[dict[str, Any]] = []
+    for entity in entities:
+        if entity is None or is_ai_excluded(entity): continue
+        if str(entity.id) == str(supplied.get("entity_id")):
             resolved.update({"entity_id": str(entity.id), "entity_type": entity.type, "entity_title": entity.title})
+        if extended:
+            safe_entities.append(entity_prompt_data("assistant", entity, content_chars=1200))
+            if entity.type == "project" and hasattr(db, "scalars"):
+                children = db.scalars(select(Entity).where(Entity.parent_id == entity.id).order_by(Entity.created_at.desc()).limit(12)).all()
+                resolved["milestones"] = [entity_prompt_data("assistant", child, content_chars=600) for child in children if not is_ai_excluded(child)]
+    if extended: resolved["entities"] = safe_entities
+    if route.startswith("/app") and isinstance(supplied.get("agenda_available_minutes"), int): resolved["agenda_available_minutes"] = supplied["agenda_available_minutes"]
     return resolved
-
 
 def _attach_proposal_payload(
     message: AssistantMessage,
@@ -337,13 +378,19 @@ def _attach_proposal_payload(
     }
 
 
-def _run_turn(db: Session, provider: OpenAIProvider, *, thread_id: UUID | None, message: str, current_path: str, page_context: dict[str, Any] | None = None) -> AssistantTurnRead:
+def _run_turn(db: Session, provider: OpenAIProvider | None, *, thread_id: UUID | None, message: str, current_path: str, page_context: dict[str, Any] | None = None) -> AssistantTurnRead:
     thread = db.get(AssistantThread, thread_id) if thread_id else None
     if thread is None:
         thread = create_thread(db, message.strip()[:80] or "New conversation")
     elif thread.title == "New conversation":
         thread.title = message.strip()[:80] or thread.title
     resolved_page_context = _resolve_page_context(db, current_path, page_context)
+    if provider is None:
+        user_message = AssistantMessage(id=uuid4(), thread_id=thread.id, role="user", content=message.strip(), model_stage=None, payload={"current_path": current_path, "page_context": resolved_page_context})
+        count = len(resolved_page_context.get("entities", []))
+        assistant_message = AssistantMessage(id=uuid4(), thread_id=thread.id, role="assistant", content=f"AI is disabled, so no proposal was created. I resolved {count} safe contextual items; use deterministic Today ranking and saved study limits to plan the next step.", model_stage="deterministic", payload={"kind": "answer", "context": resolved_page_context})
+        db.add(user_message); db.add(assistant_message); db.commit(); db.refresh(thread); db.refresh(user_message); db.refresh(assistant_message)
+        return AssistantTurnRead(thread=serialize_thread(thread), user_message=serialize_message(user_message), assistant_message=serialize_message(assistant_message))
     user_message = AssistantMessage(id=uuid4(), thread_id=thread.id, role="user", content=message.strip(), model_stage=None, payload={"current_path": current_path, "page_context": resolved_page_context})
     thread.updated_at = _now()
     history = [*_history(db, thread.id)[-9:], {"role": "user", "content": user_message.content[:2000]}]
@@ -385,6 +432,8 @@ def _run_turn(db: Session, provider: OpenAIProvider, *, thread_id: UUID | None, 
         {"role": "system", "content": build_system_prompt("central_assistant_plan.md")},
         {"role": "user", "content": planning_input},
     ], schema=PLANNING_SCHEMA, model=provider.smart_model)
+    for item in resolved_page_context.get("entities", []):
+        if isinstance(item, dict) and isinstance(item.get("entity_id"), str): allowed_ids.add(item["entity_id"])
     actions = sanitize_actions(db, plan.get("actions"), allowed_ids)
     questions = [str(item).strip()[:400] for item in plan.get("questions", []) if str(item).strip()][:8]
     assistant_text = str(plan.get("assistant_text") or "Tell me a little more about what you want to capture.").strip()[:2400]
@@ -402,7 +451,7 @@ def _run_turn(db: Session, provider: OpenAIProvider, *, thread_id: UUID | None, 
     return AssistantTurnRead(thread=serialize_thread(thread), user_message=serialize_message(user_message), assistant_message=serialize_message(assistant_message), proposal_id=proposal.id if proposal else None)
 
 
-def run_turn(db: Session, provider: OpenAIProvider, *, thread_id: UUID | None, message: str, current_path: str, page_context: dict[str, Any] | None = None) -> AssistantTurnRead:
+def run_turn(db: Session, provider: OpenAIProvider | None, *, thread_id: UUID | None, message: str, current_path: str, page_context: dict[str, Any] | None = None) -> AssistantTurnRead:
     try:
         return _run_turn(db, provider, thread_id=thread_id, message=message, current_path=current_path, page_context=page_context)
     except Exception:
@@ -562,6 +611,14 @@ def execute_proposal(db: Session, proposal_id: UUID, *, execution_key: str, acti
             entity.entity_metadata = normalize_entity_metadata(entity.type, metadata)
             record_session(db, entity_id=entity.id, action="assistant_updated", meta={"proposal_id": str(proposal.id), "entity_type": entity.type, "entity_title": entity.title})
             results.append({"action_id": action["id"], "entity_id": str(entity.id), "title": entity.title, "status": "updated"})
+        elif action_type == "create_study_block":
+            entity = db.get(Entity, UUID(action["target_id"]))
+            if entity is None or _snapshot(entity) != action.get("_snapshot"):
+                raise HTTPException(status_code=409, detail=f"{action['summary']} is stale; refresh the proposal")
+            start_at = datetime.fromisoformat(str(action["start_at"]).replace("Z", "+00:00"))
+            session = ActivitySession(id=uuid4(), entity_id=entity.id, action="study_planned", date=start_at, meta={"duration_minutes": action["planned_minutes"], "status": "planned", "proposal_id": str(proposal.id), "source": "assistant_proposal"})
+            db.add(session)
+            results.append({"action_id": action["id"], "entity_id": str(entity.id), "title": entity.title, "status": "scheduled"})
         elif action_type == "log_shipping":
             project = db.get(Entity, UUID(action["target_id"]))
             if project is None or project.type != "project" or _snapshot(project) != action.get("_snapshot"):

@@ -39,7 +39,7 @@ export type RecallNextAction = "review_again" | "mark_revisited" | "strengthen_n
 export type EntityMetadata = Record<string, unknown>
 export type ThemePreference = "system" | "light" | "dark"
 export type LibrarySavedView = { id: string; name: string; query: Record<string, string | number | null> }
-export type WorkspacePreferences = { theme: ThemePreference; onboarding_completed: boolean; learning_focuses: string[]; library_saved_views: LibrarySavedView[]; library_pinned_entity_ids: string[] }
+export type WorkspacePreferences = { theme: ThemePreference; onboarding_completed: boolean; learning_focuses: string[]; hidden_modules: string[]; typical_study_minutes: number; preferred_focus_minutes: number; max_daily_workload_minutes: number; active_semester: string | null; library_saved_views: LibrarySavedView[]; library_pinned_entity_ids: string[] }
 
 export type Entity = {
   id: string
@@ -161,6 +161,8 @@ export type TodayAgenda = {
   end_date: string
   totals: { total_items: number; overdue_items: number; scheduled_items: number; unscheduled_items: number; recall_items: number; comprehension_items: number; planned_minutes: number }
   capacity: { available_minutes: number | null; scheduled_minutes: number; is_over_capacity: boolean }
+  suggested_focus_minutes: number
+  balance: { coursework_items: number; project_items: number; dsa_items: number; target_minutes: Record<string, number>; weekly_target_minutes: Record<string, number> }
   recommended: AgendaItem | null
   overdue: AgendaPreview
   today: AgendaPreview
@@ -1085,7 +1087,7 @@ export type AssistantActionBefore = {
 
 export type AssistantAction = {
   id: string
-  action_type: "create_entity" | "update_entity" | "log_shipping"
+  action_type: "create_entity" | "update_entity" | "log_shipping" | "create_study_block"
   entity_type: EntityType | null
   target_id: string | null
   parent_id: string | null
@@ -1099,6 +1101,13 @@ export type AssistantAction = {
   solution_code: string | null
   summary: string
   before?: AssistantActionBefore | null
+  why?: string
+  evidence?: string[]
+  estimated_minutes?: number | null
+  proposed_changes?: string[]
+  tradeoffs?: string[]
+  start_at?: string | null
+  planned_minutes?: number | null
 }
 export type AssistantThread = { id: string; title: string; archived_at: string | null; created_at: string; updated_at: string }
 export type AssistantMessage = { id: string; thread_id: string; role: "user" | "assistant"; content: string; model_stage: string | null; payload: AssistantMessagePayload; created_at: string }
@@ -1117,7 +1126,7 @@ export type AssistantMessagePayload =
   | { kind: "system_error"; retryable?: boolean; error?: string; [key: string]: unknown }
   | ({ kind?: undefined } & Record<string, unknown>)
 export type AssistantExecution = { proposal_id: string; status: "executed"; results: Array<{ action_id: string; entity_id: string; title: string | null; status: string }>; message?: AssistantMessage }
-export type AssistantPageContext = { route: string; entity_id?: string; entity_type?: EntityType; entity_title?: string }
+export type AssistantPageContext = { route: string; entity_id?: string; entity_type?: EntityType; entity_title?: string; project_id?: string; milestone_id?: string; subject_id?: string; exam_id?: string; dsa_problem_id?: string; agenda_available_minutes?: number }
 export type AssistantRecallResponse = { grade: RecallGradeResult; message?: AssistantMessage }
 export type AssistantRecallPreviewResponse = { grade: RecallGradePreview }
 

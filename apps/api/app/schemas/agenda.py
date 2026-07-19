@@ -61,11 +61,20 @@ class AgendaCapacityRead(BaseModel):
     is_over_capacity: bool = False
 
 
+class AgendaBalanceRead(BaseModel):
+    coursework_items: int = Field(ge=0)
+    project_items: int = Field(ge=0)
+    dsa_items: int = Field(ge=0)
+    target_minutes: dict[str, int] = Field(default_factory=dict)
+    weekly_target_minutes: dict[str, int] = Field(default_factory=dict)
+
 class TodayAgendaResponse(BaseModel):
     start_date: date
     end_date: date
     totals: AgendaTotalsRead
     capacity: AgendaCapacityRead
+    suggested_focus_minutes: int = Field(default=45, ge=5)
+    balance: AgendaBalanceRead
     recommended: AgendaItemRead | None = None
     overdue: AgendaPreviewRead
     today: AgendaPreviewRead

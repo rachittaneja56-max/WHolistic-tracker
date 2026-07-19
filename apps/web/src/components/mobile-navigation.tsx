@@ -2,6 +2,7 @@ import { Plus } from "lucide-react"
 import { NavLink } from "react-router-dom"
 
 import { mobileDestinations } from "@/lib/navigation"
+import { usePreferences } from "@/features/preferences/preferences-context"
 import { cn } from "@/lib/utils"
 
 function Destination({ item }: { item: (typeof mobileDestinations)[number] }) {
@@ -12,8 +13,11 @@ function Destination({ item }: { item: (typeof mobileDestinations)[number] }) {
 }
 
 export function MobileNavigation() {
-  const leading = mobileDestinations.slice(0, 3)
-  const trailing = mobileDestinations.slice(3)
+  const { preferences } = usePreferences()
+  const moduleFor = (label: string) => ({ "Projects": "projects", "Library": "notes" }[label])
+  const destinations = mobileDestinations.filter((item) => !preferences.hidden_modules.includes(moduleFor(item.label) ?? ""))
+  const leading = destinations.slice(0, 3)
+  const trailing = destinations.slice(3)
   return <nav aria-label="Primary mobile navigation" className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-surface/90 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgb(20_20_24_/_0.06)] backdrop-blur-xl md:hidden">
     <div className="grid h-[4.5rem] grid-cols-6 px-1">
       {leading.map((item) => <Destination key={item.to} item={item} />)}

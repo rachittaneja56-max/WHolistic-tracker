@@ -56,7 +56,7 @@ def _web_search_defaults() -> dict:
 
 
 def _preferences_defaults() -> dict:
-    return {"theme": "system", "onboarding_completed": False, "learning_focuses": [], "library_saved_views": [], "library_pinned_entity_ids": []}
+    return {"theme": "system", "onboarding_completed": False, "learning_focuses": [], "hidden_modules": [], "typical_study_minutes": 90, "preferred_focus_minutes": 45, "max_daily_workload_minutes": 240, "active_semester": None, "library_saved_views": [], "library_pinned_entity_ids": []}
 
 
 def _row(db: Session, key: str, defaults: dict) -> AppSetting:
@@ -145,6 +145,11 @@ def get_preferences(db: Session) -> PreferencesRead:
         theme=saved.get("theme", "system"),
         onboarding_completed=bool(saved.get("onboarding_completed", False)),
         learning_focuses=saved.get("learning_focuses") or [],
+        hidden_modules=saved.get("hidden_modules") or [],
+        typical_study_minutes=saved.get("typical_study_minutes", 90),
+        preferred_focus_minutes=saved.get("preferred_focus_minutes", 45),
+        max_daily_workload_minutes=saved.get("max_daily_workload_minutes", 240),
+        active_semester=saved.get("active_semester") or None,
         library_saved_views=saved.get("library_saved_views") or [],
         library_pinned_entity_ids=saved.get("library_pinned_entity_ids") or [],
     )
@@ -163,6 +168,11 @@ def update_preferences(db: Session, payload: PreferencesUpdate) -> PreferencesRe
             seen.add(focus.casefold())
             focuses.append(focus)
         changes["learning_focuses"] = focuses
+    if "hidden_modules" in changes:
+        allowed_modules = {"subjects", "dsa", "projects", "notes", "recall", "comprehension", "insights"}
+        changes["hidden_modules"] = [item for item in dict.fromkeys(str(item).strip().lower() for item in changes["hidden_modules"]) if item in allowed_modules]
+    if "active_semester" in changes:
+        changes["active_semester"] = changes["active_semester"].strip() or None
     if "library_pinned_entity_ids" in changes:
         changes["library_pinned_entity_ids"] = list(dict.fromkeys(changes["library_pinned_entity_ids"]))
     value.update(changes)

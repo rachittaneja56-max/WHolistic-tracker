@@ -48,6 +48,12 @@ class AssistantPageContext(BaseModel):
     entity_id: UUID | None = None
     entity_type: str | None = Field(default=None, max_length=80)
     entity_title: str | None = Field(default=None, max_length=300)
+    project_id: UUID | None = None
+    milestone_id: UUID | None = None
+    subject_id: UUID | None = None
+    exam_id: UUID | None = None
+    dsa_problem_id: UUID | None = None
+    agenda_available_minutes: int | None = Field(default=None, ge=0, le=1440)
 
 
 class AssistantTurnRequest(BaseModel):

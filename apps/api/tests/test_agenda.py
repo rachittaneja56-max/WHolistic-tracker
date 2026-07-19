@@ -55,3 +55,23 @@ def test_agenda_excludes_terminal_tasks_and_orders_overdue_before_today() -> Non
     assert agenda.totals.total_items == 2
     assert agenda.recommended is not None and agenda.recommended.title == "Late"
     assert [item.title for item in agenda.overdue.items] == ["Late"]
+
+
+def test_learning_focuses_rank_matching_work_and_publish_weekly_targets() -> None:
+    now = datetime(2026, 7, 19, 12, tzinfo=timezone.utc)
+    subject = entity("subject_topic", "Algorithms")
+    coursework = entity("task", "Coursework", {"academic_kind": "assignment", "status": "todo", "priority": "medium", "due_at": "2026-07-19"}, subject.id)
+    dsa = entity("dsa_problem", "Two Sum")
+    recall = RecallDueItem(entity=dsa, due_score=8, due_reasons=["Review due."], days_since_review=9, days_until_exam=None)
+
+    agenda = build_agenda(
+        entities=[subject, coursework, dsa], sessions=[], recalls=[recall], checks=[], projects=[],
+        start_date=now.date(), end_date=(now + timedelta(days=6)).date(), now=now,
+        learning_focuses=["DSA practice"], available_minutes=90, max_daily_workload_minutes=120,
+        preferred_focus_minutes=30,
+    )
+
+    assert agenda.recommended is not None and agenda.recommended.title == "Two Sum"
+    assert agenda.suggested_focus_minutes == 30
+    assert agenda.balance.weekly_target_minutes == {"DSA practice": 630}
+    assert agenda.capacity.available_minutes == 90

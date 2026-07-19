@@ -110,6 +110,7 @@ const actionLabels: Record<AssistantAction["action_type"], string> = {
   create_entity: "Create entity",
   update_entity: "Update entity",
   log_shipping: "Log shipped work",
+  create_study_block: "Schedule study block",
 }
 
 function ActionDiff({ action }: { action: AssistantAction }) {
@@ -159,7 +160,7 @@ function ProposalCard({ message, onPersistedMessage }: Pick<ResponseProps, "mess
   if (!proposalId || !actions.length) return null
   const activeProposalId = proposalId
 
-  function edit(id: string, field: "title" | "content", value: string) {
+  function edit(id: string, field: "title" | "content" | "start_at" | "planned_minutes", value: string | number) {
     setActions((current) => current.map((item) => item.id === id ? { ...item, [field]: value } : item))
     setActionsPrepared(false)
   }
@@ -205,9 +206,12 @@ function ProposalCard({ message, onPersistedMessage }: Pick<ResponseProps, "mess
           <input aria-label={`Select ${actionLabels[action.action_type]}`} type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={selected.has(action.id)} disabled={locked} onChange={(event) => setSelected((current) => { const next = new Set(current); event.target.checked ? next.add(action.id) : next.delete(action.id); return next })} />
           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium text-foreground">{actionLabels[action.action_type]}</span>{action.entity_type ? <Badge>{action.entity_type.replace(/_/g, " ")}</Badge> : null}</div><p className="mt-1 text-xs leading-5 text-secondary">{action.summary}</p></div>
         </div>
+        <div className="mt-3 grid gap-2 text-xs text-secondary sm:grid-cols-2"><div className="rounded-md bg-surface-subtle p-2"><strong className="text-foreground">Why</strong><p className="mt-1">{action.why ?? action.summary}</p></div><div className="rounded-md bg-surface-subtle p-2"><strong className="text-foreground">Estimated time</strong><p className="mt-1">{action.estimated_minutes ? `${action.estimated_minutes} min` : "Not estimated"}</p></div>{action.evidence?.length ? <div className="rounded-md bg-surface-subtle p-2"><strong className="text-foreground">Evidence used</strong><ul className="mt-1 list-disc pl-4">{action.evidence.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}{action.tradeoffs?.length ? <div className="rounded-md bg-surface-subtle p-2"><strong className="text-foreground">Trade-offs</strong><ul className="mt-1 list-disc pl-4">{action.tradeoffs.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}</div>
+        {action.proposed_changes?.length ? <div className="mt-3 rounded-md bg-surface-subtle p-2 text-xs text-secondary"><strong className="text-foreground">Proposed changes</strong><ul className="mt-1 list-disc pl-4">{action.proposed_changes.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
         <ActionDiff action={action} />
         {action.title !== null ? <div className="mt-3"><Label htmlFor={`title-${action.id}`} className="text-xs text-muted-foreground">Title</Label><Input id={`title-${action.id}`} className="mt-1 h-9 text-sm" value={action.title} disabled={locked} onChange={(event) => edit(action.id, "title", event.target.value)} /></div> : null}
         {action.content !== null ? <div className="mt-3"><Label htmlFor={`content-${action.id}`} className="text-xs text-muted-foreground">Content</Label><Textarea id={`content-${action.id}`} className="mt-1 min-h-24 text-sm" value={action.content} disabled={locked} onChange={(event) => edit(action.id, "content", event.target.value)} /></div> : null}
+        {action.action_type === "create_study_block" ? <div className="mt-3 grid gap-3 sm:grid-cols-2"><div><Label htmlFor={`start-${action.id}`} className="text-xs text-muted-foreground">Start time</Label><Input id={`start-${action.id}`} type="datetime-local" className="mt-1" value={action.start_at ? new Date(action.start_at).toISOString().slice(0, 16) : ""} disabled={locked} onChange={(event) => edit(action.id, "start_at", event.target.value ? new Date(event.target.value).toISOString() : "")} /></div><div><Label htmlFor={`minutes-${action.id}`} className="text-xs text-muted-foreground">Minutes</Label><Input id={`minutes-${action.id}`} type="number" min="5" max="720" className="mt-1" value={action.planned_minutes ?? ""} disabled={locked} onChange={(event) => edit(action.id, "planned_minutes", Number(event.target.value) || 5)} /></div></div> : null}
       </div>)}
       {actions.length > 3 ? <Button size="sm" variant="ghost" className="w-full" onClick={() => setExpanded((current) => !current)}>{expanded ? <ChevronUp className="mr-2 h-4 w-4" /> : <ChevronDown className="mr-2 h-4 w-4" />}{expanded ? "Show less" : `Show all ${actions.length} actions`}</Button> : null}
       {results.length ? <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">{results.map((result) => <Link key={result.entity_id} to={`/knowledge/entities/${result.entity_id}`} className="flex items-center justify-between gap-3 text-sm text-primary hover:text-primary-foreground"><span className="truncate">{result.title || "Open entity"}</span><ExternalLink className="h-3.5 w-3.5 shrink-0" /></Link>)}</div> : null}

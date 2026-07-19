@@ -3,6 +3,7 @@ import { LogOut, PanelLeftClose, PanelLeftOpen, Settings, Shield } from "lucide-
 
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/features/auth/auth-context"
+import { usePreferences } from "@/features/preferences/preferences-context"
 import { BrandIcon, navigationGroups } from "@/lib/navigation"
 import type { SettingsStatus } from "@/lib/system-api"
 import { cn } from "@/lib/utils"
@@ -11,6 +12,10 @@ type Props = { collapsed?: boolean; mobile?: boolean; onToggle?: () => void; onN
 
 export function AppSidebar({ collapsed = false, mobile = false, onToggle, onNavigate, aiStatus }: Props) {
   const { logout, user } = useAuth()
+  const { preferences } = usePreferences()
+  const moduleFor = (label: string) => ({ "Subjects": "subjects", "DSA practice": "dsa", "Projects": "projects", "Notes": "notes", "Recall": "recall", "Comprehension": "comprehension", "Insights": "insights" }[label])
+  const emphasized = new Set(preferences.learning_focuses)
+  const visibleGroups = navigationGroups.map((group) => ({ ...group, items: group.items.filter((item) => !preferences.hidden_modules.includes(moduleFor(item.label) ?? "")).slice().sort((a, b) => Number(emphasized.has(b.label === "DSA practice" ? "DSA practice" : b.label === "Projects" ? "Projects" : b.label === "Subjects" ? "Subjects" : b.label)) - Number(emphasized.has(a.label === "DSA practice" ? "DSA practice" : a.label === "Projects" ? "Projects" : a.label === "Subjects" ? "Subjects" : a.label)))})).filter((group) => group.items.length)
   const navigate = useNavigate()
   return <aside className={cn("flex h-full flex-col border-r border-border/60 bg-surface-subtle/80 backdrop-blur-xl transition-[width] duration-200", mobile ? "w-full pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]" : collapsed ? "w-[4.5rem]" : "w-[17rem]")}>
     <div className={cn("flex h-16 items-center gap-3 px-3.5", mobile && "pr-14")}>
@@ -21,7 +26,7 @@ export function AppSidebar({ collapsed = false, mobile = false, onToggle, onNavi
       {!mobile ? <Button variant="ghost" size="sm" className="h-8 w-8 shrink-0 p-0" onClick={onToggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}</Button> : null}
     </div>
     <nav aria-label="Workspace navigation" className="flex-1 overflow-y-auto px-2.5 pb-4 pt-3">
-      {navigationGroups.map((group) => <div key={group.label} className="mb-5">
+      {visibleGroups.map((group) => <div key={group.label} className="mb-5">
         {!collapsed || mobile ? <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{group.label}</p> : <div className="mx-auto mb-2 h-px w-6 bg-border" />}
         <div className="space-y-0.5">{group.items.map((item) => {
           const Icon = item.icon

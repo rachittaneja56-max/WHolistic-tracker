@@ -18,6 +18,7 @@ from app.api.routes.entities import serialize_entity
 from app.api.routes.sessions import serialize_session
 from app.services.task_statuses import open_task_clause
 from app.services.agenda import build_agenda
+from app.services.runtime_settings import get_preferences
 from app.services.entity_visibility import active_entity_clause
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -144,7 +145,8 @@ def get_today_agenda(
     checks = list(db.scalars(select(ComprehensionCheck).where(ComprehensionCheck.answered_at.is_(None))).all())
     day_start = datetime.combine(range_start, time.min, tzinfo=timezone.utc)
     capacity_rows = list(db.scalars(select(ActivitySession).where(ActivitySession.action == "daily_plan").where(ActivitySession.date >= day_start).where(ActivitySession.date < day_start + timedelta(days=1)).order_by(ActivitySession.date.desc())).all())
-    available_minutes = next((row.meta.get("available_minutes") for row in capacity_rows if isinstance((row.meta or {}).get("available_minutes"), int)), None)
+    preferences = get_preferences(db)
+    available_minutes = next((row.meta.get("available_minutes") for row in capacity_rows if isinstance((row.meta or {}).get("available_minutes"), int)), preferences.typical_study_minutes)
     return build_agenda(
         entities=entities,
         sessions=sessions,
@@ -155,4 +157,8 @@ def get_today_agenda(
         end_date=range_end,
         now=now,
         preview_limit=preview_limit,
+        available_minutes=available_minutes,
+        learning_focuses=preferences.learning_focuses,
+        preferred_focus_minutes=preferences.preferred_focus_minutes,
+        max_daily_workload_minutes=preferences.max_daily_workload_minutes,
     )

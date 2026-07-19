@@ -14,6 +14,7 @@ from app.services.central_assistant import (
     execute_proposal,
     _resolve_page_context,
     _snapshot,
+    _run_turn,
     extract_intent,
     sanitize_actions,
     thread_detail,
@@ -479,3 +480,130 @@ def test_update_proposal_does_not_hide_a_stale_target():
 
     assert raised.value.status_code == 409
     assert "stale" in raised.value.detail
+
+
+class _ContextRows:
+    def __init__(self, items):
+        self.items = items
+
+    def all(self):
+        return self.items
+
+
+def test_context_resolution_supports_project_subject_exam_dsa_and_entity_routes():
+    cases = [
+        ("project_id", "project", "/trackers/projects/"),
+        ("milestone_id", "milestone", "/trackers/projects/"),
+        ("subject_id", "subject_topic", "/trackers/subjects/"),
+        ("exam_id", "task", "/trackers/subjects/"),
+        ("dsa_problem_id", "dsa_problem", "/trackers/dsa"),
+    ]
+    for key, entity_type, route_prefix in cases:
+        item = SimpleNamespace(id=uuid4(), type=entity_type, title=entity_type, content="safe", tags=[], entity_metadata={}, parent_id=None)
+
+        class ContextDb:
+            calls = 0
+
+            def scalars(self, _query):
+                self.calls += 1
+                return _ContextRows([item] if self.calls == 1 else [])
+
+        result = _resolve_page_context(ContextDb(), "/agents/assistant", {"route": f"{route_prefix}{item.id}", key: str(item.id)})
+        assert result["route"].startswith(route_prefix)
+        assert result["entities"][0]["entity_id"] == str(item.id)
+
+
+def test_context_resolution_excludes_sensitive_entities_and_ignores_invalid_ids():
+    item = SimpleNamespace(id=uuid4(), type="note", title="Private", content="secret", tags=[], entity_metadata={"ai_exclude": True}, parent_id=None)
+
+    class ContextDb:
+        def scalars(self, _query):
+            return _ContextRows([item])
+
+    result = _resolve_page_context(ContextDb(), "/app", {"route": "/app", "project_id": "not-a-uuid", "dsa_problem_id": str(item.id)})
+    assert result["route"] == "/app"
+    assert result["entities"] == []
+    assert "entity_title" not in result
+
+
+def test_disabled_assistant_turn_is_deterministic_and_creates_no_proposal():
+    now = datetime.now(timezone.utc)
+
+    class DisabledDb:
+        def __init__(self):
+            self.added = []
+
+        def get(self, *_args):
+            return None
+
+        def add(self, value):
+            self.added.append(value)
+
+        def commit(self):
+            return None
+
+        def refresh(self, value):
+            if getattr(value, "created_at", None) is None:
+                value.created_at = now
+            if getattr(value, "updated_at", None) is None:
+                value.updated_at = now
+
+    db = DisabledDb()
+    result = _run_turn(db, None, thread_id=None, message="Plan my day", current_path="/app", page_context={"route": "/app", "agenda_available_minutes": 75})
+    assert result.proposal_id is None
+    assert result.assistant_message.model_stage == "deterministic"
+    assert "no proposal" in result.assistant_message.content
+    assert not any(value.__class__.__name__ == "AssistantProposal" for value in db.added)
+
+def test_study_block_sanitization_requires_an_allowed_nonexcluded_target():
+    target = SimpleNamespace(id=uuid4(), type="task", title="Assignment", content="", tags=[], entity_metadata={}, parent_id=None)
+    action = {"id": "study", "action_type": "create_study_block", "entity_type": "task", "target_id": str(target.id), "parent_id": None, "title": None, "content": None, "content_type": "markdown", "tags": [], "difficulty": None, "status": None, "url": None, "solution_code": None, "summary": "Schedule revision", "why": "Exam is close", "evidence": ["Due tomorrow"], "estimated_minutes": 30, "proposed_changes": ["Add a session"], "tradeoffs": ["Uses evening time"], "start_at": "2026-07-20T09:00:00Z", "planned_minutes": 30}
+
+    class StudyDb:
+        def get(self, _model, identifier):
+            return target if identifier == target.id else None
+
+    accepted = sanitize_actions(StudyDb(), [action], {str(target.id)})
+    assert accepted[0]["action_type"] == "create_study_block"
+    assert accepted[0]["planned_minutes"] == 30
+    assert sanitize_actions(StudyDb(), [action], set()) == []
+
+
+def test_study_block_is_written_only_when_a_selected_proposal_is_executed(monkeypatch):
+    from app.services import central_assistant
+
+    target = SimpleNamespace(id=uuid4(), type="task", title="Assignment", content="", tags=[], entity_metadata={}, parent_id=None)
+    action = {"id": "study", "action_type": "create_study_block", "target_id": str(target.id), "summary": "Schedule revision", "start_at": "2026-07-20T09:00:00+00:00", "planned_minutes": 30, "_snapshot": _snapshot(target)}
+    proposal = SimpleNamespace(id=uuid4(), thread_id=uuid4(), source_message_id=uuid4(), status="pending", actions=[action], execution_key=None, result={}, expires_at=datetime.now(timezone.utc) + timedelta(minutes=10), executed_at=None)
+    thread = SimpleNamespace(id=proposal.thread_id, updated_at=None)
+    monkeypatch.setattr(central_assistant, "record_session", lambda *_args, **_kwargs: None)
+
+    class ExecuteDb:
+        def __init__(self):
+            self.added = []
+            self.scalar_results = iter([None, proposal])
+
+        def scalar(self, _query):
+            return next(self.scalar_results)
+
+        def get(self, model, identifier):
+            return target if identifier == target.id else thread if identifier == thread.id else None
+
+        def add(self, value):
+            self.added.append(value)
+
+        def commit(self):
+            return None
+
+        def refresh(self, value):
+            if isinstance(value, AssistantMessage):
+                value.created_at = datetime.now(timezone.utc)
+
+    db = ExecuteDb()
+    result = execute_proposal(db, proposal.id, execution_key="selected-study-block", action_ids=["study"])
+    assert result.results[0]["status"] == "scheduled"
+    assert any(value.__class__.__name__ == "ActivitySession" for value in db.added)
+
+def test_today_context_preserves_only_valid_available_time():
+    result = _resolve_page_context(_Db(), "/agents/assistant", {"route": "/app", "agenda_available_minutes": 75})
+    assert result == {"route": "/app", "agenda_available_minutes": 75}

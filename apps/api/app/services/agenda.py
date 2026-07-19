@@ -8,7 +8,7 @@ from app.agents.services.recall import RecallDueItem
 from app.models.comprehension_check import ComprehensionCheck
 from app.models.entity import Entity
 from app.models.session import ActivitySession
-from app.schemas.agenda import AgendaContextRead, AgendaItemRead, AgendaPreviewRead, TodayAgendaResponse, AgendaTotalsRead, AgendaCapacityRead
+from app.schemas.agenda import AgendaContextRead, AgendaItemRead, AgendaPreviewRead, TodayAgendaResponse, AgendaTotalsRead, AgendaCapacityRead, AgendaBalanceRead
 from app.schemas.project import ProjectTrackerItemRead
 from app.services.task_statuses import is_terminal_task_status
 from app.services.academic import occurrences_for_entity
@@ -171,18 +171,25 @@ def project_item(row: ProjectTrackerItemRead, entities: dict[UUID, Entity], now:
     )
 
 
-def sort_items(items: Iterable[AgendaItemRead]) -> list[AgendaItemRead]:
+def focus_key(item: AgendaItemRead, learning_focuses: set[str]) -> int:
+    """A deterministic preference signal; overdue work always remains first."""
+    mapping = {"Subjects": "coursework", "DSA practice": "dsa", "Projects": "projects", "Recall": "revision", "Comprehension": "revision"}
+    return 0 if any(mapping.get(focus) in item.filters for focus in learning_focuses) else 1
+
+def sort_items(items: Iterable[AgendaItemRead], learning_focuses: set[str] | None = None) -> list[AgendaItemRead]:
     far = datetime.max.replace(tzinfo=timezone.utc)
     urgency_order = {"overdue": 0, "today": 1, "upcoming": 2, "unscheduled": 3}
-    return sorted(items, key=lambda item: (urgency_order[item.urgency], item.start_at or item.deadline or far, PRIORITY_ORDER[item.priority], item.title.lower(), item.id))
-
+    focuses = learning_focuses or set()
+    return sorted(items, key=lambda item: (urgency_order[item.urgency], focus_key(item, focuses), item.start_at or item.deadline or far, PRIORITY_ORDER[item.priority], item.title.lower(), item.id))
 
 def preview(items: list[AgendaItemRead], limit: int) -> AgendaPreviewRead:
     return AgendaPreviewRead(total=len(items), items=items[:limit])
 
 
-def build_agenda(*, entities: list[Entity], sessions: list[ActivitySession], recalls: list[RecallDueItem], checks: list[ComprehensionCheck], projects: list[ProjectTrackerItemRead], start_date: date, end_date: date, now: datetime | None = None, preview_limit: int = 8, available_minutes: int | None = None) -> TodayAgendaResponse:
+def build_agenda(*, entities: list[Entity], sessions: list[ActivitySession], recalls: list[RecallDueItem], checks: list[ComprehensionCheck], projects: list[ProjectTrackerItemRead], start_date: date, end_date: date, now: datetime | None = None, preview_limit: int = 8, available_minutes: int | None = None, learning_focuses: list[str] | None = None, preferred_focus_minutes: int = 45, max_daily_workload_minutes: int | None = None) -> TodayAgendaResponse:
     current = as_utc(now) or datetime.now(timezone.utc)
+    focuses = set(learning_focuses or [])
+    capacity_limit = min(value for value in (available_minutes, max_daily_workload_minutes) if value is not None) if available_minutes is not None and max_daily_workload_minutes is not None else available_minutes if available_minutes is not None else max_daily_workload_minutes
     entity_by_id = {entity.id: entity for entity in entities}
     items: list[AgendaItemRead] = []
     items.extend(task_item(entity, entity_by_id, current) for entity in entities if entity.type == "task" and not is_terminal_task_status(str((entity.entity_metadata or {}).get("status", "backlog"))))
@@ -196,18 +203,21 @@ def build_agenda(*, entities: list[Entity], sessions: list[ActivitySession], rec
     range_end = datetime.combine(end_date, time.max, tzinfo=timezone.utc)
     scheduled = [item for item in items if item.start_at or item.deadline]
     in_range = [item for item in scheduled if (item.start_at or item.deadline) and range_start <= (item.start_at or item.deadline) <= range_end]
-    overdue = sort_items([item for item in items if item.urgency == "overdue"])
-    today = sort_items([item for item in items if item.urgency == "today" and item.kind not in {"recall", "comprehension"}])
-    upcoming = sort_items([item for item in in_range if item.urgency == "upcoming"])
-    unscheduled = sort_items([item for item in items if item.urgency == "unscheduled"])
-    recall = sort_items([item for item in items if item.kind == "recall"])
-    comprehension = sort_items([item for item in items if item.kind == "comprehension"])
-    ordered = sort_items(items)
+    overdue = sort_items([item for item in items if item.urgency == "overdue"], focuses)
+    today = sort_items([item for item in items if item.urgency == "today" and item.kind not in {"recall", "comprehension"}], focuses)
+    upcoming = sort_items([item for item in in_range if item.urgency == "upcoming"], focuses)
+    unscheduled = sort_items([item for item in items if item.urgency == "unscheduled"], focuses)
+    recall = sort_items([item for item in items if item.kind == "recall"], focuses)
+    comprehension = sort_items([item for item in items if item.kind == "comprehension"], focuses)
+    ordered = sort_items(items, focuses)
     planned_minutes = sum(item.estimated_minutes or 0 for item in items)
     scheduled_minutes = sum(item.estimated_minutes or 0 for item in scheduled if item.urgency in {"today", "upcoming"})
     return TodayAgendaResponse(
         start_date=start_date, end_date=end_date,
         totals=AgendaTotalsRead(total_items=len(items), overdue_items=len(overdue), scheduled_items=len(scheduled), unscheduled_items=len(unscheduled), recall_items=len(recall), comprehension_items=len(comprehension), planned_minutes=planned_minutes),
-        capacity=AgendaCapacityRead(available_minutes=available_minutes, scheduled_minutes=scheduled_minutes, is_over_capacity=available_minutes is not None and scheduled_minutes > available_minutes), recommended=ordered[0] if ordered else None,
+        capacity=AgendaCapacityRead(available_minutes=capacity_limit, scheduled_minutes=scheduled_minutes, is_over_capacity=capacity_limit is not None and scheduled_minutes > capacity_limit),
+        suggested_focus_minutes=preferred_focus_minutes,
+        balance=AgendaBalanceRead(coursework_items=sum("coursework" in item.filters for item in items), project_items=sum("projects" in item.filters for item in items), dsa_items=sum("dsa" in item.filters for item in items), target_minutes={focus: max(0, (capacity_limit or 0) // max(1, len(focuses))) for focus in sorted(focuses)}, weekly_target_minutes={focus: max(0, ((capacity_limit or 0) * 7) // max(1, len(focuses))) for focus in sorted(focuses)}),
+        recommended=ordered[0] if ordered else None,
         overdue=preview(overdue, preview_limit), today=preview(today, preview_limit), upcoming=preview(upcoming, preview_limit), unscheduled=preview(unscheduled, preview_limit), recall=preview(recall, preview_limit), comprehension=preview(comprehension, preview_limit),
     )
