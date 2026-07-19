@@ -738,7 +738,7 @@ function buildQueryString(params?: Record<string, string | number | undefined>) 
   return queryString ? `?${queryString}` : ""
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await authenticatedFetch(`${apiBaseUrl}${path}`, {
     ...init,
     headers: {
@@ -1159,3 +1159,9 @@ export const proposeDailyPlan = (available_minutes: number) => request<DailyPlan
 export const confirmDailyPlan = (available_minutes: number, blocks: StudyBlockInput[]) => request<DailyPlanProposal>("/daily-plan/confirm", { method: "POST", body: JSON.stringify({ available_minutes, blocks }) })
 export const cancelStudyBlock = (id: string) => request<void>(`/study-blocks/${id}/cancel`, { method: "POST" })
 export const rescheduleStudyBlock = (id: string, payload: StudyBlockInput) => request<StudyBlockInput>(`/study-blocks/${id}/reschedule`, { method: "POST", body: JSON.stringify(payload) })
+
+export type DsaAttempt = { id: string; entity_id: string | null; action: string; date: string | null; meta: Record<string, unknown>; outcome: string; time_taken_minutes: number; hint_count: number }
+export type DsaPracticeOverview = { problem: Entity; attempts: DsaAttempt[]; prompt_fields: string[] }
+export type DsaAttemptPayload = { outcome: "solved" | "partial" | "stuck"; time_taken_minutes: number; hint_count: number; patterns: string[]; key_invariant?: string | null; mistake_classification?: string | null; recognition_cue?: string | null; solve_again_without_notes: boolean }
+export const getDsaPracticeOverview = (problemId: string) => request<DsaPracticeOverview>(`/workflows/dsa/problems/${problemId}`)
+export const recordDsaAttempt = (problemId: string, payload: DsaAttemptPayload) => request<DsaAttempt>(`/workflows/dsa/problems/${problemId}/attempts`, { method: "POST", body: JSON.stringify(payload) })

@@ -32,6 +32,9 @@ from app.api.routes import (
     subjects,
     tags,
     webhooks,
+    workflows,
+    subject_workflows,
+    project_workflows,
 )
 
 api_router = APIRouter()
@@ -64,3 +67,6 @@ api_router.include_router(jobs.router)
 api_router.include_router(dsa_integrations.router)
 api_router.include_router(dsa_extension.router)
 api_router.include_router(dsa_tracker.router)
+api_router.include_router(workflows.router)
+api_router.include_router(subject_workflows.router)
+api_router.include_router(project_workflows.router)
