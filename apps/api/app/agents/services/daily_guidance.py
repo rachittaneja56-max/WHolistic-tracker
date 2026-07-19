@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
@@ -7,15 +7,16 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.agents.services.provider import OpenAIProvider
 from app.agents.utils.context import serialize_untrusted_context
-from app.agents.services.recall import get_due_recall_items, parse_exam_date
+from app.agents.services.recall import get_due_recall_items, is_recall_eligible, parse_exam_date
 from app.agents.utils.prompts import build_system_prompt
 from app.models.entity import Entity
 from app.models.link import Link
-from app.api.routes.dashboard import task_priority_key
+from app.services.task_statuses import open_task_clause, task_priority_key
 from app.api.routes.projects import get_project_tracker
 from app.schemas.guidance import DailyGuidanceActionRead, DailyGuidanceResponse
+from app.services.task_statuses import open_task_clause
 
-TERMINAL_TASK_STATUSES = {"done", "completed", "submitted", "cancelled", "archived"}
+ACTION_KINDS = {"start_recall", "open_task", "open_project", "study_subject", "review_connection", "open_comprehension"}
 
 DAILY_GUIDANCE_SCHEMA = {
     "title": "daily_guidance_result",
@@ -32,10 +33,11 @@ DAILY_GUIDANCE_SCHEMA = {
                 "properties": {
                     "label": {"type": "string", "minLength": 1, "maxLength": 120},
                     "reason": {"type": "string", "minLength": 1, "maxLength": 240},
+                    "action_kind": {"type": "string", "enum": sorted(ACTION_KINDS)},
                     "entity_id": {"type": ["string", "null"]},
                     "priority": {"type": "string", "enum": ["low", "medium", "high"]},
                 },
-                "required": ["label", "reason", "entity_id", "priority"],
+                "required": ["label", "reason", "action_kind", "entity_id", "priority"],
             },
         },
     },
@@ -45,20 +47,16 @@ DAILY_GUIDANCE_SCHEMA = {
 
 def build_daily_guidance_context(db: Session, *, current_date: date, now: datetime) -> dict[str, object]:
     due_items = get_due_recall_items(db, limit=6, now=now)
-    low_confidence_entities = db.scalars(
+    low_confidence_entities = [entity for entity in db.scalars(
         select(Entity)
         .where(Entity.confidence_score.is_not(None))
         .order_by(Entity.confidence_score.asc(), Entity.created_at.desc())
-        .limit(6)
-    ).all()
+    ).all() if is_recall_eligible(entity)][:6]
 
-    task_entities = db.scalars(select(Entity).where(Entity.type == "task").order_by(Entity.created_at.desc()).limit(50)).all()
-    open_tasks = [
-        entity
-        for entity in task_entities
-        if (entity.entity_metadata or {}).get("status", "todo") not in TERMINAL_TASK_STATUSES
-    ]
-    open_tasks.sort(key=task_priority_key)
+    open_tasks = list(db.scalars(
+        select(Entity).where(Entity.type == "task").where(open_task_clause()).order_by(Entity.created_at.desc())
+    ).all())
+    open_tasks.sort(key=lambda entity: task_priority_key(entity, now=now))
     open_tasks = open_tasks[:6]
 
     project_attention = [row for row in get_project_tracker(db) if row.health in {"stalled", "at_risk"}][:4]
@@ -155,6 +153,7 @@ def build_fallback_guidance(context: dict[str, object], *, current_date: date) -
             DailyGuidanceActionRead(
                 label=f"Review {title}",
                 reason=str(reasons[0]),
+                action_kind="start_recall",
                 entity_id=due_item.get("entity_id"),
                 priority="high",
             )
@@ -174,6 +173,7 @@ def build_fallback_guidance(context: dict[str, object], *, current_date: date) -
             DailyGuidanceActionRead(
                 label=f"Prepare {title}",
                 reason=reason,
+                action_kind="study_subject",
                 entity_id=exam_item.get("entity_id"),
                 priority="high",
             )
@@ -185,6 +185,7 @@ def build_fallback_guidance(context: dict[str, object], *, current_date: date) -
             DailyGuidanceActionRead(
                 label=f"Unblock project: {project_item.get('title') or 'Untitled project'}",
                 reason=str(project_item.get("reason") or "Project health needs review."),
+                action_kind="open_project",
                 entity_id=project_item.get("entity_id"),
                 priority="high",
             )
@@ -196,6 +197,7 @@ def build_fallback_guidance(context: dict[str, object], *, current_date: date) -
             DailyGuidanceActionRead(
                 label=f"Move task forward: {task_item.get('title') or 'Untitled task'}",
                 reason=f"Task status is {task_item.get('status') or 'todo'}.",
+                action_kind="open_task",
                 entity_id=task_item.get("entity_id"),
                 priority="medium",
             )
@@ -210,6 +212,7 @@ def build_fallback_guidance(context: dict[str, object], *, current_date: date) -
                     f"Check whether {link_item.get('from_title') or 'one entity'} and "
                     f"{link_item.get('to_title') or 'another entity'} should become a confirmed link."
                 ),
+                action_kind="review_connection",
                 entity_id=None,
                 priority="low",
             )
@@ -256,12 +259,18 @@ def get_daily_guidance(
     if provider is None:
         return build_fallback_guidance(context, current_date=current_date)
 
-    valid_entity_ids = {
-        item["entity_id"]
-        for key in ("due_items", "low_confidence_entities", "upcoming_exams", "open_tasks", "project_attention")
-        for item in context[key]
-        if item.get("entity_id")
-    }
+    valid_action_kinds_by_entity_id: dict[str, set[str]] = {}
+    for key, action_kind in (
+        ("due_items", "start_recall"),
+        ("low_confidence_entities", "start_recall"),
+        ("upcoming_exams", "study_subject"),
+        ("open_tasks", "open_task"),
+        ("project_attention", "open_project"),
+    ):
+        for item in context[key]:
+            if item.get("entity_id"):
+                valid_action_kinds_by_entity_id.setdefault(item["entity_id"], set()).add(action_kind)
+    valid_entity_ids = set(valid_action_kinds_by_entity_id)
 
     payload = provider.generate_json(
         messages=[
@@ -286,11 +295,21 @@ def get_daily_guidance(
     actions: list[DailyGuidanceActionRead] = []
     for action in payload.get("actions", [])[:5]:
         raw_entity_id = action.get("entity_id")
-        entity_id = raw_entity_id if isinstance(raw_entity_id, str) and raw_entity_id in valid_entity_ids else None
+        action_kind = str(action.get("action_kind", ""))
+        if action_kind == "review_connection" and context["suggested_links"]:
+            entity_id = None
+        elif (
+            isinstance(raw_entity_id, str)
+            and action_kind in valid_action_kinds_by_entity_id.get(raw_entity_id, set())
+        ):
+            entity_id = raw_entity_id
+        else:
+            continue
         actions.append(
             DailyGuidanceActionRead(
                 label=str(action.get("label", "Untitled action")).strip()[:120],
                 reason=str(action.get("reason", "No reason provided.")).strip()[:240],
+                action_kind=action_kind,
                 entity_id=entity_id,
                 priority=str(action.get("priority", "medium")),
             )

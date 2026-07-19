@@ -33,7 +33,7 @@ AI_ASSIST_LEVEL_VALUES: tuple[AiAssistLevel, ...] = (
 )
 PROJECT_STATUS_VALUES = {"planned", "active", "paused", "completed", "archived", "todo", "in_progress", "done"}
 MILESTONE_STATUS_VALUES = {"planned", "active", "paused", "completed", "todo", "in_progress", "done"}
-TASK_STATUS_VALUES = {"backlog", "ready", "todo", "in_progress", "blocked", "in_review", "done", "cancelled", "submitted", "completed"}
+TASK_STATUS_VALUES = {"backlog", "ready", "todo", "in_progress", "blocked", "in_review", "done", "cancelled", "submitted", "completed", "archived"}
 PRIORITY_VALUES = {"low", "medium", "high", "urgent"}
 ACADEMIC_KIND_VALUES = {"assignment", "exam", "revision", "reading", "project"}
 SUBJECT_TEXT_FIELDS = ("course_code", "term", "instructor", "location")
@@ -241,6 +241,8 @@ def normalize_entity_metadata(entity_type: EntityType | None, metadata: dict[str
         normalized = dict(metadata or {})
     if "ai_exclude" in normalized and not isinstance(normalized["ai_exclude"], bool):
         raise ValueError("metadata.ai_exclude must be a boolean")
+    if "recall_enabled" in normalized and not isinstance(normalized["recall_enabled"], bool):
+        raise ValueError("metadata.recall_enabled must be a boolean")
     ai_assist_level = normalized.get("ai_assist_level")
 
     if entity_type == "task":

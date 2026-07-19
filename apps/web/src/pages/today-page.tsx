@@ -1,235 +1,116 @@
 import { useEffect, useMemo, useState } from "react"
-import { ArrowRight, BookOpenCheck, CalendarClock, Plus, Sparkles, TrendingUp } from "lucide-react"
+import { AlertTriangle, ArrowRight, CalendarClock, Check, Clock3, ExternalLink, PauseCircle, Sparkles } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { formatEntityDate, formatExamDate, getEntityExamDate, getEntityStatus } from "@/features/entities/metadata"
-import {
-  getDailyGuidance,
-  getDashboardToday,
-  getRecallDue,
-  type DailyGuidance,
-  type DashboardToday,
-  type RecallDueItem,
-} from "@/lib/api"
+import { ErrorState, LoadingSkeleton } from "@/components/page-state"
+import { canMutateAgendaItem, taskActionMetadata } from "@/features/agenda/quick-actions"
+import { getTodayAgenda, updateEntity, type AgendaFilter, type AgendaItem, type TodayAgenda } from "@/lib/api"
+
+const filters: Array<{ id: AgendaFilter | "all"; label: string }> = [
+  { id: "all", label: "All work" },
+  { id: "coursework", label: "Coursework" },
+  { id: "projects", label: "Projects" },
+  { id: "dsa", label: "DSA" },
+  { id: "revision", label: "Revision" },
+]
 
 function messageFrom(error: unknown) {
-  return error instanceof Error ? error.message : "The dashboard could not be loaded."
+  return error instanceof Error ? error.message : "Today could not be loaded."
 }
 
-function destinationFor(entityId: string | null | undefined) {
-  return entityId ? `/knowledge/entities/${entityId}` : "/learn"
+function destinationFor(item: AgendaItem) {
+  switch (item.destination) {
+    case "recall": return item.destination_id ? `/knowledge/recall?entity=${item.destination_id}` : "/knowledge/recall"
+    case "comprehension": return "/knowledge/recall/comprehension"
+    case "project": return item.destination_id ? `/trackers/projects/${item.destination_id}` : "/trackers/projects"
+    case "subject": return item.destination_id ? `/trackers/subjects/${item.destination_id}` : "/trackers/subjects"
+    default: return item.destination_id ? `/knowledge/entities/${item.destination_id}` : "/app"
+  }
 }
 
-const captureOptions = [
-  ["Note", "note"],
-  ["Practice problem", "dsa_problem"],
-  ["Assignment", "assignment"],
-  ["Project", "project"],
-  ["Subject", "subject"],
-  ["Idea", "idea"],
-] as const
+function formatTime(value: string | null) {
+  if (!value) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(parsed)
+}
 
-export function TodayPage() {
-  const [summary, setSummary] = useState<DashboardToday | null>(null)
-  const [guidance, setGuidance] = useState<DailyGuidance | null>(null)
-  const [due, setDue] = useState<RecallDueItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function load({ refreshGuidance = false } = {}) {
-    if (refreshGuidance) setRefreshing(true)
-    else setLoading(true)
-    setError(null)
-
-    const [dashboardResult, guidanceResult, recallResult] = await Promise.allSettled([
-      getDashboardToday(),
-      getDailyGuidance(),
-      getRecallDue(5),
-    ])
-
-    if (dashboardResult.status === "fulfilled") setSummary(dashboardResult.value)
-    else {
-      setSummary(null)
-      setError(messageFrom(dashboardResult.reason))
-    }
-    setGuidance(guidanceResult.status === "fulfilled" ? guidanceResult.value : null)
-    setDue(recallResult.status === "fulfilled" ? recallResult.value : [])
-    setLoading(false)
-    setRefreshing(false)
-  }
-
-  useEffect(() => {
-    void load()
-  }, [])
-
-  const recommended = useMemo(() => {
-    const guided = guidance?.actions[0]
-    if (guided) {
-      return {
-        eyebrow: "Recommended by your learning plan",
-        title: guided.label,
-        reason: guided.reason,
-        href: destinationFor(guided.entity_id),
-        label: "Start this action",
-        priority: guided.priority,
-      }
-    }
-    if (due[0]) {
-      return {
-        eyebrow: "Highest-priority review",
-        title: due[0].entity.title ?? "Review a due item",
-        reason: due[0].due_reasons[0] ?? "Recall it before the memory fades.",
-        href: `/knowledge/recall?entity=${due[0].entity.id}`,
-        label: "Start recall",
-        priority: "high" as const,
-      }
-    }
-    if (summary?.open_tasks[0]) {
-      return {
-        eyebrow: "Next open task",
-        title: summary.open_tasks[0].title ?? "Continue an open task",
-        reason: "Move one active commitment forward.",
-        href: `/knowledge/entities/${summary.open_tasks[0].id}`,
-        label: "Open task",
-        priority: "medium" as const,
-      }
-    }
-    return {
-      eyebrow: "Build your learning loop",
-      title: "Capture the first thing you want to retain",
-      reason: "A useful workspace starts with one real note, task, subject, or practice problem.",
-      href: "/capture",
-      label: "Capture an item",
-      priority: "low" as const,
-    }
-  }, [due, guidance, summary])
-
-  if (loading) {
-    return (
-      <Card aria-live="polite">
-        <CardHeader>
-          <CardTitle>Preparing your next action</CardTitle>
-          <CardDescription>Loading reviews, deadlines, and recent progress...</CardDescription>
-        </CardHeader>
-      </Card>
-    )
-  }
-
-  if (error && !summary) {
-    return (
-      <Card role="alert">
-        <CardHeader>
-          <CardTitle>Home is temporarily unavailable</CardTitle>
-          <CardDescription>{error}</CardDescription>
-        </CardHeader>
-        <CardContent><Button onClick={() => void load()}>Try again</Button></CardContent>
-      </Card>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-primary">Learning workspace</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">What matters today</h1>
-          <p className="mt-2 max-w-2xl text-sm text-secondary">One clear next step, the reviews that need attention, and enough context to keep moving.</p>
-        </div>
-        <Button asChild variant="outline"><Link to="/app/insights"><TrendingUp className="mr-2 h-4 w-4" />Open insights</Link></Button>
-      </header>
-
-      <Card className="overflow-hidden border-primary/25 bg-gradient-to-br from-primary/10 via-surface to-surface">
-        <CardContent className="grid gap-6 p-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end md:p-8">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">{recommended.eyebrow}</p>
-              <Badge variant={recommended.priority === "high" ? "warning" : "default"}>{recommended.priority} priority</Badge>
-            </div>
-            <h2 className="mt-4 max-w-3xl text-2xl font-semibold text-foreground">{recommended.title}</h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-secondary">{recommended.reason}</p>
-            {guidance?.summary ? <p className="mt-4 max-w-3xl border-l-2 border-primary/30 pl-3 text-xs leading-5 text-muted-foreground">{guidance.summary}</p> : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild><Link to={recommended.href}>{recommended.label}<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
-            <Button variant="outline" onClick={() => void load({ refreshGuidance: true })} disabled={refreshing}>{refreshing ? "Refreshing..." : "Refresh"}</Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,.85fr)]">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <div><CardTitle>Due reviews</CardTitle><CardDescription>Short recall sessions that protect what you have learned.</CardDescription></div>
-              <Badge variant={due.length ? "warning" : "success"}>{due.length} due</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {due.length ? (
-              <div className="divide-y divide-border">
-                {due.slice(0, 4).map((item) => (
-                  <Link key={item.entity.id} to={`/knowledge/recall?entity=${item.entity.id}`} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0 hover:text-primary">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{item.entity.title ?? "Untitled review"}</p>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">{item.due_reasons[0] ?? "Ready for recall"}</p>
-                    </div>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  </Link>
-                ))}
-              </div>
-            ) : <div className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">You are caught up. New due reviews will appear here.</div>}
-            <Button asChild variant="ghost" className="mt-4"><Link to="/knowledge/recall">Open recall queue</Link></Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle>Quick capture</CardTitle><CardDescription>Choose what you are doing; the workspace handles the storage format.</CardDescription></CardHeader>
-          <CardContent className="grid grid-cols-2 gap-2">
-            {captureOptions.map(([label, type]) => (
-              <Button key={type} asChild variant="outline" className="justify-start"><Link to={`/capture?type=${type}`}><Plus className="mr-2 h-4 w-4" />{label}</Link></Button>
-            ))}
-          </CardContent>
-        </Card>
+function AgendaRow({ item, busy, onAction }: { item: AgendaItem; busy: boolean; onAction: (item: AgendaItem, action: "complete" | "snooze" | "reschedule" | "mark_blocked") => void }) {
+  const timing = formatTime(item.start_at) ?? (item.deadline ? `Due ${formatTime(item.deadline)}` : "Unscheduled")
+  return <div className="rounded-xl border border-border/80 bg-surface p-4">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2"><Badge variant={item.urgency === "overdue" ? "danger" : item.priority === "high" || item.priority === "urgent" ? "warning" : "secondary"}>{item.kind}</Badge><span className="text-xs capitalize text-muted-foreground">{item.status.replace(/_/g, " ")}</span></div>
+        <p className="mt-2 text-sm font-semibold text-foreground">{item.title}</p>
+        {item.context?.title ? <p className="mt-1 text-xs text-muted-foreground">{item.context.title}</p> : null}
+        <p className="mt-2 text-sm leading-5 text-secondary">{item.recommendation_reason}</p>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>{timing}</span>{item.estimated_minutes !== null ? <span>{item.estimated_minutes} min</span> : null}</div>
       </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle>Deadlines and tasks</CardTitle><CardDescription>The next commitments that could benefit from attention.</CardDescription></CardHeader>
-          <CardContent className="space-y-3">
-            {summary?.open_tasks.slice(0, 3).map((task) => (
-              <Link key={task.id} to={`/knowledge/entities/${task.id}`} className="flex items-center justify-between gap-4 rounded-lg border border-border p-3 hover:border-primary/40">
-                <div className="min-w-0"><p className="truncate text-sm font-medium text-foreground">{task.title ?? "Untitled task"}</p><p className="mt-1 text-xs capitalize text-muted-foreground">{getEntityStatus(task)?.replace(/_/g, " ") ?? "open task"}</p></div>
-                <CalendarClock className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              </Link>
-            ))}
-            {summary?.upcoming_subject_topics.slice(0, 2).map((subject) => (
-              <Link key={subject.id} to={`/knowledge/entities/${subject.id}`} className="flex items-center justify-between gap-4 rounded-lg border border-border p-3 hover:border-primary/40">
-                <div className="min-w-0"><p className="truncate text-sm font-medium text-foreground">{subject.title ?? "Upcoming subject"}</p><p className="mt-1 text-xs text-muted-foreground">Exam {formatExamDate(getEntityExamDate(subject))}</p></div>
-                <BookOpenCheck className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
-              </Link>
-            ))}
-            {!summary?.open_tasks.length && !summary?.upcoming_subject_topics.length ? <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">No immediate deadlines or open tasks.</p> : null}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle>Recent progress</CardTitle><CardDescription>A compact trail of what changed in your workspace.</CardDescription></CardHeader>
-          <CardContent className="space-y-3">
-            {summary?.recent_entities.slice(0, 5).map((entity) => (
-              <Link key={entity.id} to={`/knowledge/entities/${entity.id}`} className="flex items-center justify-between gap-4 rounded-lg px-1 py-2 hover:bg-surface-subtle">
-                <div className="min-w-0"><p className="truncate text-sm text-foreground">{entity.title ?? "Untitled item"}</p><p className="mt-1 text-xs capitalize text-muted-foreground">{entity.type?.replace(/_/g, " ") ?? "item"} - {formatEntityDate(entity.created_at)}</p></div>
-                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              </Link>
-            ))}
-            {!summary?.recent_entities.length ? <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">Capture something you learned to start your progress trail.</p> : null}
-          </CardContent>
-        </Card>
+      <div className="flex shrink-0 flex-wrap gap-2">
+        {item.allowed_actions.includes("complete") ? <Button size="sm" variant="outline" onClick={() => onAction(item, "complete")} disabled={busy}><Check className="mr-1.5 h-3.5 w-3.5" />Complete</Button> : null}
+        {item.allowed_actions.includes("snooze") ? <Button size="sm" variant="ghost" onClick={() => onAction(item, "snooze")} disabled={busy}>Snooze</Button> : null}
+        {item.allowed_actions.includes("reschedule") ? <Button size="sm" variant="ghost" onClick={() => onAction(item, "reschedule")} disabled={busy}>Reschedule</Button> : null}
+        {item.allowed_actions.includes("mark_blocked") ? <Button size="sm" variant="ghost" onClick={() => onAction(item, "mark_blocked")} disabled={busy}><PauseCircle className="mr-1.5 h-3.5 w-3.5" />Block</Button> : null}
+        <Button asChild size="sm" variant="ghost"><Link to={destinationFor(item)}>{item.allowed_actions.includes("start") ? "Start" : "Open"}<ExternalLink className="ml-1.5 h-3.5 w-3.5" /></Link></Button>
       </div>
     </div>
-  )
+  </div>
+}
+
+function AgendaSection({ title, description, collection, filter, busy, onAction, empty }: { title: string; description: string; collection: TodayAgenda["today"]; filter: AgendaFilter | "all"; busy: string | null; onAction: (item: AgendaItem, action: "complete" | "snooze" | "reschedule" | "mark_blocked") => void; empty: string }) {
+  const items = filter === "all" ? collection.items : collection.items.filter((item) => item.filters.includes(filter))
+  const total = filter === "all" ? collection.total : items.length
+  return <Card><CardHeader><div className="flex items-start justify-between gap-3"><div><CardTitle>{title}</CardTitle><CardDescription>{description}</CardDescription></div><Badge variant={total ? "secondary" : "success"}>{total}</Badge></div></CardHeader><CardContent className="space-y-3">{items.length ? items.map((item) => <AgendaRow key={item.id} item={item} busy={busy === item.id} onAction={onAction} />) : <p className="rounded-lg bg-surface-subtle p-4 text-sm text-muted-foreground">{empty}</p>}</CardContent></Card>
+}
+
+export function TodayPage() {
+  const [agenda, setAgenda] = useState<TodayAgenda | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [mutationError, setMutationError] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [filter, setFilter] = useState<AgendaFilter | "all">("all")
+
+  async function load() {
+    setLoading(true); setError(null)
+    try { setAgenda(await getTodayAgenda()) } catch (nextError) { setError(messageFrom(nextError)) } finally { setLoading(false) }
+  }
+  useEffect(() => { void load() }, [])
+
+  async function act(item: AgendaItem, action: "complete" | "snooze" | "reschedule" | "mark_blocked") {
+    if (!canMutateAgendaItem(item)) return
+    let rescheduleDate: string | undefined
+    if (action === "reschedule") {
+      const value = window.prompt("Reschedule to (YYYY-MM-DD)", item.deadline?.slice(0, 10) ?? "")
+      if (!value) return
+      rescheduleDate = value
+    }
+    setBusy(item.id); setMutationError(null)
+    try {
+      await updateEntity(item.source_entity_id, { metadata: taskActionMetadata(action, new Date(), rescheduleDate) })
+      await load()
+    } catch (nextError) {
+      setMutationError(`Could not update ${item.title}. ${messageFrom(nextError)}`)
+    } finally { setBusy(null) }
+  }
+
+  const recommended = useMemo(() => agenda?.recommended ?? null, [agenda])
+  if (loading) return <LoadingSkeleton rows={5} />
+  if (error || !agenda) return <ErrorState message={error ?? "Today is unavailable."} onRetry={() => void load()} />
+
+  return <div className="space-y-6">
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="eyebrow">Today</p><h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-foreground sm:text-4xl">Your complete workload, in one place.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Planning stays connected to tasks, sessions, recall, and comprehension—nothing is duplicated.</p></div><div className="flex items-center gap-2 text-sm text-muted-foreground"><Clock3 className="h-4 w-4" />{agenda.totals.planned_minutes} minutes planned</div></header>
+    {mutationError ? <div role="alert" className="rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm text-danger">{mutationError}</div> : null}
+    {agenda.capacity.is_over_capacity ? <div className="flex gap-3 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-foreground"><AlertTriangle className="h-5 w-5 shrink-0 text-warning" />Scheduled work ({agenda.capacity.scheduled_minutes} min) exceeds your available time ({agenda.capacity.available_minutes} min).</div> : agenda.capacity.available_minutes === null ? <p className="text-xs text-muted-foreground">Availability is not configured yet; this workload contract is ready for Phase 2 capacity planning.</p> : null}
+    <div className="flex flex-wrap gap-2" aria-label="Agenda filters">{filters.map((option) => <Button key={option.id} size="sm" variant={filter === option.id ? "default" : "outline"} onClick={() => setFilter(option.id)} aria-pressed={filter === option.id}>{option.label}</Button>)}</div>
+    {recommended ? <section className="rounded-2xl bg-primary p-6 text-primary-foreground shadow-panel"><div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] opacity-80"><Sparkles className="h-4 w-4" />Recommended next action <span className="rounded-full bg-primary-foreground/15 px-2 py-1">{recommended.estimated_minutes ?? "—"} min</span></div><h2 className="mt-4 text-2xl font-semibold">{recommended.title}</h2><p className="mt-2 max-w-2xl text-sm leading-6 opacity-85">{recommended.recommendation_reason}</p><Button asChild className="mt-5 bg-primary-foreground text-primary hover:bg-primary-foreground/90"><Link to={destinationFor(recommended)}>{recommended.allowed_actions.includes("start") ? "Start now" : "Open work"}<ArrowRight className="ml-2 h-4 w-4" /></Link></Button></section> : <Card><CardContent className="p-6 text-sm text-muted-foreground">You are caught up. Capture or plan work when you are ready.</CardContent></Card>}
+    <AgendaSection title="Overdue work" description="Resolve or reschedule commitments that have passed." collection={agenda.overdue} filter={filter} busy={busy} onAction={act} empty="Nothing overdue." />
+    <AgendaSection title="Today’s plan" description="Chronological work scheduled for today." collection={agenda.today} filter={filter} busy={busy} onAction={act} empty="No time-boxed work planned for today." />
+    <AgendaSection title="Next seven days" description="Upcoming commitments in your selected agenda range." collection={agenda.upcoming} filter={filter} busy={busy} onAction={act} empty="No upcoming scheduled work." />
+    <div className="grid gap-6 xl:grid-cols-2"><AgendaSection title="Unscheduled work" description="Open commitments that still need a place in your week." collection={agenda.unscheduled} filter={filter} busy={busy} onAction={act} empty="No unscheduled work." /><AgendaSection title="Recall queue" description="Short reviews that protect durable knowledge." collection={agenda.recall} filter={filter} busy={busy} onAction={act} empty="No recall items are due." /></div>
+    <AgendaSection title="Comprehension queue" description="Confirm you understand AI-assisted work before moving on." collection={agenda.comprehension} filter={filter} busy={busy} onAction={act} empty="No comprehension checks are pending." />
+  </div>
 }

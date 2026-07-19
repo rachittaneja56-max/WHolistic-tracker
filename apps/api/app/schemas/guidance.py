@@ -6,12 +6,22 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+DailyGuidanceActionKind = Literal[
+    "start_recall",
+    "open_task",
+    "open_project",
+    "study_subject",
+    "review_connection",
+    "open_comprehension",
+]
+
 
 class DailyGuidanceActionRead(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     label: str = Field(min_length=1, max_length=120)
     reason: str = Field(min_length=1, max_length=240)
+    action_kind: DailyGuidanceActionKind
     entity_id: UUID | None = None
     priority: Literal["low", "medium", "high"]
 

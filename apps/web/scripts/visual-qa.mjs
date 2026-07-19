@@ -96,7 +96,7 @@ async function waitForPage(cdp) {
       expression: `({ ready: document.readyState, hero: document.querySelector("h1")?.textContent || "" })`,
       returnByValue: true,
     })
-    if (result.result.value?.ready === "complete" && result.result.value?.hero.includes("Track what you learn")) return
+    if (result.result.value?.ready === "complete" && result.result.value?.hero.includes("Learn deeply")) return
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   throw new Error("Landing page did not finish rendering.")

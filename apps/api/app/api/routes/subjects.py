@@ -19,10 +19,10 @@ from app.models.session import ActivitySession
 from app.schemas.recall import RecallDueEntityRead
 from app.schemas.subject import SubjectOverviewRead, SubjectSummaryRead, SubjectTrackerItemRead
 from app.services.entity_visibility import active_entity_clause, is_entity_deleted
+from app.services.task_statuses import is_terminal_task_status
 
 router = APIRouter(prefix="/subjects", tags=["subjects"])
 LINKED_TYPES = {"note", "til", "dsa_problem", "concept", "task"}
-TASK_TERMINAL_STATUSES = {"done", "completed", "cancelled"}
 SESSION_MINUTE_KEYS = {
     "study_planned": ("planned_minutes", "duration_minutes", "minutes", "estimated_minutes"),
     "study_completed": ("actual_minutes", "duration_minutes", "minutes", "studied_minutes", "estimated_minutes"),
@@ -65,7 +65,7 @@ def _status(entity: Entity) -> str:
 
 
 def _task_is_open(task: Entity) -> bool:
-    return _status(task) not in TASK_TERMINAL_STATUSES
+    return not is_terminal_task_status(_status(task))
 
 
 def _topic_progress(topic: Entity) -> float:

@@ -18,9 +18,9 @@ from app.models.session import ActivitySession
 from app.schemas.comprehension import ComprehensionCheckRead
 from app.schemas.project import ProjectTrackerItemRead, ProjectWorkspaceRead
 from app.services.entity_visibility import active_entity_clause
+from app.services.task_statuses import TERMINAL_TASK_STATUSES, is_terminal_task_status
 
 router = APIRouter(prefix="/projects", tags=["projects"])
-TERMINAL_STATUSES = {"done", "completed", "submitted", "cancelled", "archived"}
 SHIPPING_ACTIONS = {"pr_merged", "deployed", "project_shipped"}
 KNOWLEDGE_TYPES = {"til", "note", "concept", "canvas", "dsa_problem"}
 
@@ -75,7 +75,7 @@ def build_project_summary(
     now: datetime | None = None,
 ) -> ProjectTrackerItemRead:
     current_time = _as_utc(now) or datetime.now(timezone.utc)
-    completed_tasks = [task for task in tasks if _status(task, "backlog") in TERMINAL_STATUSES]
+    completed_tasks = [task for task in tasks if is_terminal_task_status(_status(task, "backlog"))]
     open_tasks = [task for task in tasks if task not in completed_tasks]
     blocked_tasks = [task for task in open_tasks if _status(task, "backlog") == "blocked"]
     overdue_tasks = [
@@ -84,7 +84,7 @@ def build_project_summary(
         if (deadline := _parse_datetime((task.entity_metadata or {}).get("due_at"), end_of_day=True)) is not None
         and deadline < current_time
     ]
-    completed_milestones = [milestone for milestone in milestones if _status(milestone, "planned") in TERMINAL_STATUSES]
+    completed_milestones = [milestone for milestone in milestones if _status(milestone, "planned") in TERMINAL_TASK_STATUSES]
 
     if tasks:
         progress = round(len(completed_tasks) / len(tasks) * 100, 1)
@@ -130,7 +130,7 @@ def build_project_summary(
     if override in {"on_track", "at_risk", "stalled", "paused", "completed"}:
         health = override
         reasons.append("Health was set manually for this project.")
-    elif project_status in {"done", "completed", "archived"}:
+    elif project_status in TERMINAL_TASK_STATUSES:
         health = "completed"
         reasons.append("Project is marked complete.")
     elif project_status == "paused":

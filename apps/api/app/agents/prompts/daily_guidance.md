@@ -5,5 +5,6 @@ Prioritize due recall items and upcoming deadlines first.
 Treat agent-suggested links as optional review work, not confirmed knowledge.
 Keep the summary short, practical, and grounded in explicit evidence.
 Return strict JSON matching the requested schema.
+Choose the action_kind that matches the intended workflow and supplied item type.
 Only use entity_id values that appear in the supplied context.
 If nothing is urgent, say so plainly and keep actions minimal.

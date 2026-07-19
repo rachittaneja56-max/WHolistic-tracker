@@ -5,44 +5,44 @@
 @layer base {
   :root {
     color-scheme: light;
-    --canvas: 248 250 252;
-    --surface: 255 255 255;
-    --surface-subtle: 241 245 249;
-    --border: 226 232 240;
-    --border-strong: 203 213 225;
-    --text: 15 23 42;
-    --text-secondary: 51 65 85;
-    --text-muted: 71 85 105;
-    --primary: 37 99 235;
-    --primary-strong: 29 78 216;
+    --canvas: 247 247 244;
+    --surface: 253 253 251;
+    --surface-subtle: 239 239 234;
+    --border: 224 224 216;
+    --border-strong: 200 200 190;
+    --text: 27 28 30;
+    --text-secondary: 65 67 67;
+    --text-muted: 103 105 101;
+    --primary: 79 70 229;
+    --primary-strong: 67 56 202;
     --primary-foreground: 255 255 255;
-    --success: 4 120 87;
-    --success-foreground: 4 120 87;
-    --warning: 180 83 9;
-    --warning-foreground: 180 83 9;
-    --danger: 220 38 38;
-    --danger-foreground: 185 28 28;
+    --success: 5 135 96;
+    --success-foreground: 5 120 85;
+    --warning: 184 93 12;
+    --warning-foreground: 161 78 8;
+    --danger: 211 53 65;
+    --danger-foreground: 184 38 51;
   }
 
   :root.dark {
     color-scheme: dark;
-    --canvas: 8 13 24;
-    --surface: 17 24 39;
-    --surface-subtle: 23 32 51;
-    --border: 37 48 71;
-    --border-strong: 51 65 85;
-    --text: 248 250 252;
-    --text-secondary: 203 213 225;
-    --text-muted: 148 163 184;
-    --primary: 96 165 250;
-    --primary-strong: 59 130 246;
-    --primary-foreground: 8 13 24;
-    --success: 52 211 153;
-    --success-foreground: 110 231 183;
-    --warning: 251 191 36;
-    --warning-foreground: 252 211 77;
-    --danger: 248 113 113;
-    --danger-foreground: 252 165 165;
+    --canvas: 15 16 18;
+    --surface: 21 22 25;
+    --surface-subtle: 29 30 34;
+    --border: 43 44 49;
+    --border-strong: 61 62 68;
+    --text: 244 244 241;
+    --text-secondary: 196 196 190;
+    --text-muted: 145 145 138;
+    --primary: 167 158 255;
+    --primary-strong: 139 128 245;
+    --primary-foreground: 21 20 28;
+    --success: 75 210 162;
+    --success-foreground: 91 220 174;
+    --warning: 246 183 83;
+    --warning-foreground: 250 198 111;
+    --danger: 250 112 126;
+    --danger-foreground: 255 143 155;
   }
 
   html {
@@ -59,6 +59,8 @@
     min-height: 100dvh;
     overflow-x: hidden;
     @apply bg-background font-sans text-secondary antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    letter-spacing: -0.006em;
   }
 
   #root {
@@ -71,6 +73,14 @@
 
   :focus-visible {
     scroll-margin: 6rem;
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
   }
 }
 
@@ -92,10 +102,30 @@
 
 .landing-grid {
   background-image:
-    linear-gradient(rgb(var(--border) / 0.58) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(var(--border) / 0.58) 1px, transparent 1px);
-  background-size: 42px 42px;
-  mask-image: linear-gradient(to bottom, black 15%, transparent 100%);
+    linear-gradient(rgb(var(--border) / 0.48) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--border) / 0.48) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at 50% 30%, black 5%, transparent 72%);
+}
+
+.dot-field {
+  background-image: radial-gradient(rgb(var(--primary) / 0.28) 1px, transparent 1px);
+  background-size: 18px 18px;
+  mask-image: linear-gradient(120deg, black, transparent 72%);
+}
+
+.app-workspace {
+  background-image:
+    radial-gradient(circle at 12% 0%, rgb(var(--primary) / 0.055), transparent 24rem),
+    linear-gradient(rgb(var(--canvas)), rgb(var(--canvas)));
+}
+
+.eyebrow {
+  @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-primary;
+}
+
+.section-rule {
+  @apply border-t border-border/70;
 }
 
 .landing-float {

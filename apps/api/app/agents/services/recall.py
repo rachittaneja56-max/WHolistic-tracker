@@ -20,6 +20,7 @@ from app.services.confidence import apply_recall_result, build_latest_review_map
 RECALL_DUE_CONFIDENCE_THRESHOLD = 0.72
 RECALL_DUE_STALE_DAYS = 10
 RECALL_DUE_EXAM_WINDOW_DAYS = 21
+DEFAULT_RECALL_ELIGIBLE_TYPES = frozenset({"note", "concept", "til", "subject_topic", "dsa_problem"})
 RECALL_RESULT_SCHEMA = {
     "title": "recall_grade_result",
     "type": "object",
@@ -84,6 +85,13 @@ def parse_exam_date(value: object) -> date | None:
     return None
 
 
+def is_recall_eligible(entity: Entity) -> bool:
+    override = (entity.entity_metadata or {}).get("recall_enabled")
+    if isinstance(override, bool):
+        return override
+    return entity.type in DEFAULT_RECALL_ELIGIBLE_TYPES
+
+
 def get_due_recall_items(
     db: Session,
     *,
@@ -97,16 +105,30 @@ def get_due_recall_items(
     if tag:
         entity_query = entity_query.where(Entity.tags.any(tag))
     entities = db.scalars(entity_query).all()
+    entities = [entity for entity in entities if is_recall_eligible(entity)]
+    parent_ids = {
+        entity.parent_id
+        for entity in entities
+        if entity.type == "subject_topic" and entity.parent_id is not None
+    }
+    parents = db.scalars(select(Entity).where(Entity.id.in_(parent_ids))).all() if parent_ids else []
+    parent_by_id = {parent.id: parent for parent in parents}
     due_items: list[RecallDueItem] = []
 
     for entity in entities:
-        current_confidence = calculate_entity_confidence(entity, latest_reviews.get(entity.id), current_time)
+        latest_review = latest_reviews.get(entity.id)
+        current_confidence = calculate_entity_confidence(entity, latest_review, current_time)
         reference_time = entity.last_revisited_at or entity.created_at
         days_since_review: int | None = None
         if reference_time is not None:
             days_since_review = max(int((current_time - reference_time).total_seconds() // 86_400), 0)
 
-        exam_date = parse_exam_date((entity.entity_metadata or {}).get("exam_date"))
+        metadata = entity.entity_metadata or {}
+        exam_date = parse_exam_date(metadata.get("exam_date"))
+        if exam_date is None and entity.type == "subject_topic" and entity.parent_id is not None:
+            parent = parent_by_id.get(entity.parent_id)
+            if parent is not None and parent.type == "subject_topic":
+                exam_date = parse_exam_date((parent.entity_metadata or {}).get("exam_date"))
         days_until_exam: int | None = None
         if exam_date is not None:
             days_until_exam = (exam_date - current_time.date()).days
@@ -122,14 +144,29 @@ def get_due_recall_items(
             due_score += min(days_since_review / 7, 6)
             due_reasons.append(f"Last revisited {days_since_review} days ago.")
 
-        if days_until_exam is not None and days_until_exam <= RECALL_DUE_EXAM_WINDOW_DAYS:
-            due_score += max(0.0, (RECALL_DUE_EXAM_WINDOW_DAYS - max(days_until_exam, 0)) / 3)
-            if days_until_exam < 0:
-                due_reasons.append("The related exam date has already passed.")
-            elif days_until_exam == 0:
+        if days_until_exam is not None and 0 <= days_until_exam <= RECALL_DUE_EXAM_WINDOW_DAYS:
+            due_score += (RECALL_DUE_EXAM_WINDOW_DAYS - days_until_exam) / 3
+            if days_until_exam == 0:
                 due_reasons.append("The related exam date is today.")
             else:
                 due_reasons.append(f"Exam date is in {days_until_exam} days.")
+
+        review_date = parse_exam_date(metadata.get("review_date")) if entity.type == "dsa_problem" else None
+        review_already_completed = bool(
+            review_date is not None
+            and latest_review is not None
+            and latest_review.reviewed_at is not None
+            and latest_review.reviewed_at.date() >= review_date
+        )
+        if review_date is not None and review_date <= current_time.date() and not review_already_completed:
+            days_overdue = (current_time.date() - review_date).days
+            due_score += 5 + min(days_overdue / 7, 4)
+            if days_overdue == 0:
+                due_reasons.append("The scheduled DSA review date is today.")
+            else:
+                due_reasons.append(
+                    f"The scheduled DSA review was due {days_overdue} day{'s' if days_overdue != 1 else ''} ago."
+                )
 
         if due_score <= 0:
             continue

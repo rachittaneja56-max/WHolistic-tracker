@@ -106,7 +106,7 @@ export function taskStatus(entity: Entity) {
 }
 
 export function taskIsDone(entity: Entity) {
-  return ["done", "completed", "submitted", "cancelled"].includes(taskStatus(entity).toLowerCase())
+  return ["done", "completed", "submitted", "cancelled", "archived"].includes(taskStatus(entity).toLowerCase())
 }
 
 export function taskIsOverdue(entity: Entity) {

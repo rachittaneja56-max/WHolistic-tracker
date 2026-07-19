@@ -130,6 +130,43 @@ export type GraphQuery = {
   min_confidence?: number
 }
 
+
+export type AgendaFilter = "coursework" | "projects" | "dsa" | "revision"
+export type AgendaAction = "complete" | "snooze" | "reschedule" | "mark_blocked" | "open" | "start"
+export type AgendaItem = {
+  id: string
+  kind: "task" | "assignment" | "exam" | "study" | "recall" | "comprehension" | "project"
+  source_entity_id: string | null
+  source_type: string
+  context: { id: string | null; type: string | null; title: string | null } | null
+  title: string
+  description: string | null
+  start_at: string | null
+  deadline: string | null
+  estimated_minutes: number | null
+  priority: WorkPriority
+  urgency: "overdue" | "today" | "upcoming" | "unscheduled"
+  recommendation_reason: string
+  status: string
+  destination: "entity" | "project" | "subject" | "recall" | "comprehension"
+  destination_id: string | null
+  allowed_actions: AgendaAction[]
+  filters: AgendaFilter[]
+}
+export type AgendaPreview = { total: number; items: AgendaItem[] }
+export type TodayAgenda = {
+  start_date: string
+  end_date: string
+  totals: { total_items: number; overdue_items: number; scheduled_items: number; unscheduled_items: number; recall_items: number; comprehension_items: number; planned_minutes: number }
+  capacity: { available_minutes: number | null; scheduled_minutes: number; is_over_capacity: boolean }
+  recommended: AgendaItem | null
+  overdue: AgendaPreview
+  today: AgendaPreview
+  upcoming: AgendaPreview
+  unscheduled: AgendaPreview
+  recall: AgendaPreview
+  comprehension: AgendaPreview
+}
 export type SessionRecord = {
   id: string
   entity_id: string | null
@@ -216,6 +253,12 @@ export type ReviewInboxLink = {
 }
 
 export type DashboardToday = {
+  totals: {
+    open_tasks: number
+    upcoming_exams: number
+    projects_needing_attention: number
+    due_recall: number
+  }
   recent_entities: Entity[]
   recent_sessions: SessionRecord[]
   open_tasks: Entity[]
@@ -392,11 +435,14 @@ export type AnalystWeekly = {
 }
 
 export type DailyGuidanceAction = {
+  action_kind: GuidanceActionKind
   label: string
   reason: string
   entity_id: string | null
   priority: GuidancePriority
 }
+
+export type GuidanceActionKind = "start_recall" | "open_task" | "open_project" | "study_subject" | "review_connection" | "open_comprehension"
 
 export type DailyGuidance = {
   date: string
@@ -819,6 +865,10 @@ export function rejectLink(linkId: string) {
   return request<Link>(`/links/${linkId}/reject`, {
     method: "POST",
   })
+}
+
+export function getTodayAgenda(startDate?: string, endDate?: string, previewLimit = 8) {
+  return request<TodayAgenda>(`/dashboard/agenda${buildQueryString({ start_date: startDate, end_date: endDate, preview_limit: previewLimit })}`)
 }
 
 export function getDashboardToday() {

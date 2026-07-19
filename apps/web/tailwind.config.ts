@@ -44,11 +44,12 @@ const config: Config = {
         },
       },
       boxShadow: {
-        panel: "0 18px 50px rgb(15 23 42 / 0.12)",
+        panel: "0 22px 70px rgb(20 20 24 / 0.12)",
+        soft: "0 1px 2px rgb(20 20 24 / 0.04), 0 8px 24px rgb(20 20 24 / 0.05)",
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "monospace"],
       },
     },
   },
