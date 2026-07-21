@@ -178,7 +178,7 @@ export function GraphPage() {
   const { refreshEntities, upsertEntityInList } = useOutletContext<EntitiesLayoutContext>()
   const containerRef = useRef<HTMLDivElement | null>(null)
 
-  const [graph, setGraph] = useState<GraphPayload>({ nodes: [], edges: [] })
+  const [graph, setGraph] = useState<GraphPayload>({ nodes: [], edges: [], total_nodes: 0, truncated: false })
   const [filters, setFilters] = useState<GraphFilters>({ type: "all", tag: "", minConfidence: "0" })
   const [draftFilters, setDraftFilters] = useState<GraphFilters>({ type: "all", tag: "", minConfidence: "0" })
   const [selection, setSelection] = useState<GraphSelection>(null)
@@ -244,7 +244,7 @@ export function GraphPage() {
       setGraph(result)
     } catch (loadError) {
       setError(getErrorMessage(loadError))
-      setGraph({ nodes: [], edges: [] })
+      setGraph({ nodes: [], edges: [], total_nodes: 0, truncated: false })
     } finally {
       setIsLoading(false)
     }
@@ -488,6 +488,7 @@ export function GraphPage() {
 
             {isLoading ? <p className="text-sm text-muted-foreground">Loading graph...</p> : null}
             {error ? <p className="text-sm text-danger">{error}</p> : null}
+            {graph.truncated ? <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning-foreground" role="status">Showing the first {graph.nodes.length.toLocaleString()} of {graph.total_nodes.toLocaleString()} matching entities. Refine the filters before opening a larger graph.</p> : null}
 
             {!isInteractiveGraphVisible ? (
               <section className="space-y-3 md:hidden" aria-labelledby="mobile-graph-list-title">
@@ -551,7 +552,7 @@ export function GraphPage() {
             </> : null}
 
             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-              <span className="font-mono">Nodes: {graph.nodes.length}</span>
+              <span className="font-mono">Nodes: {graph.nodes.length}{graph.truncated ? ` of ${graph.total_nodes}` : ""}</span>
               <span className="font-mono">Confirmed edges: {graph.edges.length}</span>
               <span>Low-confidence nodes fade using their current `confidence_score`.</span>
             </div>

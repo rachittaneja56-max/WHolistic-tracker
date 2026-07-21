@@ -17,6 +17,7 @@ def get_graph(
     entity_type: str | None = Query(default=None, alias="type"),
     tag: str | None = Query(default=None),
     min_confidence: float | None = Query(default=None, ge=0.0, le=1.0),
+    limit: int = Query(default=250, ge=1, le=500),
     db: Session = Depends(get_db),
 ) -> GraphRead:
     entity_query = select(Entity).order_by(Entity.created_at.asc())
@@ -28,9 +29,10 @@ def get_graph(
     if min_confidence is not None:
         entity_query = entity_query.where(func.coalesce(Entity.confidence_score, 1.0) >= min_confidence)
 
-    entities = db.scalars(entity_query).all()
+    total_nodes = db.scalar(entity_query.with_only_columns(func.count()).order_by(None)) or 0
+    entities = db.scalars(entity_query.limit(limit)).all()
     if not entities:
-        return GraphRead(nodes=[], edges=[])
+        return GraphRead(nodes=[], edges=[], total_nodes=0, truncated=False)
 
     entity_ids = [entity.id for entity in entities]
     edges = db.scalars(
@@ -65,4 +67,6 @@ def get_graph(
             )
             for edge in edges
         ],
+        total_nodes=total_nodes,
+        truncated=total_nodes > len(entities),
     )

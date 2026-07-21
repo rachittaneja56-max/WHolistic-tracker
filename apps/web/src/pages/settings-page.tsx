@@ -131,6 +131,7 @@ export function SettingsPage() {
 
   function clearDrafts() {
     Object.keys(localStorage).filter((key) => key.startsWith("personal-dev-kg:entity-draft:")).forEach((key) => localStorage.removeItem(key))
+    Object.keys(sessionStorage).filter((key) => key.startsWith("pdkg:capture-draft:v1:")).forEach((key) => sessionStorage.removeItem(key))
     setMessage("Browser drafts cleared.")
   }
 
@@ -161,6 +162,7 @@ export function SettingsPage() {
       await deleteOwnAccount(confirmation)
       invalidateSettingsStatus()
       Object.keys(localStorage).filter((key) => key.startsWith("personal-dev-kg:entity-draft:")).forEach((key) => localStorage.removeItem(key))
+    Object.keys(sessionStorage).filter((key) => key.startsWith("pdkg:capture-draft:v1:")).forEach((key) => sessionStorage.removeItem(key))
       await logout().catch(() => undefined)
       window.location.assign("/")
     } catch (value) {

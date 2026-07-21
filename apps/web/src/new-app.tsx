@@ -21,6 +21,7 @@ const GraphPage = lazy(() => import("@/pages/graph-page").then((module) => ({ de
 const InsightsPage = lazy(() => import("@/pages/insights-page").then((module) => ({ default: module.InsightsPage })))
 const InvitePage = lazy(() => import("@/pages/invite-page").then((module) => ({ default: module.InvitePage })))
 const LandingPage = lazy(() => import("@/pages/landing-page").then((module) => ({ default: module.LandingPage })))
+const LegalPage = lazy(() => import("@/pages/legal-page").then((module) => ({ default: module.LegalPage })))
 const LearnPage = lazy(() => import("@/pages/learn-page").then((module) => ({ default: module.LearnPage })))
 const LibraryPage = lazy(() => import("@/pages/library-page").then((module) => ({ default: module.LibraryPage })))
 const LoginPage = lazy(() => import("@/pages/login-page").then((module) => ({ default: module.LoginPage })))
@@ -101,6 +102,8 @@ function AppRoutes() {
     <Route path="/login" element={<PublicLogin />} />
     <Route path="/signup" element={<PublicSignup />} />
     <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+    <Route path="/privacy" element={<LegalPage kind="privacy" />} />
+    <Route path="/terms" element={<LegalPage kind="terms" />} />
     <Route path="/invite" element={<InvitePage />} />
     <Route path="/reset-password" element={<ResetPasswordPage />} />
     <Route element={<RequireAuth />}>

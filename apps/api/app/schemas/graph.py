@@ -34,6 +34,8 @@ class GraphRead(BaseModel):
 
     nodes: list[GraphNodeRead] = Field(default_factory=list)
     edges: list[GraphEdgeRead] = Field(default_factory=list)
+    total_nodes: int = Field(default=0, ge=0)
+    truncated: bool = False
 
 
 class DecayConfidenceJobRead(BaseModel):

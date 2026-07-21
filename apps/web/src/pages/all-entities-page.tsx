@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link, useOutletContext } from "react-router-dom"
+import { Link, useOutletContext, useSearchParams } from "react-router-dom"
 import { Bookmark, BookmarkCheck, Search, SlidersHorizontal, X } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"

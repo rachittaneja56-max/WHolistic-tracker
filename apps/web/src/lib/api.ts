@@ -124,12 +124,15 @@ export type GraphEdge = {
 export type GraphPayload = {
   nodes: GraphNode[]
   edges: GraphEdge[]
+  total_nodes: number
+  truncated: boolean
 }
 
 export type GraphQuery = {
   type?: EntityType
   tag?: string
   min_confidence?: number
+  limit?: number
 }
 
 

@@ -10,6 +10,7 @@ The current build includes:
 - Phase 4 rich content support, GitHub webhook activity, PR-to-TIL drafts, and comprehension checks.
 - Phase 5 weekly digest, tag taxonomy, analytics, CI visibility, and the weekly analyst brief.
 - Project Tracker V2 with portfolio health, milestone workspaces, a dependency-aware delivery board, timelines, activity evidence, and task-to-learning capture.
+- Phase 7 release hardening: command palette and shortcuts, browser-local interrupted-capture recovery, public legal routes, automated visual accessibility checks, and PWA cache safeguards.
 
 ## Architecture
 

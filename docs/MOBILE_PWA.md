@@ -49,3 +49,11 @@ Replace the example hosts and credentials with the deployment's real values. `VI
 After deployment, install the app from a supported browser, launch the Today and Quick Capture shortcuts, and share a text snippet and URL into Personal Dev KG. If the platform does not expose web share targets, open Quick Capture from the app and paste the content normally.
 
 Offline writes are intentionally unsupported. The UI may load its static shell without a connection, but it must not cache private API responses or queue captures on the device.
+
+## Release verification checklist
+
+Before release, run the web test suite, production build, and `npm run qa:visual`. The visual QA checks the landing page at 375px, 768px, and 1440px in both color themes, validates a single `h1`, main landmark, skip link, named controls, reduced-motion rendering, and horizontal overflow.
+
+Manual authenticated verification remains required for the student workflows: semester/course capture, focus and reflection, DSA recall, project TIL, cross-semester search, overload replanning, and AI proposal review. Use a non-production test account. Confirm that `Ctrl/Cmd+K` opens command search and `Ctrl/Cmd+Shift+C` opens capture. Interrupted captures recover from user-scoped browser session storage and clear when the browser session ends; do not use that feature for sensitive material on a shared device.
+
+PWA acceptance requires HTTPS: install the app, launch both Home and Capture shortcuts, test a share into Capture, deny notification permission by default, and confirm no private API or auth response appears in service-worker caches.

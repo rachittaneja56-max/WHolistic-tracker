@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { BookOpen, BriefcaseBusiness, CheckSquare2, Code2, Lightbulb, LockKeyhole, NotebookPen } from "lucide-react"
 import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom"
 
@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { buildCapturePayload, type CaptureFlow } from "@/features/capture/capture-payload"
+import { clearCaptureDraft, hasCaptureDraftContent, readCaptureDraft, saveCaptureDraft } from "@/features/capture/capture-draft"
+import { useAuth } from "@/features/auth/auth-context"
 import { academicKindOptions, normalizeCapturePrefill, type AcademicKind } from "@/features/capture/capture-prefill"
 import type { EntitiesLayoutContext } from "@/features/entities/layout-context"
 import { createEntity, recordProductEvent } from "@/lib/api"
@@ -55,27 +57,32 @@ function errorMessage(error: unknown) {
 
 export function CapturePage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const { entities, isEntitiesLoading, entitiesError, refreshEntities, addEntityToList } = useOutletContext<EntitiesLayoutContext>()
   const [searchParams] = useSearchParams()
   const searchKey = searchParams.toString()
   const prefill = useMemo(() => normalizeCapturePrefill(new URLSearchParams(searchKey)), [searchKey])
   const templateContent = noteTemplates[searchParams.get("template") ?? ""] ?? ""
   const initialFlow = flowFromQuery(searchParams.get("type"))
-  const [flow, setFlow] = useState<CaptureFlow>(initialFlow)
-  const [title, setTitle] = useState(prefill.title)
-  const [content, setContent] = useState(prefill.content || templateContent)
-  const [tags, setTags] = useState(prefill.tags)
-  const [parentId, setParentId] = useState(prefill.parentId)
-  const [academicKind, setAcademicKind] = useState<AcademicKind>(prefill.academicKind ?? "assignment")
-  const [dueAt, setDueAt] = useState("")
-  const [examDate, setExamDate] = useState("")
-  const [difficulty, setDifficulty] = useState("unset")
-  const [status, setStatus] = useState("unsolved")
-  const [priority, setPriority] = useState("medium")
-  const [sourceUrl, setSourceUrl] = useState(searchParams.get("url") ?? "")
-  const [aiExclude, setAiExclude] = useState(false)
+  const suppliedContent = Boolean(prefill.title || prefill.content || templateContent || searchParams.get("url"))
+  const storedDraft = useMemo(() => suppliedContent ? null : readCaptureDraft(user?.id), [suppliedContent, user?.id])
+  const [flow, setFlow] = useState<CaptureFlow>(storedDraft?.flow ?? initialFlow)
+  const [title, setTitle] = useState(storedDraft?.title ?? prefill.title)
+  const [content, setContent] = useState((storedDraft?.content ?? prefill.content) || templateContent)
+  const [tags, setTags] = useState(storedDraft?.tags ?? prefill.tags)
+  const [parentId, setParentId] = useState(storedDraft?.parentId ?? prefill.parentId)
+  const [academicKind, setAcademicKind] = useState<AcademicKind>((storedDraft?.academicKind ?? prefill.academicKind ?? "assignment") as AcademicKind)
+  const [dueAt, setDueAt] = useState(storedDraft?.dueAt ?? "")
+  const [examDate, setExamDate] = useState(storedDraft?.examDate ?? "")
+  const [difficulty, setDifficulty] = useState(storedDraft?.difficulty ?? "unset")
+  const [status, setStatus] = useState(storedDraft?.status ?? "unsolved")
+  const [priority, setPriority] = useState(storedDraft?.priority ?? "medium")
+  const [sourceUrl, setSourceUrl] = useState(storedDraft?.sourceUrl ?? searchParams.get("url") ?? "")
+  const [aiExclude, setAiExclude] = useState(storedDraft?.aiExclude ?? false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [recoveredDraft, setRecoveredDraft] = useState(Boolean(storedDraft))
+  const restoredDraftFor = useRef<string | null>(storedDraft && user?.id ? user.id : null)
 
   const active = useMemo(() => flows.find((item) => item.id === flow) ?? flows[0], [flow])
   const taskParents = useMemo(
@@ -92,6 +99,32 @@ export function CapturePage() {
   useEffect(() => {
     void refreshEntities()
   }, [refreshEntities])
+
+  useEffect(() => {
+    if (suppliedContent || !user?.id || restoredDraftFor.current === user.id) return
+    const draft = readCaptureDraft(user.id)
+    restoredDraftFor.current = user.id
+    if (!draft) return
+    setFlow(draft.flow)
+    setTitle(draft.title)
+    setContent(draft.content)
+    setTags(draft.tags)
+    setParentId(draft.parentId)
+    setAcademicKind(draft.academicKind as AcademicKind)
+    setDueAt(draft.dueAt)
+    setExamDate(draft.examDate)
+    setDifficulty(draft.difficulty)
+    setStatus(draft.status)
+    setPriority(draft.priority)
+    setSourceUrl(draft.sourceUrl)
+    setAiExclude(draft.aiExclude)
+    setRecoveredDraft(true)
+  }, [suppliedContent, user?.id])
+
+  useEffect(() => {
+    const draft = { flow, title, content, tags, parentId, academicKind, dueAt, examDate, difficulty, status, priority, sourceUrl, aiExclude }
+    if (user?.id && hasCaptureDraftContent(draft)) saveCaptureDraft(user.id, draft)
+  }, [flow, title, content, tags, parentId, academicKind, dueAt, examDate, difficulty, status, priority, sourceUrl, aiExclude, user?.id])
 
   function chooseFlow(nextFlow: CaptureFlow) {
     setFlow(nextFlow)
@@ -131,6 +164,7 @@ export function CapturePage() {
         aiExclude,
       }))
       addEntityToList(entity)
+      clearCaptureDraft(user?.id)
       void recordProductEvent("first_capture", { item_type: flow, source: "web" }).catch(() => undefined)
       navigate(`/knowledge/entities/${entity.id}`)
     } catch (saveError) {
@@ -145,6 +179,7 @@ export function CapturePage() {
         <p className="text-sm font-medium text-primary">Global capture</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">What are you working on?</h1>
         <p className="mt-2 max-w-2xl text-sm text-secondary">Choose a familiar activity. Personal Dev KG derives the entity and content format for you.</p>
+        {recoveredDraft ? <p className="mt-2 text-xs text-muted-foreground">Recovered your browser-session draft. It is scoped to this signed-in account and clears when the browser session ends.</p> : null}
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" role="radiogroup" aria-label="Capture type">
@@ -252,7 +287,7 @@ export function CapturePage() {
 
             {error ? <p className="text-sm text-danger" role="alert">{error}</p> : null}
             <div className="flex items-center justify-end gap-3">
-              <Button type="button" variant="ghost" onClick={() => navigate(-1)}>Cancel</Button>
+              <Button type="button" variant="ghost" onClick={() => { clearCaptureDraft(user?.id); navigate(-1) }}>Cancel</Button>
               <Button type="submit" disabled={saving || !title.trim()}>{saving ? "Saving..." : `Save ${active.label.toLowerCase()}`}</Button>
             </div>
           </form>

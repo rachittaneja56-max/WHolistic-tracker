@@ -4,6 +4,7 @@ import { X } from "lucide-react"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { AppTopbar } from "@/components/app-topbar"
+import { CommandPalette } from "@/components/command-palette"
 import { MobileNavigation } from "@/components/mobile-navigation"
 import { WebVitalsReporter } from "@/components/web-vitals-reporter"
 import { Button } from "@/components/ui/button"
@@ -99,6 +100,7 @@ export function ModernAppShell({ children }: { children: ReactNode; [key: string
 
   return <AssistantSettingsContext.Provider value={aiStatus}>
     <WebVitalsReporter />
+    <CommandPalette />
     <a href="#main-content" className="skip-link">Skip to main content</a>
     <div className="app-workspace min-h-dvh text-secondary">
       <div className="fixed inset-y-0 left-0 z-40 hidden md:block"><AppSidebar collapsed={collapsed} onToggle={toggle} aiStatus={aiStatus} /></div>

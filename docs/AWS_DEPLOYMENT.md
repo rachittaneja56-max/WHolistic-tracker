@@ -462,6 +462,18 @@ Run these checks immediately after the first deploy:
 - a browser refresh on a deep route still works
 - the PWA manifest and service worker are served correctly
 
+## Release-readiness gates
+
+Before making the production workspace available beyond the intended test group:
+
+- run `alembic upgrade head`, including the searchable-workspace migration;
+- run the backend, web, auth, and extension test/build matrix plus public and authenticated visual QA;
+- install the PWA over HTTPS, verify Home and Capture shortcuts, and share a text snippet into Capture;
+- verify that authenticated API and auth responses are absent from service-worker caches;
+- obtain product/legal approval for the exact copy published at `/privacy` and `/terms`.
+
+The last item is an explicit launch gate. The application supplies the routes and draft copy, but deployment owners must replace or approve it for their jurisdiction, contact details, retention policy, and AI-provider disclosures.
+
 ## AWS-specific pitfalls for this repo
 
 ### Better Auth secret rotation can break JWKS

@@ -125,7 +125,7 @@ def confirm(payload: DailyPlanRequest, db: Session = Depends(get_db)) -> DailyPl
     for block in payload.blocks: entity_or_404(db, block.entity_id)
     db.add(ActivitySession(id=uuid.uuid4(), entity_id=None, action="daily_plan", date=datetime.combine(day,time.min,tzinfo=timezone.utc), meta={"available_minutes":payload.available_minutes,"source":"daily_plan"}))
     for block in payload.blocks: db.add(ActivitySession(id=uuid.uuid4(), entity_id=block.entity_id, action=STUDY, date=block.start_at, meta={"planned_minutes":block.planned_minutes,"duration_minutes":block.planned_minutes,"source":block.source,"status":"planned"}))
-    db.commit(); value = plan(db, day, payload.available_minutes); return DailyPlanRead(**value.model_dump(), blocks=[read_block(row) for row in blocks(db, day)])
+    db.commit(); value = plan(db, day, payload.available_minutes); return DailyPlanRead(**value.model_dump(exclude={"blocks"}), blocks=[read_block(row) for row in blocks(db, day)])
 @router.post("/study-blocks/{session_id}/{action}", response_model=StudyBlockRead)
 def study_block(session_id: uuid.UUID, action: str, payload: StudyBlockInput | None = None, db: Session = Depends(get_db)) -> StudyBlockRead:
     row = db.get(ActivitySession, session_id)
@@ -135,4 +135,4 @@ def study_block(session_id: uuid.UUID, action: str, payload: StudyBlockInput | N
     elif action == "reschedule" and payload:
         entity_or_404(db, payload.entity_id); row.entity_id, row.date = payload.entity_id, payload.start_at; meta.update(status="planned", planned_minutes=payload.planned_minutes, duration_minutes=payload.planned_minutes, source=payload.source)
     else: raise HTTPException(400, "Reschedule details are required")
-    row.meta = meta; db.commit(); db.refresh(row); return read_block(row)
+    row.meta = meta; db.commit(); db.refresh(row); return read_block(row)

@@ -303,11 +303,11 @@ export function SubjectDetailPage() {
     </section>
 
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.75fr)]">
-      <main className="min-w-0 space-y-4">
+      <section className="min-w-0 space-y-4">
         <TaskList tasks={tasks} subjectId={subjectId} />
         <TopicTable topics={topics} dueReviews={dueReviews} subjectId={subjectId} />
         <RecentActivity sessions={recentSessions} />
-      </main>
+      </section>
 
       <aside className="space-y-4">
         <Card>

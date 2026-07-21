@@ -14,7 +14,7 @@ def upgrade() -> None:
     op.execute("UPDATE entities SET updated_at = COALESCE(updated_at, created_at, now())")
     op.create_index("ix_entities_user_updated", "entities", ["user_id", "updated_at", "id"])
     op.create_index("ix_entities_user_created", "entities", ["user_id", "created_at", "id"])
-    op.execute("CREATE INDEX ix_entities_search_tsv ON entities USING gin (to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(content, '') || ' ' || coalesce(array_to_string(tags, ' '), '')))")
+    op.execute("CREATE INDEX ix_entities_search_tsv ON entities USING gin (to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(content, '')))")
 
 
 def downgrade() -> None:

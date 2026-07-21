@@ -13,6 +13,19 @@ type PreferencesContextValue = {
 const defaults: WorkspacePreferences = { theme: "system", onboarding_completed: false, learning_focuses: [], hidden_modules: [], typical_study_minutes: 90, preferred_focus_minutes: 45, max_daily_workload_minutes: 240, active_semester: null, library_saved_views: [], library_pinned_entity_ids: [] }
 const PreferencesContext = createContext<PreferencesContextValue | null>(null)
 
+function normalizePreferences(value: Partial<WorkspacePreferences> | null | undefined): WorkspacePreferences {
+  return {
+    ...defaults,
+    ...value,
+    theme: value?.theme === "light" || value?.theme === "dark" || value?.theme === "system" ? value.theme : defaults.theme,
+    learning_focuses: Array.isArray(value?.learning_focuses) ? value.learning_focuses : defaults.learning_focuses,
+    hidden_modules: Array.isArray(value?.hidden_modules) ? value.hidden_modules : defaults.hidden_modules,
+    library_saved_views: Array.isArray(value?.library_saved_views) ? value.library_saved_views : defaults.library_saved_views,
+    library_pinned_entity_ids: Array.isArray(value?.library_pinned_entity_ids) ? value.library_pinned_entity_ids : defaults.library_pinned_entity_ids,
+  }
+}
+
+
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const { setTheme } = useTheme()
